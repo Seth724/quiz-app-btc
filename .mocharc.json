@@ -1,0 +1,10 @@
+{
+  "require": ["source-map-support/register"],
+  "node-option": ["experimental-specifier-resolution=node"],
+  "timeout": 30000,
+  "spec": [
+    "packages/quiz-contracts/dist/test/*.test.js"
+  ],
+  "reporter": "mocha-multi",
+  "reporter-option": ["spec=-", "json=test-results.json"]
+}

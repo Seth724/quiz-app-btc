@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.local
+
+# Compiled output
+dist/
+build/
+
+# TypeScript
+*.tsbuildinfo
+
+# Test results
+test-results.json
+
+# Logs
+*.log
+
+# Cache
+.turbo/
