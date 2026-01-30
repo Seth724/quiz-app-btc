@@ -12,6 +12,7 @@ import { QuizHelper } from '../src/helpers/quiz-helper-fixed.js'
 import { Payment } from '../src/payment.js'
 
 // Load environment variables
+//comment
 config()
 
 // Get configuration from environment
