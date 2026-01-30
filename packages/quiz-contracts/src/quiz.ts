@@ -20,8 +20,9 @@ export class Quiz extends Contract {
   duration?: number
   attemptedStudents!: string[]
   attempts!: string[]
-  paymentTxId?: string // Optional payment transaction ID for rewards
-  
+  paymentTxIds!: string[] // Array of payment transaction IDs for each question
+  questionRewardsClaimed!: boolean[] // Track which questions have been claimed
+
   constructor({
     title,
     description,
@@ -29,7 +30,7 @@ export class Quiz extends Contract {
     rewardPerCorrect,
     teacherPublicKey,
     duration,
-    paymentTxId
+    paymentTxIds
   }: {
     title: string
     description: string
@@ -37,7 +38,7 @@ export class Quiz extends Contract {
     rewardPerCorrect: bigint
     teacherPublicKey: string
     duration?: number
-    paymentTxId?: string
+    paymentTxIds?: string[]
   }) {
     super({
       _owners: [teacherPublicKey],
@@ -54,7 +55,8 @@ export class Quiz extends Contract {
       duration,
       attemptedStudents: [],
       attempts: [],
-      paymentTxId
+      paymentTxIds: paymentTxIds || [], // Initialize with empty array if not provided
+      questionRewardsClaimed: Array(questions.length).fill(false) // Initialize all questions as unclaimed
     })
   }
 
@@ -74,7 +76,7 @@ export class Quiz extends Contract {
     if (this.hasStudentAttempted(studentPublicKey)) {
       throw new Error('Student has already attempted this quiz')
     }
-    
+
     this.attemptedStudents.push(studentPublicKey)
   }
 
@@ -83,7 +85,7 @@ export class Quiz extends Contract {
     if (!this.isActive) {
       throw new Error('Quiz is not active')
     }
-    
+
     return this.questionTexts.map((text, index) => ({
       text,
       options: this.questionOptions[index]
@@ -101,5 +103,41 @@ export class Quiz extends Contract {
       options: this.questionOptions[index],
       correctAnswer: this.correctAnswers[index]
     }))
+  }
+
+  // Check if a specific question reward has been claimed
+  isQuestionRewardClaimed(questionIndex: number): boolean {
+    if (questionIndex < 0 || questionIndex >= this.questionRewardsClaimed.length) {
+      throw new Error('Invalid question index')
+    }
+    return this.questionRewardsClaimed[questionIndex]
+  }
+
+  // Claim a reward for a specific question if not already claimed
+  claimQuestionReward(questionIndex: number, _studentPublicKey: string): boolean {
+    if (questionIndex < 0 || questionIndex >= this.questionRewardsClaimed.length) {
+      throw new Error('Invalid question index')
+    }
+
+    if (this.questionRewardsClaimed[questionIndex]) {
+      return false // Already claimed by someone else
+    }
+
+    // Mark the question as claimed
+    this.questionRewardsClaimed[questionIndex] = true
+    return true
+  }
+
+  // Get the payment transaction ID for a specific question
+  getPaymentTxIdForQuestion(questionIndex: number): string | undefined {
+    if (questionIndex < 0 || questionIndex >= this.paymentTxIds.length) {
+      return undefined
+    }
+    return this.paymentTxIds[questionIndex]
+  }
+
+  // Simple method to check if a student can attempt the quiz
+  canStudentAttempt(studentPublicKey: string): boolean {
+    return !this.hasStudentAttempted(studentPublicKey) && this.isActive
   }
 }

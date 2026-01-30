@@ -1,5 +1,4 @@
 import { Contract } from '@bitcoin-computer/lib'
-import { QuizAttempt } from './attempt.js'
 import type { Quiz } from './quiz.js'
 
 export class Student extends Contract {

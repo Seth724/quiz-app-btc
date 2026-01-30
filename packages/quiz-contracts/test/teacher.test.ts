@@ -18,7 +18,6 @@ const basePath = process.env.NEXT_PUBLIC_PATH || "m/44'/0'/0'/0"
 
 const { expect } = chai
 chai.use(chaiMatchPattern)
-const _ = chaiMatchPattern.getLodashModule()
 
 describe('Teacher Contract', function () {
   let teacherComputer: Computer
@@ -65,10 +64,12 @@ describe('Teacher Contract', function () {
     console.log('Created quizzes count:', teacher.createdQuizzes.length)
     console.log('Registration time:', new Date(teacher.registeredAt).toISOString())
     
+    /* eslint-disable @typescript-eslint/no-unused-expressions */
     expect(teacher.name).to.equal('Professor Smith')
     expect(teacher.publicKey).to.be.a('string')
     expect(teacher.createdQuizzes).to.be.an('array').that.is.empty
     expect(teacher.registeredAt).to.be.a('number')
+    /* eslint-enable @typescript-eslint/no-unused-expressions */
     console.log('✅ Teacher registration test passed')
   })
 

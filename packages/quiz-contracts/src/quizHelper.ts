@@ -1,198 +1,203 @@
-import { Computer } from '@bitcoin-computer/lib'
-import { Quiz, Question } from './quiz'
-import { QuizAttempt } from './attempt'
-import { Teacher } from './teacher'
-import { Student } from './student'
-import { Payment } from './payment'
-import { ContractUtils } from './utils/mineblock'
+// import { Computer } from '@bitcoin-computer/lib'
+// import { Quiz, Question } from './quiz.js'
+// import { QuizAttempt } from './attempt.js'
+// import { Teacher } from './teacher.js'
+// import { Student } from './student.js'
+// import { Payment, PaymentHelper } from './payment.js'
+// import { ContractUtils } from './utils/mineblock.js'
 
-export class QuizHelper {
-  computer: Computer
-  paymentHelper: any // Payment helper for deployment
-  
-  constructor(computer: Computer) {
-    this.computer = computer
-    this.paymentHelper = { mod: null } // Initialize payment helper
-  }
+// export class QuizHelper {
+//   computer: Computer
+//   paymentHelper: PaymentHelper
 
-  /**
-   * Deploy payment module (for testing)
-   */
-  async deployPaymentModule(): Promise<string> {
-    const paymentModSpec = process.env.NEXT_PUBLIC_PAYMENT_MOD_SPEC
-    if (paymentModSpec) {
-      this.paymentHelper.mod = paymentModSpec
-      return paymentModSpec
-    }
-    
-    // If no deployed module, deploy a new one
-    const deployedMod = await this.computer.deploy(`
-import { Contract } from '@bitcoin-computer/lib'
+//   constructor(computer: Computer) {
+//     this.computer = computer
+//     this.paymentHelper = new PaymentHelper(computer)
+//   }
 
-export class Payment extends Contract {
-  constructor(amount) {
-    super({}, amount)
-  }
-}`)
-    
-    this.paymentHelper.mod = deployedMod
-    return deployedMod
-  }
+//   /**
+//    * Deploy payment module (for testing)
+//    */
+//   async deployPaymentModule(): Promise<string> {
+//     const paymentModSpec = process.env.NEXT_PUBLIC_PAYMENT_MOD_SPEC
+//     if (paymentModSpec) {
+//       this.paymentHelper.mod = paymentModSpec
+//       return paymentModSpec
+//     }
 
-  /**
-   * Teacher creates a quiz with locked payment for total rewards
-   */
-  async createQuizWithPayment(params: {
-    title: string
-    description: string
-    questions: Question[]
-    rewardPerCorrect: bigint
-    teacherPublicKey: string
-    duration?: number
-    teacher: Teacher
-  }): Promise<{ quiz: Quiz; paymentId: string; paymentTxId: string }> {
-    // Get module specs
-    const quizModSpec = process.env.NEXT_PUBLIC_QUIZ_MOD_SPEC
-    const paymentModSpec = process.env.NEXT_PUBLIC_PAYMENT_MOD_SPEC
-    
-    if (!quizModSpec || !paymentModSpec) {
-      throw new Error('Module specs not found. Please deploy contracts first.')
-    }
-    
-    // Load deployed modules
-    const [quizModuleExports, paymentModuleExports] = await Promise.all([
-      this.computer.load(quizModSpec),
-      this.computer.load(paymentModSpec)
-    ])
-    
-    const QuizClass = (quizModuleExports as any).Quiz || (quizModuleExports as any).default
-    const PaymentClass = (paymentModuleExports as any).Payment || (paymentModuleExports as any).default
-    
-    if (!QuizClass || !PaymentClass) {
-      throw new Error('Quiz or Payment class not found in deployed modules')
-    }
-    
-    // Calculate total reward needed
-    const totalReward = BigInt(params.questions.length) * params.rewardPerCorrect
-    
-    // Create payment with total reward amount (teacher locks the funds)
-    const payment = await this.computer.new(PaymentClass, [totalReward])
-    
-    console.log(`💰 Teacher locked payment: ${payment._id} with ${totalReward} satoshis`)
-    
-    // Wait for transaction confirmation
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    // Create quiz with payment reference
-    const quiz = await this.computer.new(QuizClass, [{
-      title: params.title,
-      description: params.description,
-      questions: params.questions,
-      rewardPerCorrect: params.rewardPerCorrect,
-      teacherPublicKey: params.teacherPublicKey,
-      duration: params.duration,
-      paymentTxId: payment._id
-    }])
-    
-    // Link quiz to teacher
-    await params.teacher.addQuiz(quiz._id)
-    
-    // Wait for quiz creation confirmation
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    return { quiz, paymentId: payment._id, paymentTxId: payment._id }
-  }
+//     // Deploy the payment module using the PaymentHelper
+//     await this.paymentHelper.deploy()
+//     return this.paymentHelper.mod || ''
+//   }
 
-  /**
-   * Student completes quiz and receives payment based on performance
-   */
-  async completeQuizWithPayment(params: {
-    quiz: Quiz
-    student: Student
-    answers: number[]
-  }): Promise<{ attempt: QuizAttempt; rewardPaymentId?: string; rewardPaymentTxId?: string }> {
-    // Get module specs
-    const attemptModSpec = process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC
-    const paymentModSpec = process.env.NEXT_PUBLIC_PAYMENT_MOD_SPEC
-    
-    if (!attemptModSpec || !paymentModSpec) {
-      throw new Error('Module specs not found. Please deploy contracts first.')
-    }
-    
-    // Load deployed modules
-    const [attemptModuleExports, paymentModuleExports] = await Promise.all([
-      this.computer.load(attemptModSpec),
-      this.computer.load(paymentModSpec)
-    ])
-    
-    const QuizAttemptClass = (attemptModuleExports as any).QuizAttempt || (attemptModuleExports as any).default
-    const PaymentClass = (paymentModuleExports as any).Payment || (paymentModuleExports as any).default
-    
-    if (!QuizAttemptClass || !PaymentClass) {
-      throw new Error('QuizAttempt or Payment class not found in deployed modules')
-    }
-    
-    // Create quiz attempt
-    const attempt = await this.computer.new(QuizAttemptClass, [
-      params.quiz._id,
-      params.student.publicKey
-    ])
-    
-    console.log(`📝 Student ${params.student.name} created attempt`)
-    
-    // Wait for attempt creation
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    // Submit answers and get score
-    await attempt.submitAnswers(
-      params.answers, 
-      params.quiz.correctAnswers, 
-      params.quiz.rewardPerCorrect
-    )
-    
-    console.log(`✅ Answers submitted, score: ${attempt.score}, reward: ${attempt.rewardEarned}`)
-    
-    // Add student to attempted list
-    await params.quiz.addAttemptedStudent(params.student.publicKey)
-    
-    // Wait for answer submission confirmation
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    // If student earned reward, create payment for the earned amount and transfer to student
-    let rewardPaymentId: string | undefined
-    if (attempt.rewardEarned > 0) {
-      console.log(`💰 Creating payment for ${attempt.rewardEarned} satoshis reward...`)
-      
-      // Create a payment with the earned reward amount
-      const rewardPayment = await this.computer.new(PaymentClass, [attempt.rewardEarned])
-      rewardPaymentId = rewardPayment._id
-      
-      console.log(`💸 Payment created: ${rewardPaymentId}`)
-      
-      // Wait for payment creation
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Transfer payment ownership to student
-      await rewardPayment.transfer(params.student.publicKey)
-      console.log(`✅ Payment transferred to student ${params.student.publicKey.slice(0, 10)}...`)
-      
-      // Wait for payment transfer
-      await new Promise(resolve => setTimeout(resolve, 1000))
-    }
-    
-    // Update student's completed quizzes
-    await params.student.completeQuiz(params.quiz._id, attempt.rewardEarned)
-    
-    // Wait for student update
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    return { attempt, rewardPaymentId, rewardPaymentTxId: rewardPaymentId }
-  }
+//   /**
+//    * Teacher creates a quiz with individual payments for each question
+//    */
+//   async createQuizWithPayments(params: {
+//     title: string
+//     description: string
+//     questions: Question[]
+//     rewardPerCorrect: bigint
+//     teacherPublicKey: string
+//     duration?: number
+//     teacher: Teacher
+//   }): Promise<{ quiz: Quiz; paymentIds: string[]; paymentTxIds: string[] }> {
+//     // Always use local classes for tests to avoid stale module issues
+//     console.log('📦 Using local classes for quiz creation')
+//     const QuizClass = Quiz
+//     const PaymentClass = Payment
 
-  /**
-   * Get payment details for a payment ID
-   */
-  async getPaymentDetails(paymentId: string): Promise<Payment> {
-    return await this.computer.sync(paymentId) as Payment
-  }
-}
+//     // Create individual payment for each question - one at a time to avoid complexity
+//     const paymentIds: string[] = []
+//     const network = process.env.NEXT_PUBLIC_NETWORK || 'regtest'
+
+//     // Create all payments first, with proper delays to prevent mempool conflicts
+//     for (let i = 0; i < params.questions.length; i++) {
+//       // Create payment with the reward amount and set the owner to the teacher in the constructor
+//       const payment = await this.computer.new(PaymentClass, [params.rewardPerCorrect, params.teacherPublicKey])
+//       paymentIds.push(payment._id)
+//       console.log(`💰 Created payment for question ${i + 1}: ${payment._id} with ${params.rewardPerCorrect} satoshis`)
+
+//       // Mine block after each payment to prevent accumulation of UTXOs
+//       if (network === 'regtest') {
+//         await ContractUtils.mineBlockFromComputer(this.computer)
+//         await new Promise(resolve => setTimeout(resolve, 500))
+//       }
+//     }
+
+//     // Create quiz with payment references for each question - separate from linking
+//     const quiz = await this.computer.new(QuizClass, [{
+//       title: params.title,
+//       description: params.description,
+//       questions: params.questions,
+//       rewardPerCorrect: params.rewardPerCorrect,
+//       teacherPublicKey: params.teacherPublicKey,
+//       duration: params.duration,
+//       paymentTxIds: paymentIds // Pass array of payment IDs instead of single ID
+//     }])
+
+//     // Mine block after quiz creation to clear the mempool
+//     if (network === 'regtest') {
+//       await ContractUtils.mineBlockFromComputer(this.computer)
+//       await new Promise(resolve => setTimeout(resolve, 1000))
+//     }
+
+//     // Link quiz to teacher separately to avoid transaction chaining
+//     await params.teacher.addQuiz(quiz._id)
+
+//     // Mine block after linking to clear the mempool
+//     if (network === 'regtest') {
+//       await ContractUtils.mineBlockFromComputer(this.computer)
+//       await new Promise(resolve => setTimeout(resolve, 1000))
+//     }
+
+//     return { quiz, paymentIds, paymentTxIds: paymentIds }
+//   }
+
+//   /**
+//    * Student completes quiz and receives payment for correctly answered questions
+//    * Only the first student to answer each question correctly gets the reward
+//    */
+//   async completeQuizWithPayment(params: {
+//     quiz: Quiz
+//     student: Student
+//     answers: number[]
+//   }): Promise<{ attempt: QuizAttempt; rewardPaymentIds?: string[]; rewardPaymentTxIds?: string[] }> {
+//     // Always use local classes for tests to avoid stale module issues
+//     console.log('📦 Using local classes for quiz attempt')
+//     const QuizAttemptClass = QuizAttempt
+//     const network = process.env.NEXT_PUBLIC_NETWORK || 'regtest'
+
+//     // Create quiz attempt - do this in a separate transaction to avoid complexity
+//     const attempt = await this.computer.new(QuizAttemptClass, [
+//       params.quiz._id,
+//       params.student.publicKey
+//     ])
+
+//     console.log(`📝 Student ${params.student.name} created attempt`)
+
+//     // Submit answers and get score
+//     await attempt.submitAnswers(
+//       params.answers,
+//       params.quiz.correctAnswers,
+//       params.quiz.rewardPerCorrect
+//     )
+
+//     console.log(`✅ Answers submitted, score: ${attempt.score}, reward: ${attempt.rewardEarned}`)
+
+//     // Add student to attempted list
+//     await params.quiz.addAttemptedStudent(params.student.publicKey)
+
+//     // Mine block after attempt creation to clear the mempool
+//     if (network === 'regtest') {
+//       await ContractUtils.mineBlockFromRPCClient(this.computer)
+//       await new Promise(resolve => setTimeout(resolve, 500))
+//     }
+
+//     // Process rewards for correctly answered questions one by one to avoid stack issues
+//     const rewardPaymentIds: string[] = []
+
+//     for (let i = 0; i < params.answers.length; i++) {
+//       const isCorrect = params.answers[i] === params.quiz.correctAnswers[i]
+
+//       if (isCorrect) {
+//         // Try to claim the reward for this question
+//         const wasClaimed = await params.quiz.claimQuestionReward(i, params.student.publicKey)
+
+//         if (wasClaimed) {
+//           // The student was the first to answer this question correctly, so they get the reward
+//           const paymentTxId = params.quiz.getPaymentTxIdForQuestion(i)
+
+//           if (paymentTxId) {
+//             try {
+//               // Load the original payment
+//               const originalPayment = await this.computer.sync(paymentTxId) as Payment
+
+//               // Create a new payment for the student with the same amount
+//               const studentPayment = await this.computer.new(Payment, [originalPayment._satoshis])
+
+//               // Transfer ownership to the student
+//               studentPayment.transfer(params.student.publicKey)
+
+//               console.log(`✅ Payment for question ${i + 1} transferred to student ${params.student.publicKey.slice(0, 10)}...`)
+
+//               rewardPaymentIds.push(studentPayment._id)
+
+//               // Mine block after each payment transfer to prevent chaining
+//               if (network === 'regtest') {
+//                 await ContractUtils.mineBlockFromRPCClient(this.computer)
+//                 await new Promise(resolve => setTimeout(resolve, 500))
+//               }
+//             } catch (error) {
+//               console.error(`Failed to transfer payment for question ${i + 1}:`, error)
+//             }
+//           }
+//         } else {
+//           console.log(`ℹ️ Question ${i + 1} reward already claimed by another student`)
+//         }
+//       }
+//     }
+
+//     // Update student's completed quizzes
+//     await params.student.completeQuiz(params.quiz._id, attempt.rewardEarned)
+
+//     // Mine block after student completion update
+//     if (network === 'regtest') {
+//       await ContractUtils.mineBlockFromRPCClient(this.computer)
+//       await new Promise(resolve => setTimeout(resolve, 500))
+//     }
+
+//     return {
+//       attempt,
+//       rewardPaymentIds,
+//       rewardPaymentTxIds: rewardPaymentIds
+//     }
+//   }
+
+//   /**
+//    * Get payment details for a payment ID
+//    */
+//   async getPaymentDetails(paymentId: string): Promise<Payment> {
+//     return await this.computer.sync(paymentId) as Payment
+//   }
+// }

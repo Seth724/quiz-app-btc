@@ -22,7 +22,16 @@
     "test:quiz-attempt": "npm run compile:test && mocha --config .mocharc.single.json dist/test/quiz-attempt.test.js",
     "test:integration": "npm run compile:test && mocha --config .mocharc.single.json dist/test/integration.test.js",
     "test:payment": "npm run compile:test && mocha --config .mocharc.single.json dist/test/payment.test.js",
-    "fund:wallet": "tsx ./scripts/fund-wallet.ts"
+    "fund:wallet": "tsx ./scripts/fund-wallet.ts",
+    "test:comprehensive-flow": "npm run compile:test && mocha --config .mocharc.single.json dist/test/comprehensive-flow.test.js",
+    "test:comprehensive-flow-new": "npm run compile:test && mocha --config .mocharc.single.json dist/test/comprehensive-flow-new.test.js",
+    "test:main-flow-direct": "npm run compile:test && mocha --config .mocharc.single.json dist/test/main-flow-direct.test.js",
+    "test:complete-workflow-new": "npm run compile:test && mocha --config .mocharc.single.json dist/test/complete-workflow-new.test.js",
+    "test:complete-workflow": "npm run compile:test && mocha --config .mocharc.single.json dist/test/complete-workflow.test.js",
+    "test:teacher-helper-new": "npm run compile:test && mocha --config .mocharc.single.json dist/test/teacher-helper-new.test.js",
+    "test:teacher-helper": "npm run compile:test && mocha --config .mocharc.single.json dist/test/teacher-helper.test.js",
+    "test:simple-helper-demo": "npm run compile:test && mocha --config .mocharc.single.json dist/test/simple-helper-demo.test.js",
+    "test:payment-transfer": "npm run compile:test && mocha --config .mocharc.single.json dist/test/payment-transfer.test.js"
   },
   "dependencies": {
     "@bitcoin-computer/lib": "^0.26.0-beta.0",
