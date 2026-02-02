@@ -1,47 +1,42 @@
 import { Contract } from '@bitcoin-computer/lib'
-import type { Quiz } from './quiz.js'
 
 export class Student extends Contract {
   name!: string
   publicKey!: string
-  completedQuizzes!: string[]
-  totalEarnings!: bigint
-  registeredAt!: number
-  
+  attemptedQuizzes!: string[]
+  claimedRewards!: bigint // Total amount of rewards claimed
+
   constructor(name: string, publicKey: string) {
     super({
       name,
       publicKey,
-      completedQuizzes: [],
-      totalEarnings: 0n,
-      registeredAt: Date.now()
+      attemptedQuizzes: [],
+      claimedRewards: 0n
     })
   }
 
-  canAttemptQuiz(quiz: Quiz): boolean {
-    // Check if quiz exists and is active
-    if (!quiz.isActive) {
-      return false
+  // Add a quiz to attempted list
+  addAttemptedQuiz(quizId: string) {
+    if (!this.attemptedQuizzes.includes(quizId)) {
+      this.attemptedQuizzes.push(quizId)
     }
-    
-    // Check if student has already attempted this quiz
-    if (quiz.hasStudentAttempted(this.publicKey)) {
-      return false
-    }
-    
-    return true
   }
 
-  completeQuiz(quizId: string, earnedReward: bigint) {
-    this.completedQuizzes.push(quizId)
-    this.totalEarnings += earnedReward
+  // Add claimed reward amount
+  addClaimedReward(amount: bigint) {
+    this.claimedRewards += amount
   }
 
-  getCompletedQuizCount(): number {
-    return this.completedQuizzes.length
+  // Check if student has attempted a specific quiz
+  hasAttemptedQuiz(quizId: string): boolean {
+    return this.attemptedQuizzes.includes(quizId)
   }
 
-  hasCompletedQuiz(quizId: string): boolean {
-    return this.completedQuizzes.includes(quizId)
+  getAttemptedQuizCount(): number {
+    return this.attemptedQuizzes.length
+  }
+
+  getTotalRewards(): bigint {
+    return this.claimedRewards
   }
 }

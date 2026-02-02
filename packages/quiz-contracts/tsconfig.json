@@ -19,5 +19,5 @@
     "moduleDetection": "force"
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "test/**/*.test.ts", "src/scripts/deploy.ts"]
+  "exclude": ["node_modules", "dist", "test/**/*.test.ts", "src/scripts/deploy.ts", "src/helpers/old/**/*"]
 }

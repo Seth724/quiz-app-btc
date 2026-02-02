@@ -1,142 +1,125 @@
-// import { Computer } from '@bitcoin-computer/lib'
-// import { Quiz, Question } from '../quiz.js'
-// import { PaymentHelper } from './payment-helper.js'
-// import { Payment } from '../payment.js'
-// import { MineRPCBlocks } from '../utils/mineblock.js'
+import { Computer } from '@bitcoin-computer/lib'
+import { Quiz } from '../quiz.js'
 
-// export class QuizHelper {
-//   computer: Computer
-//   paymentHelper: PaymentHelper
+/**
+ * QuizHelper - Utility class for Quiz contract operations
+ * 
+ * Current Architecture:
+ * - 1 Quiz = 1 Question with exactly 4 options
+ * - 1 Quiz = 1 Payment object (created by TeacherHelper)
+ * - First correct answer claims the reward
+ * - Only ONE teacher in the app creates quizzes
+ * - MANY students can attempt quizzes
+ */
+export class QuizHelper {
+  computer: Computer
 
-//   constructor(computer: Computer) {
-//     this.computer = computer
-//     this.paymentHelper = new PaymentHelper(computer)
-//   }
+  constructor(computer: Computer) {
+    this.computer = computer
+  }
 
-//   async deployPaymentModule(): Promise<string> {
-//     const paymentModSpec = process.env.NEXT_PUBLIC_PAYMENT_MOD_SPEC
-//     if (paymentModSpec) {
-//       this.paymentHelper.mod = paymentModSpec
-//       return paymentModSpec
-//     }
+  /**
+   * Get a quiz by ID
+   */
+  async getQuiz(quizId: string): Promise<Quiz> {
+    return await this.computer.sync(quizId) as Quiz
+  }
 
-//     // Deploy the payment module using the PaymentHelper
-//     await this.paymentHelper.deploy()
-//     return this.paymentHelper.mod || ''
-//   }
+  /**
+   * Check if a quiz is currently active
+   */
+  async isQuizActive(quizId: string): Promise<boolean> {
+    const quiz = await this.getQuiz(quizId)
+    return await quiz.isActive
+  }
 
-//   /**
-//    * Teacher creates a quiz with individual payments for each question
-//    */
-//   async createQuizWithPayments(params: {
-//     title: string
-//     description: string
-//     questions: Question[]
-//     rewardPerCorrect: bigint
-//     teacherPublicKey: string
-//     duration?: number
-//   }): Promise<{ quiz: Quiz; paymentTxIds: string[] }> {
-//     // Create individual payment for each question
-//     const paymentTxIds: string[] = []
+  /**
+   * Check if the reward for a quiz has been claimed
+   */
+  async isRewardClaimed(quizId: string): Promise<boolean> {
+    const quiz = await this.getQuiz(quizId)
+    return await quiz.isClaimed
+  }
 
-//     // Create all payments first, with proper delays to prevent mempool conflicts
-//     for (let i = 0; i < params.questions.length; i++) {
-//       // Create payment with the reward amount and initially owned by the teacher
-//       const payment = await this.paymentHelper.createPayment(params.rewardPerCorrect, params.teacherPublicKey)
-//       paymentTxIds.push(payment._id)
+  /**
+   * Get the public key of the student who claimed the reward
+   */
+  async getRewardClaimedBy(quizId: string): Promise<string> {
+    const quiz = await this.getQuiz(quizId)
+    return await quiz.claimedBy
+  }
 
-//       // Mine multiple blocks after each payment for proper confirmation
-//       await MineRPCBlocks.mineBlocksWithConfirmations(this.computer, 2)
-//     }
+  /**
+   * Check if a student has already attempted a quiz
+   */
+  async hasStudentAttempted(quizId: string, studentPublicKey: string): Promise<boolean> {
+    const quiz = await this.getQuiz(quizId)
+    return await quiz.hasStudentAttempted(studentPublicKey)
+  }
 
-//     // Create quiz with payment references for each question
-//     const quiz = await this.computer.new(Quiz, [{
-//       title: params.title,
-//       description: params.description,
-//       questions: params.questions,
-//       rewardPerCorrect: params.rewardPerCorrect,
-//       teacherPublicKey: params.teacherPublicKey,
-//       duration: params.duration,
-//       paymentTxIds: paymentTxIds // Pass array of payment IDs
-//     }])
+  /**
+   * Check if a student can attempt a quiz
+   * Returns true if:
+   * - Quiz is active
+   * - Student has not already attempted
+   */
+  async canStudentAttemptQuiz(quizId: string, studentPublicKey: string): Promise<boolean> {
+    const quiz = await this.getQuiz(quizId)
+    return await quiz.canStudentAttempt(studentPublicKey)
+  }
 
-//     // Mine multiple blocks after quiz creation for proper confirmation
-//     await MineRPCBlocks.mineBlocksWithConfirmations(this.computer, 3)
+  /**
+   * Get the number of students who have attempted a quiz
+   */
+  async getAttemptCount(quizId: string): Promise<number> {
+    const quiz = await this.getQuiz(quizId)
+    const attemptedStudents = await quiz.attemptedStudents
+    return attemptedStudents.length
+  }
 
-//     return { quiz, paymentTxIds }
-//   }
+  /**
+   * Get quiz details in a formatted way
+   */
+  async getQuizDetails(quizId: string): Promise<{
+    title: string
+    questionText: string
+    options: string[]
+    rewardAmount: bigint
+    isActive: boolean
+    isClaimed: boolean
+    claimedBy: string
+    attemptCount: number
+    paymentTxId: string
+  }> {
+    const quiz = await this.getQuiz(quizId)
+    
+    return {
+      title: await quiz.title,
+      questionText: await quiz.questionText,
+      options: await quiz.options,
+      rewardAmount: await quiz.rewardAmount,
+      isActive: await quiz.isActive,
+      isClaimed: await quiz.isClaimed,
+      claimedBy: await quiz.claimedBy,
+      attemptCount: (await quiz.attemptedStudents).length,
+      paymentTxId: await quiz.paymentTxId
+    }
+  }
 
-//   /**
-//    * Process rewards for a student's quiz attempt
-//    * Only the first student to answer each question correctly gets the reward
-//    */
-//   async processQuizRewards(params: {
-//     quizId: string
-//     studentPublicKey: string
-//     answers: number[]
-//     correctAnswers: number[]
-//   }): Promise<{ rewardedQuestionIndices: number[]; totalReward: bigint }> {
-//     const rewardedQuestionIndices: number[] = []
-//     let totalReward = 0n
+  /**
+   * Deactivate a quiz (typically called by teacher)
+   */
+  async deactivateQuiz(quizId: string): Promise<void> {
+    const quiz = await this.getQuiz(quizId)
+    await quiz.deactivate()
+    // Add delay to avoid mempool conflicts
+    await new Promise(resolve => setTimeout(resolve, 2000))
+  }
 
-//     // Get the quiz to work with its state
-//     const quiz = await this.computer.sync(params.quizId) as Quiz
-
-//     // Process each question to see if the student answered correctly and can claim the reward
-//     for (let i = 0; i < params.answers.length; i++) {
-//       const isCorrect = params.answers[i] === params.correctAnswers[i]
-
-//       if (isCorrect) {
-//         // Try to claim the reward for this question
-//         const wasClaimed = quiz.claimQuestionReward(i, params.studentPublicKey)
-
-//         if (wasClaimed) {
-//           // The student was the first to answer this question correctly, so they get the reward
-//           const paymentTxId = quiz.getPaymentTxIdForQuestion(i)
-
-//           if (paymentTxId) {
-//             try {
-//               // Load the original payment
-//               const originalPayment = await this.computer.sync(paymentTxId) as Payment
-
-//               // Transfer the payment to the student
-//               //await this.paymentHelper.transferPayment(originalPayment, params.studentPublicKey)
-
-//               rewardedQuestionIndices.push(i)
-//               totalReward += originalPayment._satoshis
-
-//               // Mine multiple blocks after each payment transfer for proper confirmation
-//               await MineRPCBlocks.mineBlocksWithConfirmations(this.computer, 3)
-//             } catch (error) {
-//               console.error(`Failed to transfer payment for question ${i + 1}:`, error)
-//             }
-//           }
-//         }
-//       }
-//     }
-
-//     return { rewardedQuestionIndices, totalReward }
-//   }
-
-//   async getQuiz(quizId: string): Promise<Quiz> {
-//     return await this.computer.sync(quizId) as Quiz
-//   }
-
-//   async addStudentToAttempted(quizId: string, studentPublicKey: string) {
-//     const quiz = await this.computer.sync(quizId) as Quiz
-//     await quiz.addAttemptedStudent(studentPublicKey)
-//     // Mine multiple blocks after updating quiz state
-//     await MineRPCBlocks.mineBlocksWithConfirmations(this.computer, 2)
-//   }
-
-//   async deactivateQuiz(quizId: string) {
-//     const quiz = await this.computer.sync(quizId) as Quiz
-//     await quiz.deactivate()
-//     // Mine multiple blocks after updating quiz state
-//     await MineRPCBlocks.mineBlocksWithConfirmations(this.computer, 2)
-//   }
-
-//   async mineBlock() {
-//     await MineRPCBlocks.mineBlockFromComputer(this.computer)
-//   }
-// }
+  /**
+   * Validate if an answer index is valid (0-3)
+   */
+  isValidAnswerIndex(answerIndex: number): boolean {
+    return answerIndex >= 0 && answerIndex <= 3
+  }
+}

@@ -1,5 +1,6 @@
 import { Computer } from '@bitcoin-computer/lib'
 
+
 export class MineBlocks{
   static async mineBlockFromRPCClient(computer: Computer) {
     try {

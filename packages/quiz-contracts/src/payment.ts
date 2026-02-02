@@ -9,19 +9,28 @@ export class Payment extends Contract {
   _root!: string
   _satoshis!: bigint
   _owners!: string[]
+
+
   constructor(_satoshis: bigint) {
     super({ _satoshis })
-    // The _owners will be set automatically by Bitcoin Computer to the creator's public key
   }
 
   transfer(to: string) {
     this._owners = [to]
-    console.log(`Payment transfer: changing owner to [${to}]`)
+
+    console.log(`Payment transferred to new owner: ${to}`)
   }
 
   setSatoshis(a: bigint) {
     this._satoshis = a
   }
+
+  // Add withdraw method that sets satoshis to minimum dust amount after funds are transferred
+  withdraw() {
+    this._satoshis = 546n // minimum non-dust amount after withdrawal
+  }
+
+
 }
 
 export class PaymentMock {
@@ -46,10 +55,14 @@ export class PaymentMock {
   setSatoshis(a: bigint) {
     this._satoshis = a
   }
+
+
 }
 
+// The Withdraw contract that reduces payment satoshis to minimum dust amount
+// This releases the excess satoshis to the owner's wallet through the Bitcoin Computer's UTXO model
 export class Withdraw extends Contract {
   static exec(payments: Payment[]) {
-    payments.forEach((payment) => payment.setSatoshis(0n))
+    payments.forEach((payment) => payment.withdraw())
   }
 }
