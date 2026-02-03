@@ -1,4 +1,4 @@
-import { Payment, Withdraw } from '../payment.js'
+import { Payment,Withdraw  } from '../payment.js'
 
 export class PaymentHelper {
   computer: any
@@ -30,7 +30,10 @@ export class PaymentHelper {
   }
 
   async getPayment(paymentTxId: string): Promise<Payment> {
-    const rev = await this.computer.latest(`${paymentTxId}:0`)
+
+    const id = paymentTxId.includes(':') ? paymentTxId :`${paymentTxId}:0`
+    const rev = await this.computer.getLatestRev(id)
+
     const syncedPayment: Payment = await this.computer.sync(rev)
     return syncedPayment
   }
@@ -67,44 +70,36 @@ export class PaymentHelper {
   }
 
   // Withdraw/claim the satoshis from a payment object to the owner's wallet using Withdraw contract
-  async withdrawPayment(payment: Payment){
-    // Get the original amount before withdrawal
-    
-    // console.log(`💰 Original payment amount: ${originalAmount} sats`)
+  async withdrawPayment(payment: Payment): Promise<bigint> {
 
-    // // Create a transaction that executes the Withdraw contract
-    // // This consumes the payment UTXO and creates a new one with minimum dust
-    // // The difference in satoshis should be sent to the owner's wallet as change
-    // const encoded = await this.computer.encode({
-    //   exp: `${Withdraw} Withdraw.exec([payment])`,
-    //   env: { payment: payment._rev }
-    // });
+    // Get payment ID and original amount
+    const paymentId = await payment._id
+    const originalAmount = await payment._satoshis
 
-    // // Broadcast the transaction to the blockchain
-    // await this.computer.broadcast(encoded.tx);
+    // Check if payment has sufficient funds for withdrawal
+    if (originalAmount <= 546n) {
+      throw new Error(`Payment ${paymentId} has insufficient funds for withdrawal. Current: ${originalAmount} sats`);
+    }
 
-    // // Calculate the amount that was actually withdrawn (transferred to owner's wallet)
-    // // This is the original amount minus the minimum dust that remains in the payment object
-    // const withdrawnAmount = originalAmount - 546n
-    // console.log(`Payment cash out: ${withdrawnAmount} sats released to owner's wallet`)
+    // Sync the latest payment state
+    const ownerPayment = await this.getPayment(paymentId)
+    console.log('Payment object:', ownerPayment)
 
-    // // Add delay to avoid mempool conflicts
-    // await new Promise(resolve => setTimeout(resolve, 2000))
+    console.log(`💰 Withdrawing payment of ${ originalAmount} sats to owner's wallet...`)
+    await ownerPayment.withdraw()
 
-    // return withdrawnAmount
-
-    console.log(payment)
-
-    console.log(`💰 Withdrawing payment of ${await payment._satoshis} sats to owner's wallet...`)
-    await payment.withdraw()
-  
     console.log("successfully withdrawn")
+
+    const withdrawnAmount = originalAmount - 546n // Calculate the actual withdrawn amount
+    await new Promise(resolve => setTimeout(resolve, 1500)) // wait for blockchain confirmation
+
+    return withdrawnAmount
   }
 
   // Withdraw payment by payment ID
-  async withdrawPaymentById(paymentTxId: string){
+  async withdrawPaymentById(paymentTxId: string): Promise<bigint> {
     const payment = await this.getPayment(paymentTxId)
-    await this.withdrawPayment(payment)
+    return this.withdrawPayment(payment)
   }
 
   // Send reward directly from teacher's wallet to student's wallet

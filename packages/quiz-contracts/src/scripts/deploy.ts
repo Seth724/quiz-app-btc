@@ -3,14 +3,8 @@ import { config } from 'dotenv'
 import { createInterface } from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
 import { deployQuizContracts } from './lib.js'
-import { fileURLToPath } from 'url'
-import { dirname } from 'path'
 
 config()
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-const contractDirectory = __dirname
 
 const {
   NEXT_PUBLIC_CHAIN: chain,
@@ -26,10 +20,10 @@ if (!network || !chain || !url) {
   throw new Error('Please set NEXT_PUBLIC_CHAIN, NEXT_PUBLIC_NETWORK, and NEXT_PUBLIC_URL in the .env file')
 }
 
-const computer = new Computer({ 
-  chain, 
-  network, 
-  url, 
+const computer = new Computer({
+  chain,
+  network,
+  url,
   path,
   mnemonic // Use fixed mnemonic for consistent deployment wallet
 })
@@ -53,10 +47,10 @@ Balance \x1b[2m${balance} satoshis\x1b[0m`)
 
 // Check if we have sufficient balance for deployment
 if (balance < 50000n) { // Need at least 50k satoshis for deployment
-  
+
   console.error(`\n❌ Insufficient balance: ${balance} satoshis`)
   console.error(' - Need at least 50,000 satoshis for contract deployment')
-  
+
   if (network === 'regtest') {
     console.log(' - Try funding the wallet again or check if the Bitcoin Computer node is running')
     console.log(' - Command: npm run node:up (to start the node)')
@@ -64,7 +58,7 @@ if (balance < 50000n) { // Need at least 50k satoshis for deployment
     console.log(' - Please fund your wallet with sufficient Bitcoin/Litecoin')
     console.log(' - Address:', computer.getAddress())
   }
-  
+
   rl.close()
   process.exit(1)
 }
@@ -76,14 +70,14 @@ if (answer === 'n') {
   process.exit(0)
 }
 
-const { teacherMod, studentMod, quizMod, attemptMod, paymentMod } = await deployQuizContracts(computer, contractDirectory)
+const { teacherMod, studentMod, quizMod, attemptMod, paymentMod } = await deployQuizContracts(computer)
 console.log(' \x1b[2m- Successfully deployed all quiz contracts\x1b[0m')
 
 console.log(`
 -----------------
 ACTION REQUIRED
 -----------------
-    
+
 Update the following rows in your .env file.
 
 NEXT_PUBLIC_TEACHER_MOD_SPEC\x1b[2m=${teacherMod}\x1b[0m

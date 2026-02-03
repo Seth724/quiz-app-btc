@@ -192,7 +192,7 @@ describe('Complete Quiz Workflow - First Come First Served', function () {
         questionText: 'What is 7 + 5?',
         options: ['10', '11', '12', '13'],
         correctAnswer: 2, // Index 2 = '12'
-        rewardAmount: 10000n, // 10,000 satoshis (above dust limit)
+        rewardAmount: 1000000n, // 1,000,000 satoshis (above dust limit)
         teacher: teacher
       }
 
@@ -213,12 +213,12 @@ describe('Complete Quiz Workflow - First Come First Served', function () {
       await new Promise(resolve => setTimeout(resolve, 3000))
 
       expect(await quiz.title).to.equal('Math Challenge Quiz')
-      expect(await quiz.rewardAmount).to.equal(10000n)
+      expect(await quiz.rewardAmount).to.equal(1000000n)
       expect(await quiz.isActive).to.equal(true)
       expect(await quiz.isClaimed).to.equal(false)
 
       // Verify payment initial state
-      expect(await payment._satoshis).to.equal(10000n)
+      expect(await payment._satoshis).to.equal(1000000n)
       const paymentOwners = await payment._owners
       expect(paymentOwners[0]).to.equal(teacherPubKey)
 
@@ -283,7 +283,7 @@ describe('Complete Quiz Workflow - First Come First Served', function () {
       expect(await attempt1.isCompleted).to.equal(true)
       expect(await attempt1.isCorrect).to.equal(true)
       expect(await attempt1.selectedAnswer).to.equal(2)
-      expect(await attempt1.rewardEarned).to.equal(10000n)
+      expect(await attempt1.rewardEarned).to.equal(1000000n)
       console.log('✅ Student1 answered correctly!')
       console.log(`✅ Student1 earned potential reward: ${await attempt1.rewardEarned} sats`)
 
@@ -309,7 +309,7 @@ describe('Complete Quiz Workflow - First Come First Served', function () {
 
       const newPaymentOwners = await payment._owners
       expect(newPaymentOwners[0]).to.equal(student1PubKey)
-      expect(await payment._satoshis).to.equal(10000n) // Amount unchanged
+      expect(await payment._satoshis).to.equal(1000000n) // Amount unchanged
       console.log('✅ Payment ownership transferred to Student1')
       console.log(`✅ Student1 now owns payment with ${await payment._satoshis} sats`)
 
@@ -347,31 +347,31 @@ describe('Complete Quiz Workflow - First Come First Served', function () {
 
       // Student1 withdraws payment using the withdraw method
       console.log('\\n💸 Withdrawing payment using payment.withdraw() method...')
-      
+
       // Create PaymentHelper for Student1 (who now owns the payment)
       const student1PaymentHelper = new PaymentHelper(student1Computer)
-      await student1PaymentHelper.deploy()
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      // Note: We don't need to deploy again since the contract is already available
+      // The contract was already deployed when the original paymentHelper was created
 
       // Call the withdrawPayment method which uses payment.withdraw() internally
       const withdrawnAmount = await student1PaymentHelper.withdrawPayment(payment)
       console.log(`✅ Payment withdrawal completed: ${withdrawnAmount} sats`)
-      
+
       // Wait for blockchain transaction confirmation
       await new Promise(resolve => setTimeout(resolve, 8000))
-      
+
       // Check wallet balances after withdrawal
       await updateWalletBalances('After Payment Withdrawal')
       const student1BalAfter = walletBalances.student1.current
       const balanceChange = student1BalAfter - student1BalBefore
-      
+
       console.log(`📊 Student1 balance after withdrawal: ${student1BalAfter.toLocaleString()} sats`)
       console.log(`💰 Balance change: ${balanceChange >= 0 ? '+' : ''}${balanceChange.toLocaleString()} sats`)
-      
+
       // Verify payment object is now at dust amount
       const finalPaymentSats = await payment._satoshis
       console.log(`🔍 Payment object final amount: ${finalPaymentSats} sats`)
-      
+
       if (finalPaymentSats === 546n) {
         console.log('✅ Payment object correctly reduced to dust amount (546 sats)')
         console.log('🏆 Original payment funds released to Student1 wallet')
@@ -382,12 +382,12 @@ describe('Complete Quiz Workflow - First Come First Served', function () {
       // Verify Student1 now has more effective balance than Student2
       const student2BalAfter = walletBalances.student2.current
       const netDifference = student1BalAfter - student2BalAfter
-      
+
       console.log(`\\n💵 Final Balance Comparison:`)
       console.log(`   Student1 (Bob - Winner): ${student1BalAfter.toLocaleString()} sats`)
       console.log(`   Student2 (Charlie): ${student2BalAfter.toLocaleString()} sats`)
       console.log(`   Difference: ${netDifference >= 0 ? '+' : ''}${netDifference.toLocaleString()} sats`)
-      
+
       // The winner should have better financial position through payment withdrawal
       if (balanceChange > 5000) { // Accounting for transaction fees
         console.log('✅ SUCCESS: Student1 successfully withdrawn payment funds!')
@@ -408,9 +408,9 @@ describe('Complete Quiz Workflow - First Come First Served', function () {
       expect(await attempt2.isCompleted).to.equal(true)
       expect(await attempt2.isCorrect).to.equal(true)
       expect(await attempt2.selectedAnswer).to.equal(2)
-      expect(await attempt2.rewardEarned).to.equal(10000n) // QuizAttempt shows potential reward
+      expect(await attempt2.rewardEarned).to.equal(1000000n) // QuizAttempt shows potential reward, but student2 didn't get the actual payment
       console.log('✅ Student2 also answered correctly')
-      console.log(`✅ Student2 potential reward: ${await attempt2.rewardEarned} sats`)
+      console.log(`✅ Student2 potential reward: ${await attempt2.rewardEarned} sats (but no actual payment received)`)
 
       // Student2 tries to claim but fails (already claimed)
       await quiz.addAttemptedStudent(student2PubKey)
@@ -505,7 +505,7 @@ describe('Complete Quiz Workflow - First Come First Served', function () {
 
       expect(completedStatus).to.equal(true)
       expect(correctStatus).to.equal(true)
-      expect(earnedReward).to.equal(10000n)
+      expect(earnedReward).to.equal(1000000n)
       console.log('✅ Helper methods work for completed attempt')
 
       console.log('✅ All helper methods validated!')

@@ -22,7 +22,7 @@ export interface QuizResult {
 export class LeaderboardHelper {
   computer: any
   paymentHelper: PaymentHelper
-  
+
   // In-memory storage for tracking student rewards
   // In production, this would be stored in a database
   private studentRewards: Map<string, StudentReward> = new Map()
@@ -36,17 +36,37 @@ export class LeaderboardHelper {
   // Record a quiz result for leaderboard tracking
   async recordQuizResult(result: QuizResult): Promise<void> {
     this.quizResults.push(result)
-    
+
     // Update student reward if they earned something
     if (result.isCorrect && result.rewardEarned > 0n && result.paymentTxId) {
       await this.addStudentReward(result.studentPublicKey, result.rewardEarned, result.paymentTxId)
+    } else if (result.isCorrect && result.rewardEarned > 0n) {
+      // Even if no paymentTxId (meaning they couldn't claim), still track the potential reward
+      await this.addStudentReward(result.studentPublicKey, result.rewardEarned, "")
+    } else if (result.isCorrect) {
+      // Track students who answered correctly but earned 0 (maybe they were too slow to claim)
+      // Initialize them with 0 reward but still track their participation
+      await this.ensureStudentExists(result.studentPublicKey)
+    }
+  }
+
+  // Ensure a student exists in the rewards map (for tracking participants)
+  async ensureStudentExists(studentPublicKey: string): Promise<void> {
+    if (!this.studentRewards.has(studentPublicKey)) {
+      const studentReward = {
+        publicKey: studentPublicKey,
+        totalRewards: 0n,
+        claimedPayments: [],
+        rank: 0
+      }
+      this.studentRewards.set(studentPublicKey, studentReward)
     }
   }
 
   // Add a reward to a student's total
   async addStudentReward(studentPublicKey: string, rewardAmount: bigint, paymentTxId: string): Promise<void> {
     let studentReward = this.studentRewards.get(studentPublicKey)
-    
+
     if (!studentReward) {
       studentReward = {
         publicKey: studentPublicKey,
@@ -55,10 +75,10 @@ export class LeaderboardHelper {
         rank: 0
       }
     }
-    
+
     studentReward.totalRewards += rewardAmount
     studentReward.claimedPayments.push(paymentTxId)
-    
+
     this.studentRewards.set(studentPublicKey, studentReward)
   }
 
@@ -75,15 +95,15 @@ export class LeaderboardHelper {
   // Calculate and return the current leaderboard
   getLeaderboard(): StudentReward[] {
     const leaderboard = Array.from(this.studentRewards.values())
-    
+
     // Sort by total rewards (descending)
     leaderboard.sort((a, b) => Number(b.totalRewards - a.totalRewards))
-    
+
     // Assign ranks
     leaderboard.forEach((student, index) => {
       student.rank = index + 1
     })
-    
+
     return leaderboard
   }
 
@@ -117,7 +137,7 @@ export class LeaderboardHelper {
       try {
         const isOwned = await this.verifyPaymentOwnership(studentPublicKey, paymentTxId)
         const paymentAmount = await this.paymentHelper.getPaymentAmount(paymentTxId)
-        
+
         if (isOwned) {
           verifiedAmount += paymentAmount
         } else {
@@ -135,24 +155,24 @@ export class LeaderboardHelper {
   // Display formatted leaderboard
   displayLeaderboard(limit: number = 10): void {
     const leaderboard = this.getTopStudents(limit)
-    
+
     console.log('\n🏆 QUIZ LEADERBOARD 🏆')
     console.log('=' .repeat(50))
-    
+
     if (leaderboard.length === 0) {
       console.log('No students have earned rewards yet.')
       return
     }
-    
+
     leaderboard.forEach((student, index) => {
       const rank = index + 1
       const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '  '
       const publicKeyShort = `${student.publicKey.substring(0, 8)}...${student.publicKey.substring(-8)}`
       const rewardsFormatted = Number(student.totalRewards).toLocaleString()
-      
+
       console.log(`${medal} ${rank}. ${publicKeyShort} - ${rewardsFormatted} sats`)
       console.log(`     Claimed Payments: ${student.claimedPayments.length}`)
-      
+
       if (rank <= 3) {
         console.log(`     Payment IDs: ${student.claimedPayments.map(id => id.substring(0, 8)).join(', ')}`)
       }
@@ -169,15 +189,15 @@ export class LeaderboardHelper {
   } {
     const totalStudents = this.studentRewards.size
     let totalRewardsDistributed = 0n
-    
+
     for (const student of this.studentRewards.values()) {
       totalRewardsDistributed += student.totalRewards
     }
-    
+
     const totalQuizzes = this.quizResults.length
     const successfulQuizzes = this.quizResults.filter(result => result.isCorrect).length
     const successRate = totalQuizzes > 0 ? (successfulQuizzes / totalQuizzes) * 100 : 0
-    
+
     return {
       totalStudents,
       totalRewardsDistributed,

@@ -1,7 +1,7 @@
 import { Computer } from '@bitcoin-computer/lib'
 import { config } from 'dotenv'
 import { expect } from 'chai'
-import { QuizAttempt } from '../src/attempt.js'
+//import { QuizAttempt } from '../src/attempt.js'
 import { Quiz } from '../src/quiz.js'
 import { Teacher } from '../src/teacher.js'
 import { Student } from '../src/student.js'

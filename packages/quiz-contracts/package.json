@@ -53,7 +53,9 @@
     "test:leaderboard-system": "npm run compile:test && mocha --config .mocharc.single.json dist/test/leaderboard-system.test.js",
     "test:leaderboard-essential": "npm run compile:test && mocha --config .mocharc.single.json dist/test/leaderboard-essential.test.js",
     "test:payment-transfer-withdraw": "npm run compile:test && mocha --config .mocharc.single.json dist/test/payment-transfer-withdraw.test.js",
-    "test:simple-withdrawal": "npm run compile:test && mocha --config .mocharc.single.json dist/test/simple-withdrawal.test.js"
+    "test:simple-quiz-leaderboard": "npm run compile:test && mocha --config .mocharc.single.json dist/test/simple-quiz-leaderboard.test.js",
+    "test:simple-multi-quiz": "npm run compile:test && mocha --config .mocharc.single.json dist/test/simple-multi-quiz.test.js",
+    "test:comprehensive-quiz-leaderboard": "npm run compile:test && mocha --config .mocharc.single.json dist/test/comprehensive-quiz-leaderboard.test.js"
   },
   "dependencies": {
     "@bitcoin-computer/lib": "^0.26.0-beta.0",

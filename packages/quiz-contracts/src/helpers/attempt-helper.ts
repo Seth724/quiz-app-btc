@@ -39,8 +39,8 @@ export class AttemptHelper {
    * @returns Attempt result
    */
   async submitAnswer(
-    attempt: QuizAttempt, 
-    selectedAnswer: number, 
+    attempt: QuizAttempt,
+    selectedAnswer: number,
     quiz: Quiz
   ): Promise<{
     isCorrect: boolean
@@ -49,7 +49,7 @@ export class AttemptHelper {
   }> {
     // Submit the answer
     await attempt.submitAnswer(selectedAnswer, await quiz.correctAnswer, await quiz.rewardAmount)
-    
+
     return {
       isCorrect: await attempt.isCorrect,
       rewardEarned: await attempt.rewardEarned,

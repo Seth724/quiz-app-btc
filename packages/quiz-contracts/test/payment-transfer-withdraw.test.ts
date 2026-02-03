@@ -54,7 +54,7 @@ describe('Payment Transfer and Withdraw Test', function () {
 
     // STEP 1: Teacher creates payment for 10000 sats
     console.log('\\n🎯 STEP 1: Creating payment object (Teacher creates payment)...')
-    const payment = await paymentHelper.createPayment(10000n)
+    const payment = await paymentHelper.createPayment(10000000n)
     console.log(`✅ Payment created: ${await payment._id}`)
     console.log(`💰 Payment value: ${await payment._satoshis} sats`)
 

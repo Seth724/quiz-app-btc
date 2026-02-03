@@ -1,5 +1,9 @@
 import { Contract } from '@bitcoin-computer/lib'
 
+/**
+ * Quiz contract that manages a single-question quiz with reward
+ * Gas fees: Teacher pays for quiz creation, students pay for attempts and claiming rewards
+ */
 export class Quiz extends Contract {
   title!: string
   questionText!: string
@@ -13,6 +17,17 @@ export class Quiz extends Contract {
   claimedBy!: string // Public key of student who claimed the reward
   attemptedStudents!: string[] // Students who attempted this quiz
 
+  /**
+   * Creates a new quiz with specified parameters
+   * @param title - Title of the quiz
+   * @param questionText - The question text
+   * @param options - Array of 4 options
+   * @param correctAnswer - Index of the correct answer (0-3)
+   * @param rewardAmount - Amount of reward in satoshis
+   * @param teacherPublicKey - Public key of the teacher creating the quiz
+   * @param paymentTxId - Transaction ID of the associated payment contract
+   * Gas fee: Paid by the teacher (constructor caller)
+   */
   constructor({
     title,
     questionText,
@@ -56,14 +71,28 @@ export class Quiz extends Contract {
     })
   }
 
+  /**
+   * Deactivates the quiz, preventing further attempts
+   * Gas fee: Paid by the caller of this method (typically the teacher)
+   */
   deactivate() {
     this.isActive = false
   }
 
+  /**
+   * Checks if a student has already attempted this quiz
+   * @param studentPublicKey - Public key of the student
+   * @returns Boolean indicating if student has attempted
+   */
   hasStudentAttempted(studentPublicKey: string): boolean {
     return this.attemptedStudents.includes(studentPublicKey)
   }
 
+  /**
+   * Adds a student to the list of attempted students
+   * @param studentPublicKey - Public key of the student
+   * Gas fee: Paid by the caller of this method
+   */
   addAttemptedStudent(studentPublicKey: string) {
     if (this.hasStudentAttempted(studentPublicKey)) {
       throw new Error('Student has already attempted this quiz')
@@ -71,7 +100,12 @@ export class Quiz extends Contract {
     this.attemptedStudents.push(studentPublicKey)
   }
 
-  // Claim the reward for this quiz
+  /**
+   * Claims the reward for this quiz (first-come-first-served)
+   * @param studentPublicKey - Public key of the student claiming the reward
+   * @returns Boolean indicating success of the claim
+   * Gas fee: Paid by the student attempting to claim the reward
+   */
   claimReward(studentPublicKey: string): boolean {
     if (this.isClaimed) {
       return false // Already claimed by someone else
@@ -82,7 +116,11 @@ export class Quiz extends Contract {
     return true
   }
 
-  // Check if student can attempt this quiz
+  /**
+   * Checks if a student can attempt this quiz
+   * @param studentPublicKey - Public key of the student
+   * @returns Boolean indicating if student can attempt
+   */
   canStudentAttempt(studentPublicKey: string): boolean {
     return !this.hasStudentAttempted(studentPublicKey) && this.isActive
   }
