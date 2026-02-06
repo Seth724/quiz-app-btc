@@ -38,6 +38,8 @@ export class QuizAccessSwapHelper {
         payment: payment._rev
       },
       mod: this.mod,
+      
+  
     })
   }
 
