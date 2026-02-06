@@ -165,8 +165,17 @@ describe('Comprehensive Quiz with Leaderboard', function () {
 
     // Teacher signs and broadcasts the transaction to execute the swap
     console.log(`✍️ Teacher signing and broadcasting transaction...`);
+    console.log("transaction 1",tx1);
+
+    //await teacherComputer.fund(tx1) // Fund the transaction to ensure it has enough inputs to cover fees
     await teacherComputer.sign(tx1)
-    await teacherComputer.broadcast(tx1)
+    const result=await teacherComputer.broadcast(tx1)
+    console.log("broadcast result",result);
+
+    const objects = await teacherComputer.sync(result) as { env: { quizAccess: any; payment: any } }
+    console.log("objects",objects);
+
+    
     console.log(`🌐 Transaction broadcasted to blockchain`);
 
     // Student reads the updated state from the blockchain
@@ -201,6 +210,8 @@ describe('Comprehensive Quiz with Leaderboard', function () {
     const { tx: tx2 } = await studentQuizAccessSwapHelper2.createSwapTx(quizAccess2, entryFeePayment2)
     console.log(`✅ Swap transaction created: ${tx2.getId()}`);
 
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Add delay to ensure transaction is processed before validation
+
     // Teacher checks the swap transaction
     console.log(`🔍 Teacher validating swap transaction...`);
     await quizAccessSwapHelper.checkSwapTx(tx2, student2PubKey, teacherComputer.getPublicKey())
@@ -208,8 +219,11 @@ describe('Comprehensive Quiz with Leaderboard', function () {
 
     // Teacher signs and broadcasts the transaction to execute the swap
     console.log(`✍️ Teacher signing and broadcasting transaction...`);
+    //await teacherComputer.fund(tx2) // Fund the transaction to ensure it has enough inputs to cover fees
     await teacherComputer.sign(tx2)
     await teacherComputer.broadcast(tx2)
+
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Add delay to ensure transaction is processed before next steps
     console.log(`🌐 Transaction broadcasted to blockchain`);
 
     // Student reads the updated state from the blockchain
