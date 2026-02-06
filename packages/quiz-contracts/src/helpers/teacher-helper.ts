@@ -29,10 +29,11 @@ export class TeacherHelper {
     options: string[]
     correctAnswer: number
     rewardAmount: bigint
+    entryFee: bigint
     teacher: Teacher
   }): Promise<{ quiz: Quiz; paymentTxId: string }> {
     console.log(`🎯 Teacher creating quiz: ${params.title}`)
-    
+
     // Validate quiz parameters
     Teacher.validateQuizParams(params.questionText, params.options, params.correctAnswer, params.rewardAmount)
 
@@ -53,6 +54,7 @@ export class TeacherHelper {
       options: params.options,
       correctAnswer: params.correctAnswer,
       rewardAmount: params.rewardAmount,
+      entryFee: params.entryFee,
       teacherPublicKey: teacherPubKey,
       paymentTxId: paymentId
     }]) as Quiz
@@ -65,7 +67,7 @@ export class TeacherHelper {
     const updatedTeacher = await this.getTeacher(teacherId)
     const quizId = await quiz._id
     await updatedTeacher.addQuiz(quizId)
-    
+
     // Delay after updating teacher
     await new Promise(resolve => setTimeout(resolve, 3000))
 
@@ -79,10 +81,11 @@ export class TeacherHelper {
     options: string[]
     correctAnswer: number
     rewardAmount: bigint
+    entryFee: bigint
     teacher: Teacher
   }): Promise<Quiz> {
     console.log(`🎯 Teacher creating quiz (no payment object): ${params.title}`)
-    
+
     // Validate quiz parameters
     Teacher.validateQuizParams(params.questionText, params.options, params.correctAnswer, params.rewardAmount)
 
@@ -94,6 +97,7 @@ export class TeacherHelper {
       options: params.options,
       correctAnswer: params.correctAnswer,
       rewardAmount: params.rewardAmount,
+      entryFee: params.entryFee,
       teacherPublicKey: teacherPubKey,
       paymentTxId: "" // No payment object - manual rewards
     }]) as Quiz
@@ -106,7 +110,7 @@ export class TeacherHelper {
     const updatedTeacher = await this.getTeacher(teacherId)
     const quizId = await quiz._id
     await updatedTeacher.addQuiz(quizId)
-    
+
     // Delay after updating teacher
     await new Promise(resolve => setTimeout(resolve, 3000))
 
@@ -125,7 +129,7 @@ export class TeacherHelper {
     }
 
     await quiz.deactivate()
-    
+
     // Delay after deactivation
     await new Promise(resolve => setTimeout(resolve, 3000))
   }

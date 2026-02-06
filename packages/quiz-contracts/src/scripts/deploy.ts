@@ -4,6 +4,7 @@ import { createInterface } from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
 import { deployQuizContracts } from './lib.js'
 
+
 config()
 
 const {

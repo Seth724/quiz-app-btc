@@ -10,6 +10,7 @@ export class Quiz extends Contract {
   options!: string[] // Exactly 4 options
   correctAnswer!: number // Index of correct option (0-3)
   rewardAmount!: bigint
+  entryFee!: bigint  // Fee required to access/attempt the quiz
   teacherPublicKey!: string
   isActive!: boolean
   paymentTxId!: string // Single payment object for this quiz
@@ -24,6 +25,7 @@ export class Quiz extends Contract {
    * @param options - Array of 4 options
    * @param correctAnswer - Index of the correct answer (0-3)
    * @param rewardAmount - Amount of reward in satoshis
+   * @param entryFee - Amount of entry fee in satoshis
    * @param teacherPublicKey - Public key of the teacher creating the quiz
    * @param paymentTxId - Transaction ID of the associated payment contract
    * Gas fee: Paid by the teacher (constructor caller)
@@ -34,6 +36,7 @@ export class Quiz extends Contract {
     options,
     correctAnswer,
     rewardAmount,
+    entryFee,
     teacherPublicKey,
     paymentTxId
   }: {
@@ -42,6 +45,7 @@ export class Quiz extends Contract {
     options: string[]
     correctAnswer: number
     rewardAmount: bigint
+    entryFee: bigint
     teacherPublicKey: string
     paymentTxId: string
   }) {
@@ -62,6 +66,7 @@ export class Quiz extends Contract {
       options,
       correctAnswer,
       rewardAmount,
+      entryFee,
       teacherPublicKey,
       isActive: true,
       paymentTxId,

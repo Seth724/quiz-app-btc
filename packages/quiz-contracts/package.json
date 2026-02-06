@@ -55,7 +55,17 @@
     "test:payment-transfer-withdraw": "npm run compile:test && mocha --config .mocharc.single.json dist/test/payment-transfer-withdraw.test.js",
     "test:simple-quiz-leaderboard": "npm run compile:test && mocha --config .mocharc.single.json dist/test/simple-quiz-leaderboard.test.js",
     "test:simple-multi-quiz": "npm run compile:test && mocha --config .mocharc.single.json dist/test/simple-multi-quiz.test.js",
-    "test:comprehensive-quiz-leaderboard": "npm run compile:test && mocha --config .mocharc.single.json dist/test/comprehensive-quiz-leaderboard.test.js"
+    "test:comprehensive-quiz-leaderboard": "npm run compile:test && mocha --config .mocharc.single.json dist/test/comprehensive-quiz-leaderboard.test.js",
+    "test:quiz-access": "npm run compile:test && mocha --config .mocharc.single.json dist/test/quiz-access.test.js",
+    "test:quiz-attempt-swap": "npm run compile:test && mocha --config .mocharc.single.json dist/test/quiz-attempt-swap.test.js",
+    "test:enhanced-quiz-flow": "npm run compile:test && mocha --config .mocharc.single.json dist/test/enhanced-quiz-flow.test.js",
+    "test:simple-swap-mechanism": "npm run compile:test && mocha --config .mocharc.single.json dist/test/simple-swap-mechanism.test.js",
+    "test:quiz-access-swap-working": "npm run compile:test && mocha --config .mocharc.single.json dist/test/quiz-access-swap-working.test.js",
+    "test:complete-quiz-workflow-working": "npm run compile:test && mocha --config .mocharc.single.json dist/test/complete-quiz-workflow-working.test.js",
+    "test:complete-quiz-enhanced-flow": "npm run compile:test && mocha --config .mocharc.single.json dist/test/complete-quiz-enhanced-flow.test.js",
+    "test:comprehensive-enhanced-quiz-flow": "npm run compile:test && mocha --config .mocharc.single.json dist/test/comprehensive-enhanced-quiz-flow.test.js",
+    "test:complete-quiz-access-swap": "npm run compile:test && mocha --config .mocharc.single.json dist/test/complete-quiz-access-swap.test.js",
+    "test:entry-fee-withdrawal": "npm run compile:test && mocha --config .mocharc.single.json dist/test/entry-fee-withdrawal.test.js"
   },
   "dependencies": {
     "@bitcoin-computer/lib": "^0.26.0-beta.0",

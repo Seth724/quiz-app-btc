@@ -77,7 +77,9 @@ export class LeaderboardHelper {
     }
 
     studentReward.totalRewards += rewardAmount
-    studentReward.claimedPayments.push(paymentTxId)
+    if (paymentTxId) {  // Only add to claimedPayments if paymentTxId is not empty
+      studentReward.claimedPayments.push(paymentTxId)
+    }
 
     this.studentRewards.set(studentPublicKey, studentReward)
   }
