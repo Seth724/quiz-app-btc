@@ -15,20 +15,19 @@ export class QuizAccessHelper {
     return this.mod
   }
 
-  async createQuizAccess(quizId: string, studentPublicKey: string): Promise<QuizAccess> {
-    if (!this.mod) {
-      throw new Error('Module not deployed. Call deploy() first.')
-    }
-    
+  async createQuizAccess(quizId: string): Promise<QuizAccess> {
+    if (!this.mod) throw new Error('Module not deployed. Call deploy() first.')
+
     const { tx, effect } = await this.computer.encode({
-      exp: `new QuizAccess("${quizId}", "${studentPublicKey}")`,
+      exp: `new QuizAccess("${quizId}")`,
       mod: this.mod,
     })
+
     await this.computer.broadcast(tx)
     return effect.res as unknown as QuizAccess
   }
 
   async getQuizAccess(accessId: string): Promise<QuizAccess> {
-    return await this.computer.sync(accessId) as QuizAccess
+    return (await this.computer.sync(accessId)) as QuizAccess
   }
 }

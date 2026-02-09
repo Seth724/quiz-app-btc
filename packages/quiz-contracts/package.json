@@ -65,7 +65,8 @@
     "test:complete-quiz-enhanced-flow": "npm run compile:test && mocha --config .mocharc.single.json dist/test/complete-quiz-enhanced-flow.test.js",
     "test:comprehensive-enhanced-quiz-flow": "npm run compile:test && mocha --config .mocharc.single.json dist/test/comprehensive-enhanced-quiz-flow.test.js",
     "test:complete-quiz-access-swap": "npm run compile:test && mocha --config .mocharc.single.json dist/test/complete-quiz-access-swap.test.js",
-    "test:entry-fee-withdrawal": "npm run compile:test && mocha --config .mocharc.single.json dist/test/entry-fee-withdrawal.test.js"
+    "test:entry-fee-withdrawal": "npm run compile:test && mocha --config .mocharc.single.json dist/test/entry-fee-withdrawal.test.js",
+    "test:complete-quiz-access-sale": "npm run compile:test && mocha --config .mocharc.single.json dist/test/complete-quiz-access-sale.test.js"
   },
   "dependencies": {
     "@bitcoin-computer/lib": "^0.26.0-beta.0",

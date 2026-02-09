@@ -1,27 +1,28 @@
 import { Contract } from '@bitcoin-computer/lib'
 
 /**
- * QuizAccess contract represents the right to attempt a quiz
- * This contract is swapped between student and teacher during the access purchase process
+ * QuizAccess = right to attempt a quiz.
+ * Ownership (_owners) is what matters on-chain.
  */
 export class QuizAccess extends Contract {
   quizId!: string
-  studentPublicKey!: string
   createdAt!: number
-  
-  constructor(quizId: string, studentPublicKey: string) {
+  used!: boolean
+
+  constructor(quizId: string) {
     super({
       quizId,
-      studentPublicKey,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      used: false,
     })
   }
 
-  /**
-   * Transfer ownership of this quiz access to another public key
-   * @param to - Public key of the new owner
-   */
   transfer(to: string) {
     this._owners = [to]
+  }
+
+  markUsed() {
+    if (this.used) throw new Error('QuizAccess already used')
+    this.used = true
   }
 }
