@@ -1,107 +1,83 @@
 import { Buffer } from 'buffer'
-import { Transaction } from '@bitcoin-computer/lib'
+import { Computer, Transaction } from '@bitcoin-computer/lib'
 import type { Transaction as TransactionType } from '@bitcoin-computer/lib'
 import { QuizAccessSale } from '../quiz-access-sale.js'
 import { Payment, PaymentMock } from '../payment.js'
-
+import { QuizAccess } from '../quiz-access.js'
 
 const sighashType = Transaction.SIGHASH_SINGLE | Transaction.SIGHASH_ANYONECANPAY
 
+type DecodeResult = {
+  exp: string
+  env: Record<string, string>
+  mod: string
+}
+
+type EncodeResult = {
+  tx: TransactionType
+  effect: {
+    res?: unknown
+    env: Record<string, unknown>
+  }
+}
+
 export class QuizAccessSaleHelper {
-  computer: any
+  computer: Computer
   mod?: string
 
-  constructor(computer: any, mod?: string) {
+  constructor(computer: Computer, mod?: string) {
     this.computer = computer
     this.mod = mod
   }
 
-  async deploy() {
+  async deploy(): Promise<string> {
     this.mod = await this.computer.deploy(`export ${QuizAccessSale}`)
     return this.mod
   }
 
-  /**
-   * Teacher builds a partially signed offer:
-   * input0 = access (signed by teacher)
-   * input1 = mock payment (placeholder)
-   */
-  createOfferTx(access: any, paymentMock: PaymentMock) {
+  createOfferTx(access: QuizAccess, payment: PaymentMock): Promise<EncodeResult> {
+    if (!this.mod) throw new Error('QuizAccessSaleHelper not deployed')
     return this.computer.encode({
       exp: `QuizAccessSale.exec(o, p)`,
-      env: { o: access._rev, p: paymentMock._rev },
-      mocks: { p: paymentMock },
-
+      env: { o: access._rev, p: payment._rev },
+      mocks: { p: payment },
       sighashType,
       inputIndex: 0,
       fund: false,
-      sign: true,
       mod: this.mod,
-    })
+    }) as unknown as Promise<EncodeResult>
   }
 
-  async isOfferTx(tx: TransactionType): Promise<boolean> {
-    try {
-      const { exp, mod } = await this.computer.decode(tx)
-      return exp === 'QuizAccessSale.exec(o, p)' && mod === this.mod
-    } catch {
-      return false
-    }
-  }
-
-  /**
-   * Checks:
-   * - correct exp + module
-   * - effect env keys are exactly o,p
-   * Returns the asking price (tx.outs[0].value).
-   */
   async checkOfferTx(tx: TransactionType): Promise<bigint> {
-    const { exp, env, mod } = await this.computer.decode(tx)
+    const decoded = (await this.computer.decode(tx)) as unknown as DecodeResult
+    const { exp, env, mod } = decoded
+
     if (exp !== 'QuizAccessSale.exec(o, p)') throw new Error('Unexpected expression')
     if (mod !== this.mod) throw new Error('Unexpected module specifier')
 
-    // Re-simulate with a fresh mock payment of the advertised price
-    const price = tx.outs[0].value as bigint
-    const p = new PaymentMock(price)
-    env.p = p._rev
+    const price = BigInt(tx.outs[0].value)
+    const pMock = new PaymentMock(price)
+    env.p = pMock._rev
 
-    const mocks = { p }
-    const fund = false
-    const sign = false
-
-    const { effect } = await this.computer.encode({
+    const reencoded = (await this.computer.encode({
       exp,
-      env,
+      env, // ✅ now Record<string,string>
       mod,
-      mocks,
-      fund,
-      sign,
+      mocks: { p: pMock },
+      fund: false,
+      sign: false,
       sighashType,
-    })
+    })) as unknown as EncodeResult
 
-    // RIGHT
-    if (effect.res === undefined) throw new Error('Unexpected result')
-
-// also make env key check order-safe
-    const keys = Object.keys(effect.env).sort().join(',')
-    if (keys !== 'o,p') throw new Error('Unexpected environment')
-    if (Object.keys(effect.env).toString() !== 'o,p') throw new Error('Unexpected environment keys')
-
+    if (reencoded.effect.res === undefined) throw new Error('Unexpected result')
     return price
   }
 
-  /**
-   * Student completion step:
-   * - replace input[1] with real payment outpoint
-   * - set output[1] scriptPubKey so student receives the access object
-   */
-  static finalizeOfferTx(tx: TransactionType, payment: Payment, buyerScriptPubKey: Buffer) {
+  static finalizeOfferTx(tx: TransactionType, payment: Payment, scriptPubKey: Buffer) {
     const [paymentTxId, paymentIndex] = payment._rev.split(':')
     const index = parseInt(paymentIndex, 10)
-
     tx.updateInput(1, { txId: paymentTxId, index })
-    tx.updateOutput(1, { scriptPubKey: buyerScriptPubKey })
-
+    tx.updateOutput(1, { scriptPubKey })
     return tx
   }
 }
