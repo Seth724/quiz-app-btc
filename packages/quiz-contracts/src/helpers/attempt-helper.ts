@@ -10,7 +10,7 @@ export class AttemptHelper {
   }
 
   async createAttempt(quizId: string, studentPublicKey: string): Promise<QuizAttempt> {
-    return await this.computer.new(QuizAttempt, [quizId, studentPublicKey])
+    return await this.computer.new(QuizAttempt, [quizId, studentPublicKey]) as QuizAttempt
   }
 
   async getAttempt(attemptId: string): Promise<QuizAttempt> {

@@ -70,7 +70,7 @@
   },
   "dependencies": {
     "@bitcoin-computer/lib": "^0.26.0-beta.0",
-    "dotenv": "^16.5.0"
+    "dotenv": "^16.6.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "2.1.4",

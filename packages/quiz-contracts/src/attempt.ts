@@ -1,6 +1,16 @@
 import { Contract } from '@bitcoin-computer/lib'
 import { QuizAccess } from './quiz-access.js'
 
+/**
+ * Simplified QuizAttempt for single-question quiz architecture
+ * Tracks a student's single attempt at a single-question quiz
+ *
+ * Access enforcement:
+ * - requires a QuizAccess token owned by the student
+ * - requires token.quizId === this.quizId
+ * - requires token.amount > 0n
+ * - burns 1 unit on submit (so it cannot be reused)
+ */
 export class QuizAttempt extends Contract {
   quizId!: string
   studentPublicKey!: string
@@ -22,31 +32,21 @@ export class QuizAttempt extends Contract {
     })
   }
 
-  /**
-   * Now requires the student's QuizAccess token.
-   */
-  submitAnswer(
-    access: QuizAccess,
-    selectedAnswer: number,
-    correctAnswer: number,
-    rewardAmount: bigint,
-  ) {
+  submitAnswer(access: QuizAccess, selectedAnswer: number, correctAnswer: number, rewardAmount: bigint) {
     if (this.isCompleted) throw new Error('Quiz already completed')
 
-    // Access checks
-    if (access.quizId !== this.quizId) throw new Error('Wrong access token for this quiz')
-    if (access._owners[0] !== this.studentPublicKey) throw new Error('Access token not owned by this student')
-    if (access.used) throw new Error('Access token already used')
+    // --- Access token checks ---
+    if (access.quizId !== this.quizId) throw new Error('Invalid access token for this quiz')
+    if (!access._owners || access._owners[0] !== this.studentPublicKey)
+      throw new Error('Access token is not owned by this student')
+    if (access.amount <= 0n) throw new Error('Access token already used')
 
     // Validate answer index
-    if (selectedAnswer < 0 || selectedAnswer > 3) {
-      throw new Error('Selected answer must be between 0-3')
-    }
+    if (selectedAnswer < 0 || selectedAnswer > 3) throw new Error('Selected answer must be between 0-3')
 
-    // Consume token (single-use)
-    access.markUsed()
+    // Consume exactly ONE access unit
+    access.burn(1n)
 
-    // Normal attempt logic (unchanged)
     this.selectedAnswer = selectedAnswer
     this.isCorrect = selectedAnswer === correctAnswer
     this.rewardEarned = this.isCorrect ? rewardAmount : 0n

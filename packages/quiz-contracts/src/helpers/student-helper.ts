@@ -148,7 +148,7 @@ export class StudentHelper {
   // Optional pre-check (contract also checks)
   if (accessObj.quizId !== quizId) throw new Error('Wrong access token for this quiz')
   if (accessObj._owners[0] !== this.computer.getPublicKey()) throw new Error('Access token not owned by this student')
-  if (accessObj.used) throw new Error('Access token already used')
+  if (accessObj.amount === 0n) throw new Error('Access token already used')
 
   // Create attempt
   const attempt = await this.computer.new(QuizAttempt, [quizId, this.computer.getPublicKey()])

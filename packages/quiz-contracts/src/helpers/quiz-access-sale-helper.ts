@@ -4,6 +4,7 @@ import type { Transaction as TransactionType } from '@bitcoin-computer/lib'
 import { QuizAccessSale } from '../quiz-access-sale.js'
 import { Payment, PaymentMock } from '../payment.js'
 
+
 const sighashType = Transaction.SIGHASH_SINGLE | Transaction.SIGHASH_ANYONECANPAY
 
 export class QuizAccessSaleHelper {
@@ -34,6 +35,7 @@ export class QuizAccessSaleHelper {
       sighashType,
       inputIndex: 0,
       fund: false,
+      sign: true,
       mod: this.mod,
     })
   }
