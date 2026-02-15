@@ -4,6 +4,8 @@ import { Student } from '../student.js'
 import { Quiz } from '../quiz.js'
 import { QuizAttempt } from '../attempt.js'
 import { Payment, Withdraw } from '../payment.js'
+import { QuizAccess } from '../quiz-access.js'
+import { QuizAccessSale } from '../quiz-access-sale.js'
 
 export async function deployQuizContracts(computer: Computer): Promise<{
   teacherMod: string
@@ -11,6 +13,8 @@ export async function deployQuizContracts(computer: Computer): Promise<{
   quizMod: string
   attemptMod: string
   paymentMod: string
+  quizAccessMod: string
+  quizAccessSaleMod: string
 }> {
   // Deploy all contracts at once
   const teacherMod = await computer.deploy(`export ${Teacher}`)
@@ -18,12 +22,16 @@ export async function deployQuizContracts(computer: Computer): Promise<{
   const quizMod = await computer.deploy(`export ${Quiz}`)
   const attemptMod = await computer.deploy(`export ${QuizAttempt}`)
   const paymentMod = await computer.deploy(`export ${Payment}; export ${Withdraw}`)
+  const quizAccessMod = await computer.deploy(`export ${QuizAccess}`)
+  const quizAccessSaleMod = await computer.deploy(`export ${QuizAccessSale}`)
 
   return {
     teacherMod,
     studentMod,
     quizMod,
     attemptMod,
-    paymentMod
+    paymentMod,
+    quizAccessMod,
+    quizAccessSaleMod
   }
 }

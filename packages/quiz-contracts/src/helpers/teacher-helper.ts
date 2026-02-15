@@ -64,6 +64,35 @@ export class TeacherHelper {
     return quiz
   }
 
+  // NEW: Combined method to create quiz with payment
+  async createQuiz(params: {
+    title: string
+    questionText: string
+    options: string[]
+    correctAnswer: number
+    rewardAmount: bigint
+    entryFee: bigint
+    teacher: Teacher
+  }): Promise<{ quiz: Quiz, paymentTxId: string }> {
+    // First create the reward payment
+    const payment = await this.createRewardPayment(params.rewardAmount)
+    const paymentTxId = await payment._id
+
+    // Then create the quiz with the payment ID
+    const quiz = await this.createQuizOnly({
+      title: params.title,
+      questionText: params.questionText,
+      options: params.options,
+      correctAnswer: params.correctAnswer,
+      rewardAmount: params.rewardAmount,
+      entryFee: params.entryFee,
+      teacher: params.teacher,
+      paymentTxId
+    })
+
+    return { quiz, paymentTxId }
+  }
+
   async getQuiz(quizId: string): Promise<Quiz> {
     return (await this.computer.sync(quizId)) as unknown as Quiz
   }

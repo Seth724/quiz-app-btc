@@ -1,0 +1,21 @@
+import { Controller, Get, Param, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { LeaderboardService } from './leaderboard.service';
+
+@ApiTags('leaderboard')
+@Controller('leaderboard')
+export class LeaderboardController {
+  constructor(private readonly leaderboardService: LeaderboardService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Get leaderboard top entries' })
+  async getLeaderboard(@Query('limit') limit?: number) {
+    return this.leaderboardService.getLeaderboard(limit);
+  }
+
+  @Get(':publicKey')
+  @ApiOperation({ summary: 'Get user rank and stats' })
+  async getUserRank(@Param('publicKey') publicKey: string) {
+    return this.leaderboardService.getUserRank(publicKey);
+  }
+}

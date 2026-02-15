@@ -1,0 +1,19 @@
+{
+  "name": "@quiz-app/shared",
+  "version": "0.26.0-beta.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.11.21",
+    "typescript": "^5.8.3"
+  }
+}

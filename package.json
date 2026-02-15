@@ -14,6 +14,7 @@
   },
   "type": "module",
   "workspaces": [
+    "apps/*",
     "packages/*"
   ],
   "scripts": {
@@ -25,10 +26,19 @@
     "test": "npm run test --if-present --workspaces",
     "test:compile:mocha": "npm run test:compile --if-present --workspace=@quiz-app/contracts",
     "test:mocha:all": "npm run test:compile:mocha && mocha --config .mocharc.json",
-    "dev": "npm run dev --workspace=@quiz-app/frontend",
+    "dev": "npm run dev --workspace=@quiz-app/web",
+    "dev:web": "npm run dev --workspace=@quiz-app/web",
+    "dev:api": "npm run start:dev --workspace=@quiz-app/api",
     "dev:contracts": "npm run dev --workspace=@quiz-app/contracts",
+    "build:web": "npm run build --workspace=@quiz-app/web",
+    "build:api": "npm run build --workspace=@quiz-app/api",
+    "build:sdk": "npm run build --workspace=@quiz-app/sdk",
+    "build:shared": "npm run build --workspace=@quiz-app/shared",
     "deploy": "npm run deploy --workspace=@quiz-app/contracts",
     "fund:wallet": "npm run fund:wallet --workspace=@quiz-app/contracts",
+    "prisma:generate": "npm run prisma:generate --workspace=@quiz-app/api",
+    "prisma:migrate": "npm run prisma:migrate --workspace=@quiz-app/api",
+    "prisma:studio": "npm run prisma:studio --workspace=@quiz-app/api",
     "types": "turbo run types --concurrency=1 --continue=never"
   },
   "dependencies": {

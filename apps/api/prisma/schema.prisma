@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  publicKey String   @unique
+  name      String?
+  role      UserRole
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quizzesCreated Quiz[]
+  attempts       Attempt[]
+
+  @@index([publicKey])
+  @@map("users")
+}
+
+enum UserRole {
+  TEACHER
+  STUDENT
+}
+
+model Quiz {
+  id            String   @id // blockchain txId
+  title         String
+  questionText  String
+  options       String[] // Array of options
+  rewardAmount  BigInt
+  entryFee      BigInt
+  isActive      Boolean  @default(true)
+  isClaimed     Boolean  @default(false)
+  claimedBy     String?
+  paymentTxId   String
+  teacherPubKey String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  teacher  User      @relation(fields: [teacherPubKey], references: [publicKey])
+  attempts Attempt[]
+
+  @@index([teacherPubKey])
+  @@index([isActive])
+  @@index([createdAt])
+  @@map("quizzes")
+}
+
+model Attempt {
+  id              String   @id @default(uuid())
+  quizId          String
+  studentPubKey   String
+  selectedAnswer  Int
+  isCorrect       Boolean
+  rewardEarned    BigInt
+  attemptedAt     DateTime @default(now())
+  blockchainTxId  String?  @unique
+
+  quiz    Quiz   @relation(fields: [quizId], references: [id])
+  student User   @relation(fields: [studentPubKey], references: [publicKey])
+
+  @@index([quizId])
+  @@index([studentPubKey])
+  @@index([attemptedAt])
+  @@index([isCorrect])
+  @@map("attempts")
+}
+
+model LeaderboardEntry {
+  id            String   @id @default(uuid())
+  publicKey     String   @unique
+  name          String?
+  totalRewards  BigInt   @default(0)
+  correctCount  Int      @default(0)
+  totalAttempts Int      @default(0)
+  rank          Int?
+  updatedAt     DateTime @updatedAt
+
+  @@index([rank])
+  @@index([totalRewards])
+  @@map("leaderboard")
+}

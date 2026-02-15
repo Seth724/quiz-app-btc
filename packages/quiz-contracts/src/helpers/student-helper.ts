@@ -129,6 +129,7 @@ export class StudentHelper {
 ): Promise<{
   isCorrect: boolean
   rewardEarned: bigint
+  selectedAnswer: number
 }> {
   console.log(`📝 Student attempting quiz ${quizId} with QuizAttempt contract`)
 
@@ -168,7 +169,7 @@ export class StudentHelper {
 
   await new Promise((resolve) => setTimeout(resolve, 2500))
 
-  return { isCorrect, rewardEarned }
+  return { isCorrect, rewardEarned, selectedAnswer }
 }
 
   async getQuiz(quizId: string): Promise<Quiz> {

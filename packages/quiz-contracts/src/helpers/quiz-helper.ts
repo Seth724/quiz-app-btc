@@ -85,23 +85,27 @@ export class QuizHelper {
     questionText: string
     options: string[]
     rewardAmount: bigint
+    entryFee: bigint
     isActive: boolean
     isClaimed: boolean
     claimedBy: string
     attemptCount: number
+    attemptedStudents: string[]
     paymentTxId: string
   }> {
     const quiz = await this.getQuiz(quizId)
-    
+
     return {
       title: await quiz.title,
       questionText: await quiz.questionText,
       options: await quiz.options,
       rewardAmount: await quiz.rewardAmount,
+      entryFee: await quiz.entryFee,
       isActive: await quiz.isActive,
       isClaimed: await quiz.isClaimed,
       claimedBy: await quiz.claimedBy,
       attemptCount: (await quiz.attemptedStudents).length,
+      attemptedStudents: await quiz.attemptedStudents,
       paymentTxId: await quiz.paymentTxId
     }
   }

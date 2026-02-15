@@ -1,0 +1,53 @@
+{
+  "name": "@bitcoin-computer/components",
+  "version": "0.26.0-beta.0",
+  "description": "",
+  "homepage": "http://bitcoincomputer.io/",
+  "bugs": {
+    "url": "https://github.com/bitcoin-computer/monorepo/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bitcoin-computer/monorepo/tree/main/packages/components"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Clemens Ley",
+    "email": "clemens@bitcoincomputer.io",
+    "url": "https://github.com/bitcoin-computer"
+  },
+  "contributors": [
+    "Clemens Ley",
+    "Laura Tardivo",
+    "Vivek Singh"
+  ],
+  "main": "built/index.js",
+  "types": "built/index.d.ts",
+  "files": [
+    "LICENSE.md",
+    "LEGAL.md"
+  ],
+  "scripts": {
+    "build": "npm run tsc:compile",
+    "build:turbo": "turbo run build",
+    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,css,scss,md}\"",
+    "lint": "eslint --fix . --ext .ts,.tsx --ignore-pattern built/",
+    "lint:fix": "eslint src --fix",
+    "tsc:compile": "rm -rf built/* && tsc",
+    "types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bitcoin-computer/lib": "^0.26.0-beta.0",
+    "flowbite": "^2.3.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-icons": "^5.2.1",
+    "react-router-dom": "^6.23.1",
+    "react-string-replace": "^1.1.1"
+  },
+  "devDependencies": {
+    "@babel/preset-react": "^7.23.3",
+    "@typescript-eslint/eslint-plugin": "^8.35.0",
+    "vitest": "^2.0.5"
+  }
+}
