@@ -5,8 +5,9 @@
 
 'use client'
 
-import type { QuizClient } from '@quiz-app/sdk'
+import type { QuizData } from '@quiz-app/shared'
 import { apiClient } from '@/services'
+import { BrowserTeacherClient, BrowserQuizClient } from '@/services/bc'
 
 export interface Quiz {
   _id: string
@@ -43,7 +44,7 @@ export interface CreateQuizParams {
  * 2. Create Quiz with payment reference
  */
 export async function createQuiz(
-  quizClient: QuizClient,
+  teacherClient: BrowserTeacherClient,
   params: CreateQuizParams
 ): Promise<Quiz> {
   // Validate
@@ -54,14 +55,17 @@ export async function createQuiz(
     throw new Error('Correct answer must be between 0 and 3')
   }
 
-  const quiz = await quizClient.create(
-    params.title,
-    params.questionText,
-    params.options,
-    params.correctAnswer,
-    BigInt(params.rewardAmount),
-    BigInt(params.entryFee)
-  )
+  const quizData: QuizData = {
+    title: params.title,
+    questionText: params.questionText,
+    options: params.options,
+    correctAnswer: params.correctAnswer,
+    rewardAmount: BigInt(params.rewardAmount),
+    entryFee: BigInt(params.entryFee),
+    paymentTxId: '' // Will be populated by the teacher client
+  }
+
+  const quiz = await teacherClient.createQuiz(quizData)
 
   // Sync with backend
   try {
@@ -82,12 +86,12 @@ export async function createQuiz(
  * Get quiz by ID
  */
 export async function getQuiz(
-  quizClient: QuizClient,
+  quizClient: BrowserQuizClient,
   quizId: string
 ): Promise<Quiz | null> {
   try {
-    const quiz = await quizClient.get(quizId)
-    return quiz
+    const quiz = await quizClient.getQuiz(quizId)
+    return quiz ? (quiz as unknown as Quiz) : null
   } catch (error) {
     console.error('Failed to get quiz:', error)
     return null
@@ -98,11 +102,11 @@ export async function getQuiz(
  * List quizzes by teacher
  */
 export async function listQuizzesByTeacher(
-  quizClient: QuizClient,
+  teacherClient: any, // TeacherClient instance
   teacherId: string
 ): Promise<Quiz[]> {
   try {
-    const quizzes = await quizClient.listByTeacher(teacherId)
+    const quizzes = await teacherClient.getQuizzesByTeacher(teacherId)
     return quizzes
   } catch (error) {
     console.error('Failed to list quizzes:', error)
@@ -114,11 +118,11 @@ export async function listQuizzesByTeacher(
  * Deactivate quiz (prevent further attempts)
  */
 export async function deactivateQuiz(
-  quizClient: QuizClient,
+  quizClient: BrowserQuizClient,
   quizId: string
 ): Promise<void> {
   try {
-    await quizClient.deactivate(quizId)
+    await quizClient.deactivateQuiz(quizId)
   } catch (error) {
     console.error('Failed to deactivate quiz:', error)
     throw error
@@ -129,7 +133,7 @@ export async function deactivateQuiz(
  * Check if student can attempt quiz
  */
 export async function canAttemptQuiz(
-  quizClient: QuizClient,
+  quizClient: BrowserQuizClient,
   quizId: string,
   studentPublicKey: string
 ): Promise<boolean> {
@@ -138,5 +142,45 @@ export async function canAttemptQuiz(
   } catch (error) {
     console.error('Failed to check attempt eligibility:', error)
     return false
+  }
+}
+
+/**
+ * Get all active quizzes for students to attempt
+ */
+export async function getAllQuizzes(): Promise<Quiz[]> {
+  try {
+    // For now use the BrowserQuizClient directly
+    // In the future, this could also query API/database for cached results
+    const { createQuizClient } = await import('@/hooks/useClients')
+    const quizClient = createQuizClient()
+    
+    if (!quizClient) {
+      console.error('Quiz client not available')
+      return []
+    }
+
+    const dtos = await quizClient.getAllQuizzes()
+    // Convert DTOs to Quiz interface
+    return dtos.map(dto => ({
+      _id: dto._id,
+      _rev: dto._rev,
+      title: dto.title,
+      questionText: dto.questionText,
+      options: dto.options,
+      correctAnswer: dto.correctAnswer,
+      rewardAmount: dto.rewardAmount,
+      entryFee: dto.entryFee,
+      teacherPublicKey: dto.teacherPublicKey,
+      isActive: dto.isActive || true,
+      paymentTxId: dto.paymentTxId || '',
+      isClaimed: dto.isClaimed || false,
+      claimedBy: dto.claimedBy || '',
+      attemptCount: dto.attemptCount || 0,
+      createdAt: dto.createdAt || Date.now()
+    }))
+  } catch (error) {
+    console.error('Failed to get all quizzes:', error)
+    return []
   }
 }

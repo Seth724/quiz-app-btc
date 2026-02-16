@@ -55,19 +55,41 @@ export const useWalletStore = create<WalletState>()(
       isConnected: false,
       
       // Actions
-      connect: (data) => set({
-        publicKey: data.publicKey,
-        address: data.address,
-        path: data.path,
-        isConnected: true
-      }),
-      
-      disconnect: () => set({
-        publicKey: null,
-        address: null,
-        path: null,
-        isConnected: false
-      }),
+      connect: (data) => {
+        if (typeof window !== 'undefined') {
+          // Store wallet info in localStorage to sync with computer instance
+          const mnemonic = localStorage.getItem('BIP_39_KEY')
+          if (mnemonic) {
+            localStorage.setItem('CHAIN', 'LTC')
+            localStorage.setItem('NETWORK', 'regtest')
+            localStorage.setItem('URL', 'http://localhost:1031')
+          }
+        }
+        
+        set({
+          publicKey: data.publicKey,
+          address: data.address,
+          path: data.path,
+          isConnected: true
+        })
+      },
+
+      disconnect: () => {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('BIP_39_KEY')
+          localStorage.removeItem('CHAIN')
+          localStorage.removeItem('NETWORK')
+          localStorage.removeItem('URL')
+          localStorage.removeItem('PATH')
+        }
+        
+        set({
+          publicKey: null,
+          address: null,
+          path: null,
+          isConnected: false
+        })
+      },
       
       updateConfig: (config) => set((state) => ({
         chain: config.chain ?? state.chain,

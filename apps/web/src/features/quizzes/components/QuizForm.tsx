@@ -6,12 +6,12 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useQuizClient } from '@/hooks'
+import { useTeacherClient } from '@/hooks'
 import { createQuiz, type CreateQuizParams } from '../quizzes.service'
 
 export function QuizForm() {
   const router = useRouter()
-  const quizClient = useQuizClient()
+  const teacherClient = useTeacherClient()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -44,7 +44,7 @@ export function QuizForm() {
       if (!formData.questionText.trim()) throw new Error('Question is required')
       if (formData.options.some(o => !o.trim())) throw new Error('All 4 options must be filled')
 
-      const quiz = await createQuiz(quizClient, formData)
+      const quiz = await createQuiz(teacherClient, formData)
       router.push(`/teacher/quizzes/${quiz._id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create quiz')

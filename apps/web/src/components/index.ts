@@ -1,5 +1,5 @@
-export { Button } from './Button.js'
-export { Card } from './Card.js'
-export { Loader } from './Loader.js'
+export { Button } from './Button'
+export { Card } from './Card'
+export { Loader } from './Loader'
 export * from './layout'
 export * from './bc'

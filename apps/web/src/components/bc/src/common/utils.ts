@@ -72,7 +72,9 @@ export const sleep = (ms: number): Promise<void> =>
 export function getEnv(name: string) {
   return (
     (typeof process !== 'undefined' && process.env[`REACT_APP_${name}`]) ||
-    (import.meta.env && import.meta.env[`VITE_${name}`])
+    (typeof process !== 'undefined' && process.env[`NEXT_PUBLIC_${name}`]) ||
+    (typeof process !== 'undefined' && process.env[`VITE_${name}`]) ||
+    ''
   )
 }
 

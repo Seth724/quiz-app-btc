@@ -38,11 +38,11 @@ export class TeacherHelper {
     entryFee: bigint
     teacher: Teacher
     paymentTxId: string
-  }): Promise<Quiz> {
+  }): Promise<any> {
     Teacher.validateQuizParams(params.questionText, params.options, params.correctAnswer, params.rewardAmount)
 
     const teacherPubKey = await params.teacher.publicKey
-    const quiz = (await this.computer.new(Quiz, [
+    const quiz = await this.computer.new(Quiz, [
       {
         title: params.title,
         questionText: params.questionText,
@@ -53,7 +53,7 @@ export class TeacherHelper {
         teacherPublicKey: teacherPubKey,
         paymentTxId: params.paymentTxId,
       },
-    ])) as unknown as Quiz
+    ], process.env.NEXT_PUBLIC_QUIZ_MOD)
 
     await new Promise((r) => setTimeout(r, 3000))
 
@@ -78,22 +78,45 @@ export class TeacherHelper {
     const payment = await this.createRewardPayment(params.rewardAmount)
     const paymentTxId = await payment._id
 
-    // Then create the quiz with the payment ID
-    const quiz = await this.createQuizOnly({
+    // Then create the quiz with the payment ID using the deployed module spec
+    const quiz = await this.computer.new(Quiz, [{
       title: params.title,
       questionText: params.questionText,
       options: params.options,
       correctAnswer: params.correctAnswer,
       rewardAmount: params.rewardAmount,
       entryFee: params.entryFee,
-      teacher: params.teacher,
+      teacherPublicKey: await params.teacher.publicKey,
       paymentTxId
-    })
+    }], process.env.NEXT_PUBLIC_QUIZ_MOD)
 
     return { quiz, paymentTxId }
   }
 
-  async getQuiz(quizId: string): Promise<Quiz> {
-    return (await this.computer.sync(quizId)) as unknown as Quiz
+  async getQuiz(quizId: string): Promise<any> {
+    return await this.computer.sync(quizId)
+  }
+
+  /**
+   * Get quizzes created by this teacher
+   */
+  async getQuizzesByTeacher(teacherId: string): Promise<any[]> {
+    const teacher = await this.getTeacher(teacherId)
+    const teacherPubKey = await teacher.publicKey
+    
+    // Get all Quiz objects owned by this teacher using the deployed module spec
+    const revs = await this.computer.query({
+      publicKey: teacherPubKey,
+      mod: process.env.NEXT_PUBLIC_QUIZ_MOD
+    })
+    
+    const quizzes = await Promise.all(
+      revs.map(async (rev: string) => {
+        const quiz = await this.computer.sync(rev)
+        return quiz
+      })
+    )
+    
+    return quizzes
   }
 }

@@ -4,7 +4,7 @@ import { IsString, IsEnum, IsOptional } from 'class-validator';
 export class CreateUserDto {
   @ApiProperty({ description: 'User public key' })
   @IsString()
-  publicKey: string;
+  publicKey!: string;
 
   @ApiPropertyOptional({ description: 'User name' })
   @IsOptional()
@@ -13,5 +13,5 @@ export class CreateUserDto {
 
   @ApiProperty({ description: 'User role', enum: ['TEACHER', 'STUDENT'] })
   @IsEnum(['TEACHER', 'STUDENT'])
-  role: 'TEACHER' | 'STUDENT';
+  role!: 'TEACHER' | 'STUDENT';
 }

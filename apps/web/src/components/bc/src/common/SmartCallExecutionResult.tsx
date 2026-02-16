@@ -1,7 +1,8 @@
-import { Link, useNavigate } from 'react-router-dom'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 export function FunctionResultModalContent({ functionResult }: any) {
-  const navigate = useNavigate()
+  const router = useRouter()
 
   if (functionResult && typeof functionResult === 'object' && !Array.isArray(functionResult))
     return (
@@ -10,10 +11,10 @@ export function FunctionResultModalContent({ functionResult }: any) {
           You created an&nbsp;
           <Link
             id="smart-call-execution-counter-link"
-            to={`/objects/${functionResult._rev}`}
+            href={`/objects/${functionResult._rev}`}
             className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
             onClick={() => {
-              navigate(`/objects/${functionResult._rev}`)
+              router.push(`/objects/${functionResult._rev}`)
               window.location.reload()
             }}
           >

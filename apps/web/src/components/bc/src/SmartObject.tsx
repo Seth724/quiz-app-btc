@@ -1,5 +1,7 @@
 import { useContext, useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import reactStringReplace from 'react-string-replace'
 import { HiOutlineClipboard } from 'react-icons/hi'
 import { capitalizeFirstLetter, toObject } from './common/utils'
@@ -34,7 +36,7 @@ function ObjectValueCard({ content, id }: { content: string; id?: string }) {
   const revLink = (rev: string, i: number) => (
     <Link
       key={i}
-      to={`/objects/${rev}`}
+      href={`/objects/${rev}`}
       className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
     >
       {rev}
@@ -72,9 +74,9 @@ function MetaData({ smartObject, prev, next }: any) {
     <div>
       <div className="pt-6 pb-6 space-y-4 border-t border-gray-300 dark:border-gray-700">
         <div className="flex">
-          <a
-            href={prev ? `/objects/${prev}` : undefined}
-            className={`flex items-center justify-center px-4 h-10 ms-3 text-sm font-medium border rounded-lg transition 
+          <Link
+            href={prev ? `/objects/${prev}` : '#'}
+            className={`flex items-center justify-center px-4 h-10 ms-3 text-sm font-medium border rounded-lg transition
       ${
         prev
           ? 'bg-white text-black border-gray-300 hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700'
@@ -83,10 +85,10 @@ function MetaData({ smartObject, prev, next }: any) {
             aria-disabled={!prev}
           >
             Previous
-          </a>
-          <a
-            href={next ? `/objects/${next}` : undefined}
-            className={`flex items-center justify-center px-4 h-10 ms-3 text-sm font-medium border rounded-lg transition 
+          </Link>
+          <Link
+            href={next ? `/objects/${next}` : '#'}
+            className={`flex items-center justify-center px-4 h-10 ms-3 text-sm font-medium border rounded-lg transition
       ${
         next
           ? 'bg-white text-black border-gray-300 hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700'
@@ -95,7 +97,7 @@ function MetaData({ smartObject, prev, next }: any) {
             aria-disabled={!next}
           >
             Next
-          </a>
+          </Link>
           <button
             onClick={toggleVisibility}
             className={`flex items-center justify-center px-4 h-10 ms-3 text-sm font-medium border rounded-lg transition 
@@ -129,7 +131,7 @@ function MetaData({ smartObject, prev, next }: any) {
               </td>
               <td className="px-4 py-2">
                 <Link
-                  to={`/objects/${smartObject?._id}`}
+                  href={`/objects/${smartObject?._id}`}
                   className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
                 >
                   {smartObject?._id}
@@ -145,7 +147,7 @@ function MetaData({ smartObject, prev, next }: any) {
               </td>
               <td className="px-4 py-2">
                 <Link
-                  to={`/objects/${smartObject?._rev}`}
+                  href={`/objects/${smartObject?._rev}`}
                   className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
                 >
                   {smartObject?._rev}
@@ -161,7 +163,7 @@ function MetaData({ smartObject, prev, next }: any) {
               </td>
               <td className="px-4 py-2">
                 <Link
-                  to={`/objects/${smartObject?._root}`}
+                  href={`/objects/${smartObject?._root}`}
                   className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
                 >
                   {smartObject?._root}
@@ -203,9 +205,9 @@ function MetaData({ smartObject, prev, next }: any) {
 }
 
 function Component({ title }: { title?: string }) {
-  const location = useLocation()
+  const pathname = usePathname()
+  const router = useRouter()
   const params = useParams()
-  const navigate = useNavigate()
   const [rev] = useState(params.rev || '')
   const computer = useContext(ComputerContext)
   const [smartObject, setSmartObject] = useState<any | null>(null)
@@ -240,11 +242,11 @@ function Component({ title }: { title?: string }) {
       } catch (err) {
         if (err instanceof Error) console.log('Error syncing to object:', err.message)
         const [txId] = rev.split(':')
-        navigate(`/transactions/${txId}`)
+        router.push(`/transactions/${txId}`)
       }
     }
     fetch()
-  }, [computer, rev, location, navigate])
+  }, [computer, rev, pathname, router])
 
   useEffect(() => {
     let funcExist = false
@@ -273,7 +275,7 @@ function Component({ title }: { title?: string }) {
         <h1 className="mb-2 text-5xl font-extrabold dark:text-white">{title || 'Object'}</h1>
         <div className="mb-8">
           <Link
-            to={`/transactions/${txId}`}
+            href={`/transactions/${txId}`}
             className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
           >
             {txId}

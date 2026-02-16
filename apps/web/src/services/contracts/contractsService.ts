@@ -4,7 +4,6 @@
 
 import { Computer } from '@bitcoin-computer/lib'
 import {
-  createComputer,
   TeacherClient,
   StudentClient,
   QuizClient,
@@ -12,34 +11,28 @@ import {
   PaymentClient,
   AttemptClient
 } from '@quiz-app/sdk'
-import type { ComputerConfig } from '@quiz-app/shared'
-import { getComputerConfig, MODULE_SPECS } from '@/config'
-
-let computerInstance: Computer | null = null
+import { MODULE_SPECS } from '@/config'
+import { createComputerFromStorage } from '../sdk.factory'
 
 /**
- * Get or create Computer instance
+ * Get Computer instance from storage (same as wallet)
  */
-export function getComputer(config?: Partial<ComputerConfig>): Computer {
-  if (!computerInstance) {
-    const fullConfig = config ? { ...getComputerConfig(), ...config } : getComputerConfig()
-    computerInstance = createComputer(fullConfig)
-  }
-  return computerInstance
+export function getComputer(): Computer {
+  return createComputerFromStorage()
 }
 
 /**
  * Create a new Computer instance (useful for multi-wallet scenarios)
  */
-export function createNewComputer(config: ComputerConfig): Computer {
-  return createComputer(config)
+export function createNewComputer(config: any): Computer {
+  return new Computer(config)
 }
 
 /**
  * Reset Computer instance
  */
 export function resetComputer(): void {
-  computerInstance = null
+  // No singleton to reset since we're using storage-based computer
 }
 
 /**

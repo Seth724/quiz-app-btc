@@ -3,9 +3,12 @@
 import Link from 'next/link'
 import { useWallet } from '@/hooks'
 import { WalletConnect, WalletDisplay } from '@/features/wallet'
+import { Wallet as BCWallet } from '@/components/bc/src'
+import { useComputer } from '@/hooks'
 
 export default function WalletPage() {
   const { isConnected } = useWallet()
+  const computer = useComputer()
 
   return (
     <div className="min-h-screen p-8">
@@ -21,7 +24,20 @@ export default function WalletPage() {
         </div>
 
         {isConnected ? (
-          <WalletDisplay />
+          <>
+            <WalletDisplay />
+            <div className="mt-8">
+              <BCWallet modSpecs={[
+                process.env.NEXT_PUBLIC_TEACHER_MOD || '',
+                process.env.NEXT_PUBLIC_STUDENT_MOD || '',
+                process.env.NEXT_PUBLIC_QUIZ_MOD || '',
+                process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD || '',
+                process.env.NEXT_PUBLIC_PAYMENT_MOD || '',
+                process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD || '',
+                process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD || ''
+              ].filter(spec => spec !== '')} />
+            </div>
+          </>
         ) : (
           <WalletConnect redirectTo="/" />
         )}

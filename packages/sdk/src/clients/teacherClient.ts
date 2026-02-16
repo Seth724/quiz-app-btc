@@ -89,4 +89,11 @@ export class TeacherClient {
   async withdrawPayment(paymentTxId: string) {
     return await this.paymentHelper.withdrawPaymentById(paymentTxId)
   }
+
+  /**
+   * Get quizzes by teacher
+   */
+  async getQuizzesByTeacher(teacherId: string) {
+    return await this.teacherHelper.getQuizzesByTeacher(teacherId)
+  }
 }

@@ -31,7 +31,7 @@ export function useQuiz(quizId: string) {
     if (quizId) {
       fetchQuiz()
     }
-  }, [quizId, quizClient])
+  }, [quizId]) // Remove quizClient from dependencies to prevent infinite loop
 
   return { quiz, loading, error }
 }
@@ -60,7 +60,7 @@ export function useTeacherQuizzes(teacherId: string) {
       refresh()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teacherId, quizClient])
+  }, [teacherId]) // Remove quizClient from dependencies to prevent infinite loop
 
   return { quizzes, loading, error, refresh }
 }

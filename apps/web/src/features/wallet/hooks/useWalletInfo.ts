@@ -30,7 +30,7 @@ export function useWalletInfo() {
   useEffect(() => {
     refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [computer])
+  }, []) // Remove computer from dependencies since it's memoized
 
   return {
     walletInfo,

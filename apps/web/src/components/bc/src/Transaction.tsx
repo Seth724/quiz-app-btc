@@ -1,5 +1,7 @@
 import { useContext, useEffect, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import reactStringReplace from 'react-string-replace'
 import { Transaction as BCTransaction } from '@bitcoin-computer/lib'
 import { Card } from './Card'
@@ -41,7 +43,7 @@ export function TransactionComponent() {
       const tx = BCTransaction.fromHex(hex)
       setTxnData(tx)
 
-      const { result } = await computer.rpc('getrawtransaction', `${params.txn} 2`)
+      const { result } = await computer.rpcCall('getrawtransaction', `${params.txn} 2`)
       setRPCTxnData(result)
     }
     fetch()

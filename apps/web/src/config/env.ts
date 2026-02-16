@@ -19,11 +19,22 @@ export const MODULE_SPECS = {
   teacherMod: process.env.NEXT_PUBLIC_TEACHER_MOD || '',
   studentMod: process.env.NEXT_PUBLIC_STUDENT_MOD || '',
   quizMod: process.env.NEXT_PUBLIC_QUIZ_MOD || '',
-  attemptMod: process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD || '',
+  attemptMod: process.env.NEXT_PUBLIC_ATTEMPT_MOD || '',
   paymentMod: process.env.NEXT_PUBLIC_PAYMENT_MOD || '',
   quizAccessMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD || '',
   quizAccessSaleMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD || ''
 }
+
+// Force log all environment variables for debugging
+console.log('🔧 ALL NEXT_PUBLIC env vars:', {
+  NEXT_PUBLIC_TEACHER_MOD: process.env.NEXT_PUBLIC_TEACHER_MOD,
+  NEXT_PUBLIC_STUDENT_MOD: process.env.NEXT_PUBLIC_STUDENT_MOD,
+  NEXT_PUBLIC_QUIZ_MOD: process.env.NEXT_PUBLIC_QUIZ_MOD,
+  NEXT_PUBLIC_ATTEMPT_MOD: process.env.NEXT_PUBLIC_ATTEMPT_MOD,
+  NEXT_PUBLIC_PAYMENT_MOD: process.env.NEXT_PUBLIC_PAYMENT_MOD,
+  NEXT_PUBLIC_QUIZ_ACCESS_MOD: process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD,
+  NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD: process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD
+})
 
 // Blockchain config object
 export const BLOCKCHAIN_CONFIG = {
@@ -45,7 +56,23 @@ export function validateClientEnv(): { valid: boolean; missing: string[] } {
 
 // Check if module specs are configured
 export function hasModuleSpecs(): boolean {
-  return Object.values(MODULE_SPECS).every(mod => mod !== '')
+  // Debug: Log what we actually have
+  console.log('🔍 Debug MODULE_SPECS:', MODULE_SPECS)
+  console.log('🔍 Debug env vars:', {
+    teacherMod: process.env.NEXT_PUBLIC_TEACHER_MOD,
+    paymentMod: process.env.NEXT_PUBLIC_PAYMENT_MOD,
+    quizMod: process.env.NEXT_PUBLIC_QUIZ_MOD
+  })
+  
+  const hasSpecs = Object.values(MODULE_SPECS).every(mod => mod !== '')
+  console.log('🔍 hasModuleSpecs result:', hasSpecs)
+  
+  if (!hasSpecs) {
+    console.info('🔧 Development Mode: Module specs not deployed, using mock implementations')
+  } else {
+    console.info('✅ Production Mode: Using deployed blockchain contracts')
+  }
+  return hasSpecs
 }
 
 // Get Computer configuration

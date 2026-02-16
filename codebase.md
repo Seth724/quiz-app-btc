@@ -1076,23 +1076,23 @@ import { IsString, IsNumber, IsBoolean, IsOptional } from 'class-validator';
 export class CreateAttemptDto {
   @ApiProperty({ description: 'Quiz ID' })
   @IsString()
-  quizId: string;
+  quizId!: string;
 
   @ApiProperty({ description: 'Student public key' })
   @IsString()
-  studentPubKey: string;
+  studentPubKey!: string;
 
   @ApiProperty({ description: 'Selected answer index' })
   @IsNumber()
-  selectedAnswer: number;
+  selectedAnswer!: number;
 
   @ApiProperty({ description: 'Is answer correct' })
   @IsBoolean()
-  isCorrect: boolean;
+  isCorrect!: boolean;
 
   @ApiProperty({ description: 'Reward earned in satoshis' })
   @IsNumber()
-  rewardEarned: number;
+  rewardEarned!: number;
 
   @ApiPropertyOptional({ description: 'Blockchain transaction ID' })
   @IsOptional()
@@ -1216,40 +1216,40 @@ import { IsString, IsArray, IsNumber, Min, ArrayMinSize, ArrayMaxSize } from 'cl
 export class CreateQuizDto {
   @ApiProperty({ description: 'Quiz blockchain transaction ID' })
   @IsString()
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: 'Quiz title' })
   @IsString()
-  title: string;
+  title!: string;
 
   @ApiProperty({ description: 'Question text' })
   @IsString()
-  questionText: string;
+  questionText!: string;
 
   @ApiProperty({ description: 'Array of answer options', type: [String] })
   @IsArray()
   @ArrayMinSize(2)
   @ArrayMaxSize(10)
   @IsString({ each: true })
-  options: string[];
+  options!: string[];
 
   @ApiProperty({ description: 'Reward amount in satoshis' })
   @IsNumber()
   @Min(0)
-  rewardAmount: number;
+  rewardAmount!: number;
 
   @ApiProperty({ description: 'Entry fee in satoshis' })
   @IsNumber()
   @Min(0)
-  entryFee: number;
+  entryFee!: number;
 
   @ApiProperty({ description: 'Payment transaction ID' })
   @IsString()
-  paymentTxId: string;
+  paymentTxId!: string;
 
   @ApiProperty({ description: 'Teacher public key' })
   @IsString()
-  teacherPubKey: string;
+  teacherPubKey!: string;
 }
 
 ```
@@ -1496,7 +1496,7 @@ import { IsString, IsEnum, IsOptional } from 'class-validator';
 export class CreateUserDto {
   @ApiProperty({ description: 'User public key' })
   @IsString()
-  publicKey: string;
+  publicKey!: string;
 
   @ApiPropertyOptional({ description: 'User name' })
   @IsOptional()
@@ -1505,7 +1505,7 @@ export class CreateUserDto {
 
   @ApiProperty({ description: 'User role', enum: ['TEACHER', 'STUDENT'] })
   @IsEnum(['TEACHER', 'STUDENT'])
-  role: 'TEACHER' | 'STUDENT';
+  role!: 'TEACHER' | 'STUDENT';
 }
 
 ```
@@ -1828,11 +1828,14 @@ export default nextConfig;
     "@quiz-app/contracts": "*",
     "@quiz-app/sdk": "*",
     "@quiz-app/shared": "*",
-    "zustand": "^5.0.2",
+    "flowbite": "^4.0.1",
     "next": "^16.0.10",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-icons": "^5.5.0"
+    "react-icons": "^5.5.0",
+    "react-router-dom": "^7.13.0",
+    "react-string-replace": "^2.0.1",
+    "zustand": "^5.0.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -2807,9 +2810,12 @@ export default function TeacherPage() {
 import Link from 'next/link'
 import { useWallet } from '@/hooks'
 import { WalletConnect, WalletDisplay } from '@/features/wallet'
+import { Wallet as BCWallet } from '@/components/bc/src'
+import { useComputer } from '@/hooks'
 
 export default function WalletPage() {
   const { isConnected } = useWallet()
+  const computer = useComputer()
 
   return (
     <div className="min-h-screen p-8">
@@ -2825,7 +2831,20 @@ export default function WalletPage() {
         </div>
 
         {isConnected ? (
-          <WalletDisplay />
+          <>
+            <WalletDisplay />
+            <div className="mt-8">
+              <BCWallet modSpecs={[
+                process.env.NEXT_PUBLIC_TEACHER_MOD || '',
+                process.env.NEXT_PUBLIC_STUDENT_MOD || '',
+                process.env.NEXT_PUBLIC_QUIZ_MOD || '',
+                process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD || '',
+                process.env.NEXT_PUBLIC_PAYMENT_MOD || '',
+                process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD || '',
+                process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD || ''
+              ].filter(spec => spec !== '')} />
+            </div>
+          </>
         ) : (
           <WalletConnect redirectTo="/" />
         )}
@@ -5151,10 +5170,11 @@ export const VITE_WITHDRAW_MOD_SPEC: string = getEnvVar('VITE_WITHDRAW_MOD_SPEC'
 # apps\web\src\components\bc\src\common\SmartCallExecutionResult.tsx
 
 ```tsx
-import { Link, useNavigate } from 'react-router-dom'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 export function FunctionResultModalContent({ functionResult }: any) {
-  const navigate = useNavigate()
+  const router = useRouter()
 
   if (functionResult && typeof functionResult === 'object' && !Array.isArray(functionResult))
     return (
@@ -5163,10 +5183,10 @@ export function FunctionResultModalContent({ functionResult }: any) {
           You created an&nbsp;
           <Link
             id="smart-call-execution-counter-link"
-            to={`/objects/${functionResult._rev}`}
+            href={`/objects/${functionResult._rev}`}
             className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
             onClick={() => {
-              navigate(`/objects/${functionResult._rev}`)
+              router.push(`/objects/${functionResult._rev}`)
               window.location.reload()
             }}
           >
@@ -5561,7 +5581,7 @@ export const Error404 = ({ message: m }: { message?: string }) => {
 ```tsx
 import { Computer } from '@bitcoin-computer/lib'
 import { useContext, useEffect, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import Link from 'next/link'
 import { initFlowbite } from 'flowbite'
 import { jsonMap, strip, toObject } from './common/utils'
 import { useUtilsComponents } from './UtilsContext'
@@ -5646,7 +5666,7 @@ function FromRevs({ revs, computer }: { revs: string[]; computer: any }) {
       {revs.map((rev) => (
         <div key={rev}>
           <Link
-            to={`/objects/${rev}`}
+            href={`/objects/${rev}`}
             className="block font-medium text-blue-600 dark:text-blue-500"
           >
             <ValueComponent rev={rev} computer={computer} />
@@ -5723,8 +5743,7 @@ export function GalleryWithPagination<T extends Class>(q: UserQuery<T>) {
   const [isPrevAvailable, setIsPrevAvailable] = useState(pageNum > 0)
   const [showNoAsset, setShowNoAsset] = useState(false)
   const [revs, setRevs] = useState<string[]>([])
-  const location = useLocation()
-  const params = Object.fromEntries(new URLSearchParams(location.search))
+  const params = {}
 
   useEffect(() => {
     initFlowbite()
@@ -5968,7 +5987,9 @@ export const Modal = {
 
 ```tsx
 import { useContext, useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import reactStringReplace from 'react-string-replace'
 import { HiOutlineClipboard } from 'react-icons/hi'
 import { capitalizeFirstLetter, toObject } from './common/utils'
@@ -6003,7 +6024,7 @@ function ObjectValueCard({ content, id }: { content: string; id?: string }) {
   const revLink = (rev: string, i: number) => (
     <Link
       key={i}
-      to={`/objects/${rev}`}
+      href={`/objects/${rev}`}
       className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
     >
       {rev}
@@ -6041,9 +6062,9 @@ function MetaData({ smartObject, prev, next }: any) {
     <div>
       <div className="pt-6 pb-6 space-y-4 border-t border-gray-300 dark:border-gray-700">
         <div className="flex">
-          <a
-            href={prev ? `/objects/${prev}` : undefined}
-            className={`flex items-center justify-center px-4 h-10 ms-3 text-sm font-medium border rounded-lg transition 
+          <Link
+            href={prev ? `/objects/${prev}` : '#'}
+            className={`flex items-center justify-center px-4 h-10 ms-3 text-sm font-medium border rounded-lg transition
       ${
         prev
           ? 'bg-white text-black border-gray-300 hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700'
@@ -6052,10 +6073,10 @@ function MetaData({ smartObject, prev, next }: any) {
             aria-disabled={!prev}
           >
             Previous
-          </a>
-          <a
-            href={next ? `/objects/${next}` : undefined}
-            className={`flex items-center justify-center px-4 h-10 ms-3 text-sm font-medium border rounded-lg transition 
+          </Link>
+          <Link
+            href={next ? `/objects/${next}` : '#'}
+            className={`flex items-center justify-center px-4 h-10 ms-3 text-sm font-medium border rounded-lg transition
       ${
         next
           ? 'bg-white text-black border-gray-300 hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700'
@@ -6064,7 +6085,7 @@ function MetaData({ smartObject, prev, next }: any) {
             aria-disabled={!next}
           >
             Next
-          </a>
+          </Link>
           <button
             onClick={toggleVisibility}
             className={`flex items-center justify-center px-4 h-10 ms-3 text-sm font-medium border rounded-lg transition 
@@ -6098,7 +6119,7 @@ function MetaData({ smartObject, prev, next }: any) {
               </td>
               <td className="px-4 py-2">
                 <Link
-                  to={`/objects/${smartObject?._id}`}
+                  href={`/objects/${smartObject?._id}`}
                   className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
                 >
                   {smartObject?._id}
@@ -6114,7 +6135,7 @@ function MetaData({ smartObject, prev, next }: any) {
               </td>
               <td className="px-4 py-2">
                 <Link
-                  to={`/objects/${smartObject?._rev}`}
+                  href={`/objects/${smartObject?._rev}`}
                   className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
                 >
                   {smartObject?._rev}
@@ -6130,7 +6151,7 @@ function MetaData({ smartObject, prev, next }: any) {
               </td>
               <td className="px-4 py-2">
                 <Link
-                  to={`/objects/${smartObject?._root}`}
+                  href={`/objects/${smartObject?._root}`}
                   className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
                 >
                   {smartObject?._root}
@@ -6172,9 +6193,9 @@ function MetaData({ smartObject, prev, next }: any) {
 }
 
 function Component({ title }: { title?: string }) {
-  const location = useLocation()
+  const pathname = usePathname()
+  const router = useRouter()
   const params = useParams()
-  const navigate = useNavigate()
   const [rev] = useState(params.rev || '')
   const computer = useContext(ComputerContext)
   const [smartObject, setSmartObject] = useState<any | null>(null)
@@ -6209,11 +6230,11 @@ function Component({ title }: { title?: string }) {
       } catch (err) {
         if (err instanceof Error) console.log('Error syncing to object:', err.message)
         const [txId] = rev.split(':')
-        navigate(`/transactions/${txId}`)
+        router.push(`/transactions/${txId}`)
       }
     }
     fetch()
-  }, [computer, rev, location, navigate])
+  }, [computer, rev, pathname, router])
 
   useEffect(() => {
     let funcExist = false
@@ -6242,7 +6263,7 @@ function Component({ title }: { title?: string }) {
         <h1 className="mb-2 text-5xl font-extrabold dark:text-white">{title || 'Object'}</h1>
         <div className="mb-8">
           <Link
-            to={`/transactions/${txId}`}
+            href={`/transactions/${txId}`}
             className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
           >
             {txId}
@@ -6577,7 +6598,9 @@ export function SnackBar(props: SnackBarProps) {
 
 ```tsx
 import { useContext, useEffect, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import reactStringReplace from 'react-string-replace'
 import { Transaction as BCTransaction } from '@bitcoin-computer/lib'
 import { Card } from './Card'
@@ -8830,12 +8853,12 @@ export function QuizCard({ quiz, viewMode = 'student' }: QuizCardProps) {
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useQuizClient } from '@/hooks'
+import { useTeacherClient } from '@/hooks'
 import { createQuiz, type CreateQuizParams } from '../quizzes.service'
 
 export function QuizForm() {
   const router = useRouter()
-  const quizClient = useQuizClient()
+  const teacherClient = useTeacherClient()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -8868,7 +8891,7 @@ export function QuizForm() {
       if (!formData.questionText.trim()) throw new Error('Question is required')
       if (formData.options.some(o => !o.trim())) throw new Error('All 4 options must be filled')
 
-      const quiz = await createQuiz(quizClient, formData)
+      const quiz = await createQuiz(teacherClient, formData)
       router.push(`/teacher/quizzes/${quiz._id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create quiz')
@@ -9180,8 +9203,9 @@ export * from './hooks'
 
 'use client'
 
-import type { QuizClient } from '@quiz-app/sdk'
+import type { TeacherClient, QuizClient } from '@quiz-app/sdk'
 import { apiClient } from '@/services'
+import type { QuizData } from '@quiz-app/shared'
 
 export interface Quiz {
   _id: string
@@ -9218,7 +9242,7 @@ export interface CreateQuizParams {
  * 2. Create Quiz with payment reference
  */
 export async function createQuiz(
-  quizClient: QuizClient,
+  teacherClient: TeacherClient,
   params: CreateQuizParams
 ): Promise<Quiz> {
   // Validate
@@ -9229,14 +9253,17 @@ export async function createQuiz(
     throw new Error('Correct answer must be between 0 and 3')
   }
 
-  const quiz = await quizClient.create(
-    params.title,
-    params.questionText,
-    params.options,
-    params.correctAnswer,
-    BigInt(params.rewardAmount),
-    BigInt(params.entryFee)
-  )
+  const quizData: QuizData = {
+    title: params.title,
+    questionText: params.questionText,
+    options: params.options,
+    correctAnswer: params.correctAnswer,
+    rewardAmount: BigInt(params.rewardAmount),
+    entryFee: BigInt(params.entryFee),
+    paymentTxId: '' // Will be populated by the teacher client
+  }
+
+  const quiz = await teacherClient.createQuiz(quizData)
 
   // Sync with backend
   try {
@@ -9261,7 +9288,24 @@ export async function getQuiz(
   quizId: string
 ): Promise<Quiz | null> {
   try {
-    const quiz = await quizClient.get(quizId)
+    const quizDetails = await quizClient.getQuizDetails(quizId)
+    // Create a mock quiz object with the details
+    const quiz: Quiz = {
+      _id: quizId,
+      _rev: quizId, // Simplified for now
+      title: quizDetails.title,
+      questionText: quizDetails.questionText,
+      options: quizDetails.options,
+      correctAnswer: 0, // Not available from details
+      rewardAmount: quizDetails.rewardAmount,
+      entryFee: quizDetails.entryFee,
+      teacherPublicKey: '', // Not available from details
+      isActive: quizDetails.isActive,
+      paymentTxId: quizDetails.paymentTxId,
+      isClaimed: quizDetails.isClaimed,
+      claimedBy: quizDetails.claimedBy,
+      attemptCount: quizDetails.attemptCount,
+    }
     return quiz
   } catch (error) {
     console.error('Failed to get quiz:', error)
@@ -9273,11 +9317,11 @@ export async function getQuiz(
  * List quizzes by teacher
  */
 export async function listQuizzesByTeacher(
-  quizClient: QuizClient,
+  teacherClient: any, // TeacherClient instance
   teacherId: string
 ): Promise<Quiz[]> {
   try {
-    const quizzes = await quizClient.listByTeacher(teacherId)
+    const quizzes = await teacherClient.getQuizzesByTeacher(teacherId)
     return quizzes
   } catch (error) {
     console.error('Failed to list quizzes:', error)
@@ -9293,7 +9337,7 @@ export async function deactivateQuiz(
   quizId: string
 ): Promise<void> {
   try {
-    await quizClient.deactivate(quizId)
+    await quizClient.deactivateQuiz(quizId)
   } catch (error) {
     console.error('Failed to deactivate quiz:', error)
     throw error
@@ -9309,7 +9353,7 @@ export async function canAttemptQuiz(
   studentPublicKey: string
 ): Promise<boolean> {
   try {
-    return await quizClient.canStudentAttempt(quizId, studentPublicKey)
+    return await quizClient.canStudentAttemptQuiz(quizId, studentPublicKey)
   } catch (error) {
     console.error('Failed to check attempt eligibility:', error)
     return false
@@ -9676,18 +9720,40 @@ export interface WalletInfo {
   balance: bigint
 }
 
+type BalanceObj = {
+  confirmed?: unknown
+  unconfirmed?: unknown
+  balance?: unknown
+}
+
+const toBigInt = (v: unknown): bigint => {
+  if (typeof v === 'bigint') return v
+  if (typeof v === 'number') return BigInt(Math.trunc(v))
+  if (typeof v === 'string') return BigInt(v)
+  throw new Error(`Invalid bigint value: ${String(v)}`)
+}
+
+const normalizeBalance = (raw: unknown): bigint => {
+  if (raw && typeof raw === 'object') {
+    const b = raw as BalanceObj
+    if (b.balance !== undefined) return toBigInt(b.balance)
+  }
+  return toBigInt(raw)
+}
+
 /**
  * Get wallet information from Computer
  */
 export async function getWalletInfo(computer: Computer): Promise<WalletInfo> {
   const publicKey = computer.getPublicKey()
   const address = computer.getAddress()
-  const balance = await computer.getBalance()
+  const rawBalance = await computer.getBalance()
+  const balance = normalizeBalance(rawBalance)
 
   return {
     publicKey,
     address,
-    balance: BigInt(balance),
+    balance,
   }
 }
 
@@ -9780,11 +9846,9 @@ import { getComputer, getAllClients } from '@/services'
  * Hook to access Computer instance
  */
 export function useComputer() {
-  const { chain, network, url, path } = useWalletStore()
-  
   return useMemo(() => {
-    return getComputer({ chain, network, url, path: path || undefined })
-  }, [chain, network, url, path])
+    return getComputer()
+  }, [])
 }
 
 /**
@@ -10093,7 +10157,6 @@ export const apiClient = new APIClient()
 
 import { Computer } from '@bitcoin-computer/lib'
 import {
-  createComputer,
   TeacherClient,
   StudentClient,
   QuizClient,
@@ -10101,34 +10164,28 @@ import {
   PaymentClient,
   AttemptClient
 } from '@quiz-app/sdk'
-import type { ComputerConfig } from '@quiz-app/shared'
-import { getComputerConfig, MODULE_SPECS } from '@/config'
-
-let computerInstance: Computer | null = null
+import { MODULE_SPECS } from '@/config'
+import { createComputerFromStorage } from '../sdk.factory'
 
 /**
- * Get or create Computer instance
+ * Get Computer instance from storage (same as wallet)
  */
-export function getComputer(config?: Partial<ComputerConfig>): Computer {
-  if (!computerInstance) {
-    const fullConfig = config ? { ...getComputerConfig(), ...config } : getComputerConfig()
-    computerInstance = createComputer(fullConfig)
-  }
-  return computerInstance
+export function getComputer(): Computer {
+  return createComputerFromStorage()
 }
 
 /**
  * Create a new Computer instance (useful for multi-wallet scenarios)
  */
-export function createNewComputer(config: ComputerConfig): Computer {
-  return createComputer(config)
+export function createNewComputer(config: any): Computer {
+  return new Computer(config)
 }
 
 /**
  * Reset Computer instance
  */
 export function resetComputer(): void {
-  computerInstance = null
+  // No singleton to reset since we're using storage-based computer
 }
 
 /**
@@ -10496,19 +10553,41 @@ export const useWalletStore = create<WalletState>()(
       isConnected: false,
       
       // Actions
-      connect: (data) => set({
-        publicKey: data.publicKey,
-        address: data.address,
-        path: data.path,
-        isConnected: true
-      }),
-      
-      disconnect: () => set({
-        publicKey: null,
-        address: null,
-        path: null,
-        isConnected: false
-      }),
+      connect: (data) => {
+        if (typeof window !== 'undefined') {
+          // Store wallet info in localStorage to sync with computer instance
+          const mnemonic = localStorage.getItem('BIP_39_KEY')
+          if (mnemonic) {
+            localStorage.setItem('CHAIN', 'LTC')
+            localStorage.setItem('NETWORK', 'regtest')
+            localStorage.setItem('URL', 'http://localhost:1031')
+          }
+        }
+        
+        set({
+          publicKey: data.publicKey,
+          address: data.address,
+          path: data.path,
+          isConnected: true
+        })
+      },
+
+      disconnect: () => {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('BIP_39_KEY')
+          localStorage.removeItem('CHAIN')
+          localStorage.removeItem('NETWORK')
+          localStorage.removeItem('URL')
+          localStorage.removeItem('PATH')
+        }
+        
+        set({
+          publicKey: null,
+          address: null,
+          path: null,
+          isConnected: false
+        })
+      },
       
       updateConfig: (config) => set((state) => ({
         chain: config.chain ?? state.chain,
@@ -13942,6 +14021,26 @@ export class QuizHelper {
   isValidAnswerIndex(answerIndex: number): boolean {
     return answerIndex >= 0 && answerIndex <= 3
   }
+
+  /**
+   * Get quizzes by teacher public key
+   */
+  async getQuizzesByTeacher(teacherPublicKey: string): Promise<Quiz[]> {
+    // Query for Quiz objects owned by the teacher using the deployed module spec
+    const revs = await this.computer.query({
+      publicKey: teacherPublicKey,
+      mod: process.env.NEXT_PUBLIC_QUIZ_MOD
+    })
+    
+    const quizzes = await Promise.all(
+      revs.map(async (rev: string) => {
+        const quiz = await this.computer.sync(rev) as Quiz
+        return quiz
+      })
+    )
+    
+    return quizzes
+  }
 }
 ```
 
@@ -14192,7 +14291,7 @@ export class TeacherHelper {
         teacherPublicKey: teacherPubKey,
         paymentTxId: params.paymentTxId,
       },
-    ])) as unknown as Quiz
+    ], process.env.NEXT_PUBLIC_QUIZ_MOD)) as unknown as Quiz
 
     await new Promise((r) => setTimeout(r, 3000))
 
@@ -14217,23 +14316,46 @@ export class TeacherHelper {
     const payment = await this.createRewardPayment(params.rewardAmount)
     const paymentTxId = await payment._id
 
-    // Then create the quiz with the payment ID
-    const quiz = await this.createQuizOnly({
+    // Then create the quiz with the payment ID using the deployed module spec
+    const quiz = await this.computer.new(Quiz, [{
       title: params.title,
       questionText: params.questionText,
       options: params.options,
       correctAnswer: params.correctAnswer,
       rewardAmount: params.rewardAmount,
       entryFee: params.entryFee,
-      teacher: params.teacher,
+      teacherPublicKey: await params.teacher.publicKey,
       paymentTxId
-    })
+    }], process.env.NEXT_PUBLIC_QUIZ_MOD)
 
     return { quiz, paymentTxId }
   }
 
   async getQuiz(quizId: string): Promise<Quiz> {
     return (await this.computer.sync(quizId)) as unknown as Quiz
+  }
+
+  /**
+   * Get quizzes created by this teacher
+   */
+  async getQuizzesByTeacher(teacherId: string): Promise<Quiz[]> {
+    const teacher = await this.getTeacher(teacherId)
+    const teacherPubKey = await teacher.publicKey
+    
+    // Get all Quiz objects owned by this teacher using the deployed module spec
+    const revs = await this.computer.query({
+      publicKey: teacherPubKey,
+      mod: process.env.NEXT_PUBLIC_QUIZ_MOD
+    })
+    
+    const quizzes = await Promise.all(
+      revs.map(async (rev: string) => {
+        const quiz = await this.computer.sync(rev) as Quiz
+        return quiz
+      })
+    )
+    
+    return quizzes
   }
 }
 ```
@@ -15997,6 +16119,13 @@ export class TeacherClient {
   async withdrawPayment(paymentTxId: string) {
     return await this.paymentHelper.withdrawPaymentById(paymentTxId)
   }
+
+  /**
+   * Get quizzes by teacher
+   */
+  async getQuizzesByTeacher(teacherId: string) {
+    return await this.teacherHelper.getQuizzesByTeacher(teacherId)
+  }
 }
 
 ```
@@ -16090,7 +16219,7 @@ export type {
 # packages\sdk\tsconfig.tsbuildinfo
 
 ```tsbuildinfo
-{"fileNames":["../../node_modules/typescript/lib/lib.es5.d.ts","../../node_modules/typescript/lib/lib.es2015.d.ts","../../node_modules/typescript/lib/lib.es2016.d.ts","../../node_modules/typescript/lib/lib.es2017.d.ts","../../node_modules/typescript/lib/lib.es2018.d.ts","../../node_modules/typescript/lib/lib.es2019.d.ts","../../node_modules/typescript/lib/lib.es2020.d.ts","../../node_modules/typescript/lib/lib.es2021.d.ts","../../node_modules/typescript/lib/lib.es2022.d.ts","../../node_modules/typescript/lib/lib.es2023.d.ts","../../node_modules/typescript/lib/lib.es2024.d.ts","../../node_modules/typescript/lib/lib.esnext.d.ts","../../node_modules/typescript/lib/lib.dom.d.ts","../../node_modules/typescript/lib/lib.es2015.core.d.ts","../../node_modules/typescript/lib/lib.es2015.collection.d.ts","../../node_modules/typescript/lib/lib.es2015.generator.d.ts","../../node_modules/typescript/lib/lib.es2015.iterable.d.ts","../../node_modules/typescript/lib/lib.es2015.promise.d.ts","../../node_modules/typescript/lib/lib.es2015.proxy.d.ts","../../node_modules/typescript/lib/lib.es2015.reflect.d.ts","../../node_modules/typescript/lib/lib.es2015.symbol.d.ts","../../node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts","../../node_modules/typescript/lib/lib.es2016.array.include.d.ts","../../node_modules/typescript/lib/lib.es2016.intl.d.ts","../../node_modules/typescript/lib/lib.es2017.arraybuffer.d.ts","../../node_modules/typescript/lib/lib.es2017.date.d.ts","../../node_modules/typescript/lib/lib.es2017.object.d.ts","../../node_modules/typescript/lib/lib.es2017.sharedmemory.d.ts","../../node_modules/typescript/lib/lib.es2017.string.d.ts","../../node_modules/typescript/lib/lib.es2017.intl.d.ts","../../node_modules/typescript/lib/lib.es2017.typedarrays.d.ts","../../node_modules/typescript/lib/lib.es2018.asyncgenerator.d.ts","../../node_modules/typescript/lib/lib.es2018.asynciterable.d.ts","../../node_modules/typescript/lib/lib.es2018.intl.d.ts","../../node_modules/typescript/lib/lib.es2018.promise.d.ts","../../node_modules/typescript/lib/lib.es2018.regexp.d.ts","../../node_modules/typescript/lib/lib.es2019.array.d.ts","../../node_modules/typescript/lib/lib.es2019.object.d.ts","../../node_modules/typescript/lib/lib.es2019.string.d.ts","../../node_modules/typescript/lib/lib.es2019.symbol.d.ts","../../node_modules/typescript/lib/lib.es2019.intl.d.ts","../../node_modules/typescript/lib/lib.es2020.bigint.d.ts","../../node_modules/typescript/lib/lib.es2020.date.d.ts","../../node_modules/typescript/lib/lib.es2020.promise.d.ts","../../node_modules/typescript/lib/lib.es2020.sharedmemory.d.ts","../../node_modules/typescript/lib/lib.es2020.string.d.ts","../../node_modules/typescript/lib/lib.es2020.symbol.wellknown.d.ts","../../node_modules/typescript/lib/lib.es2020.intl.d.ts","../../node_modules/typescript/lib/lib.es2020.number.d.ts","../../node_modules/typescript/lib/lib.es2021.promise.d.ts","../../node_modules/typescript/lib/lib.es2021.string.d.ts","../../node_modules/typescript/lib/lib.es2021.weakref.d.ts","../../node_modules/typescript/lib/lib.es2021.intl.d.ts","../../node_modules/typescript/lib/lib.es2022.array.d.ts","../../node_modules/typescript/lib/lib.es2022.error.d.ts","../../node_modules/typescript/lib/lib.es2022.intl.d.ts","../../node_modules/typescript/lib/lib.es2022.object.d.ts","../../node_modules/typescript/lib/lib.es2022.string.d.ts","../../node_modules/typescript/lib/lib.es2022.regexp.d.ts","../../node_modules/typescript/lib/lib.es2023.array.d.ts","../../node_modules/typescript/lib/lib.es2023.collection.d.ts","../../node_modules/typescript/lib/lib.es2023.intl.d.ts","../../node_modules/typescript/lib/lib.es2024.arraybuffer.d.ts","../../node_modules/typescript/lib/lib.es2024.collection.d.ts","../../node_modules/typescript/lib/lib.es2024.object.d.ts","../../node_modules/typescript/lib/lib.es2024.promise.d.ts","../../node_modules/typescript/lib/lib.es2024.regexp.d.ts","../../node_modules/typescript/lib/lib.es2024.sharedmemory.d.ts","../../node_modules/typescript/lib/lib.es2024.string.d.ts","../../node_modules/typescript/lib/lib.esnext.array.d.ts","../../node_modules/typescript/lib/lib.esnext.collection.d.ts","../../node_modules/typescript/lib/lib.esnext.intl.d.ts","../../node_modules/typescript/lib/lib.esnext.disposable.d.ts","../../node_modules/typescript/lib/lib.esnext.promise.d.ts","../../node_modules/typescript/lib/lib.esnext.decorators.d.ts","../../node_modules/typescript/lib/lib.esnext.iterator.d.ts","../../node_modules/typescript/lib/lib.esnext.float16.d.ts","../../node_modules/typescript/lib/lib.esnext.error.d.ts","../../node_modules/typescript/lib/lib.esnext.sharedmemory.d.ts","../../node_modules/typescript/lib/lib.decorators.d.ts","../../node_modules/typescript/lib/lib.decorators.legacy.d.ts","../../node_modules/@types/node/compatibility/disposable.d.ts","../../node_modules/@types/node/compatibility/indexable.d.ts","../../node_modules/@types/node/compatibility/iterators.d.ts","../../node_modules/@types/node/compatibility/index.d.ts","../../node_modules/@types/node/globals.typedarray.d.ts","../../node_modules/@types/node/buffer.buffer.d.ts","../../node_modules/@types/node/globals.d.ts","../../node_modules/@types/node/web-globals/abortcontroller.d.ts","../../node_modules/@types/node/web-globals/domexception.d.ts","../../node_modules/@types/node/web-globals/events.d.ts","../../node_modules/buffer/index.d.ts","../../node_modules/undici-types/header.d.ts","../../node_modules/undici-types/readable.d.ts","../../node_modules/undici-types/file.d.ts","../../node_modules/undici-types/fetch.d.ts","../../node_modules/undici-types/formdata.d.ts","../../node_modules/undici-types/connector.d.ts","../../node_modules/undici-types/client.d.ts","../../node_modules/undici-types/errors.d.ts","../../node_modules/undici-types/dispatcher.d.ts","../../node_modules/undici-types/global-dispatcher.d.ts","../../node_modules/undici-types/global-origin.d.ts","../../node_modules/undici-types/pool-stats.d.ts","../../node_modules/undici-types/pool.d.ts","../../node_modules/undici-types/handlers.d.ts","../../node_modules/undici-types/balanced-pool.d.ts","../../node_modules/undici-types/agent.d.ts","../../node_modules/undici-types/mock-interceptor.d.ts","../../node_modules/undici-types/mock-agent.d.ts","../../node_modules/undici-types/mock-client.d.ts","../../node_modules/undici-types/mock-pool.d.ts","../../node_modules/undici-types/mock-errors.d.ts","../../node_modules/undici-types/proxy-agent.d.ts","../../node_modules/undici-types/env-http-proxy-agent.d.ts","../../node_modules/undici-types/retry-handler.d.ts","../../node_modules/undici-types/retry-agent.d.ts","../../node_modules/undici-types/api.d.ts","../../node_modules/undici-types/interceptors.d.ts","../../node_modules/undici-types/util.d.ts","../../node_modules/undici-types/cookies.d.ts","../../node_modules/undici-types/patch.d.ts","../../node_modules/undici-types/websocket.d.ts","../../node_modules/undici-types/eventsource.d.ts","../../node_modules/undici-types/filereader.d.ts","../../node_modules/undici-types/diagnostics-channel.d.ts","../../node_modules/undici-types/content-type.d.ts","../../node_modules/undici-types/cache.d.ts","../../node_modules/undici-types/index.d.ts","../../node_modules/@types/node/web-globals/fetch.d.ts","../../node_modules/@types/node/assert.d.ts","../../node_modules/@types/node/assert/strict.d.ts","../../node_modules/@types/node/async_hooks.d.ts","../../node_modules/@types/node/buffer.d.ts","../../node_modules/@types/node/child_process.d.ts","../../node_modules/@types/node/cluster.d.ts","../../node_modules/@types/node/console.d.ts","../../node_modules/@types/node/constants.d.ts","../../node_modules/@types/node/crypto.d.ts","../../node_modules/@types/node/dgram.d.ts","../../node_modules/@types/node/diagnostics_channel.d.ts","../../node_modules/@types/node/dns.d.ts","../../node_modules/@types/node/dns/promises.d.ts","../../node_modules/@types/node/domain.d.ts","../../node_modules/@types/node/events.d.ts","../../node_modules/@types/node/fs.d.ts","../../node_modules/@types/node/fs/promises.d.ts","../../node_modules/@types/node/http.d.ts","../../node_modules/@types/node/http2.d.ts","../../node_modules/@types/node/https.d.ts","../../node_modules/@types/node/inspector.generated.d.ts","../../node_modules/@types/node/module.d.ts","../../node_modules/@types/node/net.d.ts","../../node_modules/@types/node/os.d.ts","../../node_modules/@types/node/path.d.ts","../../node_modules/@types/node/perf_hooks.d.ts","../../node_modules/@types/node/process.d.ts","../../node_modules/@types/node/punycode.d.ts","../../node_modules/@types/node/querystring.d.ts","../../node_modules/@types/node/readline.d.ts","../../node_modules/@types/node/readline/promises.d.ts","../../node_modules/@types/node/repl.d.ts","../../node_modules/@types/node/sea.d.ts","../../node_modules/@types/node/stream.d.ts","../../node_modules/@types/node/stream/promises.d.ts","../../node_modules/@types/node/stream/consumers.d.ts","../../node_modules/@types/node/stream/web.d.ts","../../node_modules/@types/node/string_decoder.d.ts","../../node_modules/@types/node/test.d.ts","../../node_modules/@types/node/timers.d.ts","../../node_modules/@types/node/timers/promises.d.ts","../../node_modules/@types/node/tls.d.ts","../../node_modules/@types/node/trace_events.d.ts","../../node_modules/@types/node/tty.d.ts","../../node_modules/@types/node/url.d.ts","../../node_modules/@types/node/util.d.ts","../../node_modules/@types/node/v8.d.ts","../../node_modules/@types/node/vm.d.ts","../../node_modules/@types/node/wasi.d.ts","../../node_modules/@types/node/worker_threads.d.ts","../../node_modules/@types/node/zlib.d.ts","../../node_modules/@types/node/index.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/networks.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/address.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/crypto.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/types.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/embed.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/p2ms.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/p2pk.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/p2pkh.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/p2sh.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/p2wpkh.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/p2wsh.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/p2tr.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/index.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/ops.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/script_number.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/script_signature.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/script.d.ts","../../node_modules/bip174/src/lib/interfaces.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/psbt/bip371.d.ts","../../node_modules/varuint-bitcoin/index.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/bufferutils.d.ts","../../node_modules/bip174/src/lib/psbt.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/psbt.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/transaction.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/block.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/ecc_lib.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/index.d.ts","../../node_modules/bip32/types/bip32.d.ts","../../node_modules/bip32/types/index.d.ts","../../node_modules/@bitcoin-computer/lib/computer.d.ts","../../node_modules/@bitcoin-computer/lib/index.d.ts","../shared/dist/types/config.types.d.ts","../shared/dist/types/quiz.types.d.ts","../shared/dist/types/user.types.d.ts","../shared/dist/types/payment.types.d.ts","../shared/dist/types/index.d.ts","../shared/dist/constants/index.d.ts","../shared/dist/utils/index.d.ts","../shared/dist/index.d.ts","./src/computer/createcomputer.ts","./src/computer/index.ts","../quiz-contracts/dist/teacher.d.ts","../quiz-contracts/dist/student.d.ts","../quiz-contracts/dist/quiz.d.ts","../quiz-contracts/dist/quiz-access.d.ts","../quiz-contracts/dist/attempt.d.ts","../quiz-contracts/dist/payment.d.ts","../quiz-contracts/dist/quiz-access-sale.d.ts","../quiz-contracts/dist/helpers/quiz-access-sale-helper.d.ts","../quiz-contracts/dist/helpers/payment-helper.d.ts","../quiz-contracts/dist/helpers/student-helper.d.ts","../quiz-contracts/dist/helpers/teacher-helper.d.ts","../quiz-contracts/dist/helpers/attempt-helper.d.ts","../quiz-contracts/dist/helpers/quiz-helper.d.ts","../quiz-contracts/dist/helpers/quiz-access-helper.d.ts","../quiz-contracts/dist/helpers/leaderboard-helper.d.ts","../quiz-contracts/dist/index.d.ts","./src/clients/teacherclient.ts","./src/clients/studentclient.ts","./src/clients/quizclient.ts","./src/clients/attemptclient.ts","./src/clients/accessclient.ts","./src/clients/paymentclient.ts","./src/clients/index.ts","./src/index.ts","../../node_modules/@babel/types/lib/index.d.ts","../../node_modules/@types/babel__generator/index.d.ts","../../node_modules/@babel/parser/typings/babel-parser.d.ts","../../node_modules/@types/babel__template/index.d.ts","../../node_modules/@types/babel__traverse/index.d.ts","../../node_modules/@types/babel__core/index.d.ts","../../node_modules/@types/connect/index.d.ts","../../node_modules/@types/body-parser/index.d.ts","../../node_modules/@types/deep-eql/index.d.ts","../../node_modules/assertion-error/index.d.ts","../../node_modules/@types/chai/index.d.ts","../../node_modules/@types/lodash/common/common.d.ts","../../node_modules/@types/lodash/common/array.d.ts","../../node_modules/@types/lodash/common/collection.d.ts","../../node_modules/@types/lodash/common/date.d.ts","../../node_modules/@types/lodash/common/function.d.ts","../../node_modules/@types/lodash/common/lang.d.ts","../../node_modules/@types/lodash/common/math.d.ts","../../node_modules/@types/lodash/common/number.d.ts","../../node_modules/@types/lodash/common/object.d.ts","../../node_modules/@types/lodash/common/seq.d.ts","../../node_modules/@types/lodash/common/string.d.ts","../../node_modules/@types/lodash/common/util.d.ts","../../node_modules/@types/lodash/index.d.ts","../../node_modules/@types/lodash-match-pattern/index.d.ts","../../node_modules/@types/chai-match-pattern/index.d.ts","../../node_modules/@types/cookiejar/index.d.ts","../../node_modules/@types/estree/index.d.ts","../../node_modules/@types/json-schema/index.d.ts","../../node_modules/@types/eslint/use-at-your-own-risk.d.ts","../../node_modules/@types/eslint/index.d.ts","../../node_modules/@eslint/core/dist/esm/types.d.ts","../../node_modules/eslint/lib/types/use-at-your-own-risk.d.ts","../../node_modules/eslint/lib/types/index.d.ts","../../node_modules/@types/eslint-scope/index.d.ts","../../node_modules/@types/send/index.d.ts","../../node_modules/@types/qs/index.d.ts","../../node_modules/@types/range-parser/index.d.ts","../../node_modules/@types/express-serve-static-core/index.d.ts","../../node_modules/@types/http-errors/index.d.ts","../../node_modules/@types/serve-static/index.d.ts","../../node_modules/@types/express/index.d.ts","../../node_modules/@types/graceful-fs/index.d.ts","../../node_modules/@types/istanbul-lib-coverage/index.d.ts","../../node_modules/@types/istanbul-lib-report/index.d.ts","../../node_modules/@types/istanbul-reports/index.d.ts","../../node_modules/@jest/expect-utils/build/index.d.ts","../../node_modules/chalk/index.d.ts","../../node_modules/@sinclair/typebox/typebox.d.ts","../../node_modules/@jest/schemas/build/index.d.ts","../../node_modules/pretty-format/build/index.d.ts","../../node_modules/jest-diff/build/index.d.ts","../../node_modules/jest-matcher-utils/build/index.d.ts","../../node_modules/expect/build/index.d.ts","../../node_modules/@types/jest/index.d.ts","../../node_modules/@types/json5/index.d.ts","../../node_modules/@types/methods/index.d.ts","../../node_modules/@types/mocha/index.d.ts","../../node_modules/@types/react/global.d.ts","../../node_modules/csstype/index.d.ts","../../node_modules/@types/react/index.d.ts","../../node_modules/@types/react-dom/index.d.ts","../../node_modules/@types/stack-utils/index.d.ts","../../node_modules/@types/superagent/lib/agent-base.d.ts","../../node_modules/@types/superagent/lib/node/response.d.ts","../../node_modules/@types/superagent/types.d.ts","../../node_modules/@types/superagent/lib/node/agent.d.ts","../../node_modules/@types/superagent/lib/request-base.d.ts","../../node_modules/form-data/index.d.ts","../../node_modules/@types/superagent/lib/node/http2wrapper.d.ts","../../node_modules/@types/superagent/lib/node/index.d.ts","../../node_modules/@types/superagent/index.d.ts","../../node_modules/@types/supertest/types.d.ts","../../node_modules/@types/supertest/lib/agent.d.ts","../../node_modules/@types/supertest/lib/test.d.ts","../../node_modules/@types/supertest/index.d.ts","../../node_modules/@types/validator/lib/isboolean.d.ts","../../node_modules/@types/validator/lib/isemail.d.ts","../../node_modules/@types/validator/lib/isfqdn.d.ts","../../node_modules/@types/validator/lib/isiban.d.ts","../../node_modules/@types/validator/lib/isiso31661alpha2.d.ts","../../node_modules/@types/validator/lib/isiso4217.d.ts","../../node_modules/@types/validator/lib/isiso6391.d.ts","../../node_modules/@types/validator/lib/istaxid.d.ts","../../node_modules/@types/validator/lib/isurl.d.ts","../../node_modules/@types/validator/index.d.ts","../../node_modules/@types/yargs-parser/index.d.ts","../../node_modules/@types/yargs/index.d.ts"],"fileIdsList":[[87,134,248],[87,134],[87,134,182,209,211],[87,134,212],[87,134,183],[87,134,206],[87,134,202],[87,134,186],[87,134,183,184,185,195,196,199,201,203,205,206,207,208],[87,134,195],[87,134,183,186,187,188,189,190,191,192,193,194],[87,134,183,200,204,206],[87,134,186,200],[87,134,183,195,196,197,198],[87,134,205],[87,134,276],[87,134,296],[87,134,248,249,250,251,252],[87,134,248,250],[87,134,148,182,254],[87,134,258,272],[87,134,256,257],[87,134,148,182],[87,134,275,281],[87,134,275,276,277],[87,134,278],[87,134,145,148,182,283,284,285],[87,134,255,286,288],[87,134,146,182],[87,134,291],[87,134,292],[87,134,298,301],[87,134,259,260,261,262,263,264,265,266,267,268,269,270,271],[87,134,259,261,262,263,264,265,266,267,268,269,270,271,272],[87,134,259,260,262,263,264,265,266,267,268,269,270,271,272],[87,134,260,261,262,263,264,265,266,267,268,269,270,271,272],[87,134,259,260,261,263,264,265,266,267,268,269,270,271,272],[87,134,259,260,261,262,264,265,266,267,268,269,270,271,272],[87,134,259,260,261,262,263,265,266,267,268,269,270,271,272],[87,134,259,260,261,262,263,264,266,267,268,269,270,271,272],[87,134,259,260,261,262,263,264,265,267,268,269,270,271,272],[87,134,259,260,261,262,263,264,265,266,268,269,270,271,272],[87,134,259,260,261,262,263,264,265,266,267,269,270,271,272],[87,134,259,260,261,262,263,264,265,266,267,268,270,271,272],[87,134,259,260,261,262,263,264,265,266,267,268,269,271,272],[87,134,259,260,261,262,263,264,265,266,267,268,269,270],[87,131,134],[87,133,134],[134],[87,134,139,167],[87,134,135,140,145,153,164,175],[87,134,135,136,145,153],[82,83,84,87,134],[87,134,137,176],[87,134,138,139,146,154],[87,134,139,164,172],[87,134,140,142,145,153],[87,133,134,141],[87,134,142,143],[87,134,144,145],[87,133,134,145],[87,134,145,146,147,164,175],[87,134,145,146,147,160,164,167],[87,134,142,145,148,153,164,175],[87,134,145,146,148,149,153,164,172,175],[87,134,148,150,164,172,175],[85,86,87,88,89,90,91,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181],[87,134,145,151],[87,134,152,175,180],[87,134,142,145,153,164],[87,134,154],[87,134,155],[87,133,134,156],[87,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181],[87,134,158],[87,134,159],[87,134,145,160,161],[87,134,160,162,176,178],[87,134,145,164,165,167],[87,134,166,167],[87,134,164,165],[87,134,167],[87,134,168],[87,131,134,164,169],[87,134,145,170,171],[87,134,170,171],[87,134,139,153,164,172],[87,134,173],[87,134,153,174],[87,134,148,159,175],[87,134,139,176],[87,134,164,177],[87,134,152,178],[87,134,179],[87,129,134],[87,129,134,145,147,156,164,167,175,178,180],[87,134,164,181],[87,134,308],[87,134,306,307],[87,134,146,164,182],[87,134,148,182,287],[87,134,318],[87,134,274,304,311,313,319],[87,134,149,153,164,172,182],[87,134,146,148,149,150,153,164,304,312,313,314,315,316,317],[87,134,148,164,318],[87,134,146,312,313],[87,134,175,312],[87,134,319,320,321,322],[87,134,319,320,323],[87,134,319,320],[87,134,148,149,153,304,319],[87,134,324,325,326,327,328,329,330,331,332],[87,134,334],[87,134,182],[87,134,182,200],[87,134,210],[87,134,275,279,280],[87,134,281],[87,134,294,300],[87,134,148,164,182],[87,134,298],[87,134,295,299],[87,134,297],[87,101,105,134,175],[87,101,134,164,175],[87,96,134],[87,98,101,134,172,175],[87,134,153,172],[87,96,134,182],[87,98,101,134,153,175],[87,93,94,97,100,134,145,164,175],[87,101,108,134],[87,93,99,134],[87,101,122,123,134],[87,97,101,134,167,175,182],[87,122,134,182],[87,95,96,134,182],[87,101,134],[87,95,96,97,98,99,100,101,102,103,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,123,124,125,126,127,128,134],[87,101,116,134],[87,101,108,109,134],[87,99,101,109,110,134],[87,100,134],[87,93,96,101,134],[87,101,105,109,110,134],[87,105,134],[87,99,101,104,134,175],[87,93,98,101,108,134],[87,134,164],[87,96,101,122,134,180,182],[87,134,213,227],[87,134,213,226,227,228],[87,134,232],[87,134,229],[87,134,213,227,229],[87,134,213,226],[87,134,213,225,226,227,232],[87,134,213,224,226,229,232],[87,134,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238],[87,134,213],[87,134,213,221,239],[87,134,240,241,242,243,244,245],[87,134,213,221],[87,134,222],[87,134,221,223,246],[87,134,218,219,220],[87,134,214,215,216,217]],"fileInfos":[{"version":"c430d44666289dae81f30fa7b2edebf186ecc91a2d4c71266ea6ae76388792e1","affectsGlobalScope":true,"impliedFormat":1},{"version":"45b7ab580deca34ae9729e97c13cfd999df04416a79116c3bfb483804f85ded4","impliedFormat":1},{"version":"3facaf05f0c5fc569c5649dd359892c98a85557e3e0c847964caeb67076f4d75","impliedFormat":1},{"version":"e44bb8bbac7f10ecc786703fe0a6a4b952189f908707980ba8f3c8975a760962","impliedFormat":1},{"version":"5e1c4c362065a6b95ff952c0eab010f04dcd2c3494e813b493ecfd4fcb9fc0d8","impliedFormat":1},{"version":"68d73b4a11549f9c0b7d352d10e91e5dca8faa3322bfb77b661839c42b1ddec7","impliedFormat":1},{"version":"5efce4fc3c29ea84e8928f97adec086e3dc876365e0982cc8479a07954a3efd4","impliedFormat":1},{"version":"feecb1be483ed332fad555aff858affd90a48ab19ba7272ee084704eb7167569","impliedFormat":1},{"version":"ee7bad0c15b58988daa84371e0b89d313b762ab83cb5b31b8a2d1162e8eb41c2","impliedFormat":1},{"version":"27bdc30a0e32783366a5abeda841bc22757c1797de8681bbe81fbc735eeb1c10","impliedFormat":1},{"version":"8fd575e12870e9944c7e1d62e1f5a73fcf23dd8d3a321f2a2c74c20d022283fe","impliedFormat":1},{"version":"2ab096661c711e4a81cc464fa1e6feb929a54f5340b46b0a07ac6bbf857471f0","impliedFormat":1},{"version":"080941d9f9ff9307f7e27a83bcd888b7c8270716c39af943532438932ec1d0b9","affectsGlobalScope":true,"impliedFormat":1},{"version":"c57796738e7f83dbc4b8e65132f11a377649c00dd3eee333f672b8f0a6bea671","affectsGlobalScope":true,"impliedFormat":1},{"version":"dc2df20b1bcdc8c2d34af4926e2c3ab15ffe1160a63e58b7e09833f616efff44","affectsGlobalScope":true,"impliedFormat":1},{"version":"515d0b7b9bea2e31ea4ec968e9edd2c39d3eebf4a2d5cbd04e88639819ae3b71","affectsGlobalScope":true,"impliedFormat":1},{"version":"0559b1f683ac7505ae451f9a96ce4c3c92bdc71411651ca6ddb0e88baaaad6a3","affectsGlobalScope":true,"impliedFormat":1},{"version":"0dc1e7ceda9b8b9b455c3a2d67b0412feab00bd2f66656cd8850e8831b08b537","affectsGlobalScope":true,"impliedFormat":1},{"version":"ce691fb9e5c64efb9547083e4a34091bcbe5bdb41027e310ebba8f7d96a98671","affectsGlobalScope":true,"impliedFormat":1},{"version":"8d697a2a929a5fcb38b7a65594020fcef05ec1630804a33748829c5ff53640d0","affectsGlobalScope":true,"impliedFormat":1},{"version":"4ff2a353abf8a80ee399af572debb8faab2d33ad38c4b4474cff7f26e7653b8d","affectsGlobalScope":true,"impliedFormat":1},{"version":"fb0f136d372979348d59b3f5020b4cdb81b5504192b1cacff5d1fbba29378aa1","affectsGlobalScope":true,"impliedFormat":1},{"version":"d15bea3d62cbbdb9797079416b8ac375ae99162a7fba5de2c6c505446486ac0a","affectsGlobalScope":true,"impliedFormat":1},{"version":"68d18b664c9d32a7336a70235958b8997ebc1c3b8505f4f1ae2b7e7753b87618","affectsGlobalScope":true,"impliedFormat":1},{"version":"eb3d66c8327153d8fa7dd03f9c58d351107fe824c79e9b56b462935176cdf12a","affectsGlobalScope":true,"impliedFormat":1},{"version":"38f0219c9e23c915ef9790ab1d680440d95419ad264816fa15009a8851e79119","affectsGlobalScope":true,"impliedFormat":1},{"version":"69ab18c3b76cd9b1be3d188eaf8bba06112ebbe2f47f6c322b5105a6fbc45a2e","affectsGlobalScope":true,"impliedFormat":1},{"version":"a680117f487a4d2f30ea46f1b4b7f58bef1480456e18ba53ee85c2746eeca012","affectsGlobalScope":true,"impliedFormat":1},{"version":"2f11ff796926e0832f9ae148008138ad583bd181899ab7dd768a2666700b1893","affectsGlobalScope":true,"impliedFormat":1},{"version":"4de680d5bb41c17f7f68e0419412ca23c98d5749dcaaea1896172f06435891fc","affectsGlobalScope":true,"impliedFormat":1},{"version":"954296b30da6d508a104a3a0b5d96b76495c709785c1d11610908e63481ee667","affectsGlobalScope":true,"impliedFormat":1},{"version":"ac9538681b19688c8eae65811b329d3744af679e0bdfa5d842d0e32524c73e1c","affectsGlobalScope":true,"impliedFormat":1},{"version":"0a969edff4bd52585473d24995c5ef223f6652d6ef46193309b3921d65dd4376","affectsGlobalScope":true,"impliedFormat":1},{"version":"9e9fbd7030c440b33d021da145d3232984c8bb7916f277e8ffd3dc2e3eae2bdb","affectsGlobalScope":true,"impliedFormat":1},{"version":"811ec78f7fefcabbda4bfa93b3eb67d9ae166ef95f9bff989d964061cbf81a0c","affectsGlobalScope":true,"impliedFormat":1},{"version":"717937616a17072082152a2ef351cb51f98802fb4b2fdabd32399843875974ca","affectsGlobalScope":true,"impliedFormat":1},{"version":"d7e7d9b7b50e5f22c915b525acc5a49a7a6584cf8f62d0569e557c5cfc4b2ac2","affectsGlobalScope":true,"impliedFormat":1},{"version":"71c37f4c9543f31dfced6c7840e068c5a5aacb7b89111a4364b1d5276b852557","affectsGlobalScope":true,"impliedFormat":1},{"version":"576711e016cf4f1804676043e6a0a5414252560eb57de9faceee34d79798c850","affectsGlobalScope":true,"impliedFormat":1},{"version":"89c1b1281ba7b8a96efc676b11b264de7a8374c5ea1e6617f11880a13fc56dc6","affectsGlobalScope":true,"impliedFormat":1},{"version":"74f7fa2d027d5b33eb0471c8e82a6c87216223181ec31247c357a3e8e2fddc5b","affectsGlobalScope":true,"impliedFormat":1},{"version":"d6d7ae4d1f1f3772e2a3cde568ed08991a8ae34a080ff1151af28b7f798e22ca","affectsGlobalScope":true,"impliedFormat":1},{"version":"063600664504610fe3e99b717a1223f8b1900087fab0b4cad1496a114744f8df","affectsGlobalScope":true,"impliedFormat":1},{"version":"934019d7e3c81950f9a8426d093458b65d5aff2c7c1511233c0fd5b941e608ab","affectsGlobalScope":true,"impliedFormat":1},{"version":"52ada8e0b6e0482b728070b7639ee42e83a9b1c22d205992756fe020fd9f4a47","affectsGlobalScope":true,"impliedFormat":1},{"version":"3bdefe1bfd4d6dee0e26f928f93ccc128f1b64d5d501ff4a8cf3c6371200e5e6","affectsGlobalScope":true,"impliedFormat":1},{"version":"59fb2c069260b4ba00b5643b907ef5d5341b167e7d1dbf58dfd895658bda2867","affectsGlobalScope":true,"impliedFormat":1},{"version":"639e512c0dfc3fad96a84caad71b8834d66329a1f28dc95e3946c9b58176c73a","affectsGlobalScope":true,"impliedFormat":1},{"version":"368af93f74c9c932edd84c58883e736c9e3d53cec1fe24c0b0ff451f529ceab1","affectsGlobalScope":true,"impliedFormat":1},{"version":"af3dd424cf267428f30ccfc376f47a2c0114546b55c44d8c0f1d57d841e28d74","affectsGlobalScope":true,"impliedFormat":1},{"version":"995c005ab91a498455ea8dfb63aa9f83fa2ea793c3d8aa344be4a1678d06d399","affectsGlobalScope":true,"impliedFormat":1},{"version":"959d36cddf5e7d572a65045b876f2956c973a586da58e5d26cde519184fd9b8a","affectsGlobalScope":true,"impliedFormat":1},{"version":"965f36eae237dd74e6cca203a43e9ca801ce38824ead814728a2807b1910117d","affectsGlobalScope":true,"impliedFormat":1},{"version":"3925a6c820dcb1a06506c90b1577db1fdbf7705d65b62b99dce4be75c637e26b","affectsGlobalScope":true,"impliedFormat":1},{"version":"0a3d63ef2b853447ec4f749d3f368ce642264246e02911fcb1590d8c161b8005","affectsGlobalScope":true,"impliedFormat":1},{"version":"8cdf8847677ac7d20486e54dd3fcf09eda95812ac8ace44b4418da1bbbab6eb8","affectsGlobalScope":true,"impliedFormat":1},{"version":"8444af78980e3b20b49324f4a16ba35024fef3ee069a0eb67616ea6ca821c47a","affectsGlobalScope":true,"impliedFormat":1},{"version":"3287d9d085fbd618c3971944b65b4be57859f5415f495b33a6adc994edd2f004","affectsGlobalScope":true,"impliedFormat":1},{"version":"b4b67b1a91182421f5df999988c690f14d813b9850b40acd06ed44691f6727ad","affectsGlobalScope":true,"impliedFormat":1},{"version":"df83c2a6c73228b625b0beb6669c7ee2a09c914637e2d35170723ad49c0f5cd4","affectsGlobalScope":true,"impliedFormat":1},{"version":"436aaf437562f276ec2ddbee2f2cdedac7664c1e4c1d2c36839ddd582eeb3d0a","affectsGlobalScope":true,"impliedFormat":1},{"version":"8e3c06ea092138bf9fa5e874a1fdbc9d54805d074bee1de31b99a11e2fec239d","affectsGlobalScope":true,"impliedFormat":1},{"version":"87dc0f382502f5bbce5129bdc0aea21e19a3abbc19259e0b43ae038a9fc4e326","affectsGlobalScope":true,"impliedFormat":1},{"version":"b1cb28af0c891c8c96b2d6b7be76bd394fddcfdb4709a20ba05a7c1605eea0f9","affectsGlobalScope":true,"impliedFormat":1},{"version":"2fef54945a13095fdb9b84f705f2b5994597640c46afeb2ce78352fab4cb3279","affectsGlobalScope":true,"impliedFormat":1},{"version":"ac77cb3e8c6d3565793eb90a8373ee8033146315a3dbead3bde8db5eaf5e5ec6","affectsGlobalScope":true,"impliedFormat":1},{"version":"56e4ed5aab5f5920980066a9409bfaf53e6d21d3f8d020c17e4de584d29600ad","affectsGlobalScope":true,"impliedFormat":1},{"version":"4ece9f17b3866cc077099c73f4983bddbcb1dc7ddb943227f1ec070f529dedd1","affectsGlobalScope":true,"impliedFormat":1},{"version":"0a6282c8827e4b9a95f4bf4f5c205673ada31b982f50572d27103df8ceb8013c","affectsGlobalScope":true,"impliedFormat":1},{"version":"1c9319a09485199c1f7b0498f2988d6d2249793ef67edda49d1e584746be9032","affectsGlobalScope":true,"impliedFormat":1},{"version":"e3a2a0cee0f03ffdde24d89660eba2685bfbdeae955a6c67e8c4c9fd28928eeb","affectsGlobalScope":true,"impliedFormat":1},{"version":"811c71eee4aa0ac5f7adf713323a5c41b0cf6c4e17367a34fbce379e12bbf0a4","affectsGlobalScope":true,"impliedFormat":1},{"version":"51ad4c928303041605b4d7ae32e0c1ee387d43a24cd6f1ebf4a2699e1076d4fa","affectsGlobalScope":true,"impliedFormat":1},{"version":"60037901da1a425516449b9a20073aa03386cce92f7a1fd902d7602be3a7c2e9","affectsGlobalScope":true,"impliedFormat":1},{"version":"d4b1d2c51d058fc21ec2629fff7a76249dec2e36e12960ea056e3ef89174080f","affectsGlobalScope":true,"impliedFormat":1},{"version":"22adec94ef7047a6c9d1af3cb96be87a335908bf9ef386ae9fd50eeb37f44c47","affectsGlobalScope":true,"impliedFormat":1},{"version":"196cb558a13d4533a5163286f30b0509ce0210e4b316c56c38d4c0fd2fb38405","affectsGlobalScope":true,"impliedFormat":1},{"version":"73f78680d4c08509933daf80947902f6ff41b6230f94dd002ae372620adb0f60","affectsGlobalScope":true,"impliedFormat":1},{"version":"c5239f5c01bcfa9cd32f37c496cf19c61d69d37e48be9de612b541aac915805b","affectsGlobalScope":true,"impliedFormat":1},{"version":"8e7f8264d0fb4c5339605a15daadb037bf238c10b654bb3eee14208f860a32ea","affectsGlobalScope":true,"impliedFormat":1},{"version":"782dec38049b92d4e85c1585fbea5474a219c6984a35b004963b00beb1aab538","affectsGlobalScope":true,"impliedFormat":1},{"version":"70521b6ab0dcba37539e5303104f29b721bfb2940b2776da4cc818c07e1fefc1","affectsGlobalScope":true,"impliedFormat":1},{"version":"ab41ef1f2cdafb8df48be20cd969d875602483859dc194e9c97c8a576892c052","affectsGlobalScope":true,"impliedFormat":1},{"version":"d153a11543fd884b596587ccd97aebbeed950b26933ee000f94009f1ab142848","affectsGlobalScope":true,"impliedFormat":1},{"version":"21d819c173c0cf7cc3ce57c3276e77fd9a8a01d35a06ad87158781515c9a438a","impliedFormat":1},{"version":"98cffbf06d6bab333473c70a893770dbe990783904002c4f1a960447b4b53dca","affectsGlobalScope":true,"impliedFormat":1},{"version":"ba481bca06f37d3f2c137ce343c7d5937029b2468f8e26111f3c9d9963d6568d","affectsGlobalScope":true,"impliedFormat":1},{"version":"6d9ef24f9a22a88e3e9b3b3d8c40ab1ddb0853f1bfbd5c843c37800138437b61","affectsGlobalScope":true,"impliedFormat":1},{"version":"1db0b7dca579049ca4193d034d835f6bfe73096c73663e5ef9a0b5779939f3d0","affectsGlobalScope":true,"impliedFormat":1},{"version":"9798340ffb0d067d69b1ae5b32faa17ab31b82466a3fc00d8f2f2df0c8554aaa","affectsGlobalScope":true,"impliedFormat":1},{"version":"f26b11d8d8e4b8028f1c7d618b22274c892e4b0ef5b3678a8ccbad85419aef43","affectsGlobalScope":true,"impliedFormat":1},{"version":"4967529644e391115ca5592184d4b63980569adf60ee685f968fd59ab1557188","impliedFormat":1},{"version":"5929864ce17fba74232584d90cb721a89b7ad277220627cc97054ba15a98ea8f","impliedFormat":1},{"version":"763fe0f42b3d79b440a9b6e51e9ba3f3f91352469c1e4b3b67bfa4ff6352f3f4","impliedFormat":1},{"version":"25c8056edf4314820382a5fdb4bb7816999acdcb929c8f75e3f39473b87e85bc","impliedFormat":1},{"version":"c464d66b20788266e5353b48dc4aa6bc0dc4a707276df1e7152ab0c9ae21fad8","impliedFormat":1},{"version":"78d0d27c130d35c60b5e5566c9f1e5be77caf39804636bc1a40133919a949f21","impliedFormat":1},{"version":"c6fd2c5a395f2432786c9cb8deb870b9b0e8ff7e22c029954fabdd692bff6195","impliedFormat":1},{"version":"1d6e127068ea8e104a912e42fc0a110e2aa5a66a356a917a163e8cf9a65e4a75","impliedFormat":1},{"version":"5ded6427296cdf3b9542de4471d2aa8d3983671d4cac0f4bf9c637208d1ced43","impliedFormat":1},{"version":"7f182617db458e98fc18dfb272d40aa2fff3a353c44a89b2c0ccb3937709bfb5","impliedFormat":1},{"version":"cadc8aced301244057c4e7e73fbcae534b0f5b12a37b150d80e5a45aa4bebcbd","impliedFormat":1},{"version":"385aab901643aa54e1c36f5ef3107913b10d1b5bb8cbcd933d4263b80a0d7f20","impliedFormat":1},{"version":"9670d44354bab9d9982eca21945686b5c24a3f893db73c0dae0fd74217a4c219","impliedFormat":1},{"version":"0b8a9268adaf4da35e7fa830c8981cfa22adbbe5b3f6f5ab91f6658899e657a7","impliedFormat":1},{"version":"11396ed8a44c02ab9798b7dca436009f866e8dae3c9c25e8c1fbc396880bf1bb","impliedFormat":1},{"version":"ba7bc87d01492633cb5a0e5da8a4a42a1c86270e7b3d2dea5d156828a84e4882","impliedFormat":1},{"version":"4893a895ea92c85345017a04ed427cbd6a1710453338df26881a6019432febdd","impliedFormat":1},{"version":"c21dc52e277bcfc75fac0436ccb75c204f9e1b3fa5e12729670910639f27343e","impliedFormat":1},{"version":"13f6f39e12b1518c6650bbb220c8985999020fe0f21d818e28f512b7771d00f9","impliedFormat":1},{"version":"9b5369969f6e7175740bf51223112ff209f94ba43ecd3bb09eefff9fd675624a","impliedFormat":1},{"version":"4fe9e626e7164748e8769bbf74b538e09607f07ed17c2f20af8d680ee49fc1da","impliedFormat":1},{"version":"24515859bc0b836719105bb6cc3d68255042a9f02a6022b3187948b204946bd2","impliedFormat":1},{"version":"ea0148f897b45a76544ae179784c95af1bd6721b8610af9ffa467a518a086a43","impliedFormat":1},{"version":"24c6a117721e606c9984335f71711877293a9651e44f59f3d21c1ea0856f9cc9","impliedFormat":1},{"version":"dd3273ead9fbde62a72949c97dbec2247ea08e0c6952e701a483d74ef92d6a17","impliedFormat":1},{"version":"405822be75ad3e4d162e07439bac80c6bcc6dbae1929e179cf467ec0b9ee4e2e","impliedFormat":1},{"version":"0db18c6e78ea846316c012478888f33c11ffadab9efd1cc8bcc12daded7a60b6","impliedFormat":1},{"version":"e61be3f894b41b7baa1fbd6a66893f2579bfad01d208b4ff61daef21493ef0a8","impliedFormat":1},{"version":"bd0532fd6556073727d28da0edfd1736417a3f9f394877b6d5ef6ad88fba1d1a","impliedFormat":1},{"version":"89167d696a849fce5ca508032aabfe901c0868f833a8625d5a9c6e861ef935d2","impliedFormat":1},{"version":"615ba88d0128ed16bf83ef8ccbb6aff05c3ee2db1cc0f89ab50a4939bfc1943f","impliedFormat":1},{"version":"a4d551dbf8746780194d550c88f26cf937caf8d56f102969a110cfaed4b06656","impliedFormat":1},{"version":"8bd86b8e8f6a6aa6c49b71e14c4ffe1211a0e97c80f08d2c8cc98838006e4b88","impliedFormat":1},{"version":"317e63deeb21ac07f3992f5b50cdca8338f10acd4fbb7257ebf56735bf52ab00","impliedFormat":1},{"version":"4732aec92b20fb28c5fe9ad99521fb59974289ed1e45aecb282616202184064f","impliedFormat":1},{"version":"2e85db9e6fd73cfa3d7f28e0ab6b55417ea18931423bd47b409a96e4a169e8e6","impliedFormat":1},{"version":"c46e079fe54c76f95c67fb89081b3e399da2c7d109e7dca8e4b58d83e332e605","impliedFormat":1},{"version":"bf67d53d168abc1298888693338cb82854bdb2e69ef83f8a0092093c2d562107","impliedFormat":1},{"version":"2cbe0621042e2a68c7cbce5dfed3906a1862a16a7d496010636cdbdb91341c0f","affectsGlobalScope":true,"impliedFormat":1},{"version":"e2677634fe27e87348825bb041651e22d50a613e2fdf6a4a3ade971d71bac37e","impliedFormat":1},{"version":"7394959e5a741b185456e1ef5d64599c36c60a323207450991e7a42e08911419","impliedFormat":1},{"version":"8c0bcd6c6b67b4b503c11e91a1fb91522ed585900eab2ab1f61bba7d7caa9d6f","impliedFormat":1},{"version":"8cd19276b6590b3ebbeeb030ac271871b9ed0afc3074ac88a94ed2449174b776","affectsGlobalScope":true,"impliedFormat":1},{"version":"696eb8d28f5949b87d894b26dc97318ef944c794a9a4e4f62360cd1d1958014b","impliedFormat":1},{"version":"3f8fa3061bd7402970b399300880d55257953ee6d3cd408722cb9ac20126460c","impliedFormat":1},{"version":"35ec8b6760fd7138bbf5809b84551e31028fb2ba7b6dc91d95d098bf212ca8b4","affectsGlobalScope":true,"impliedFormat":1},{"version":"5524481e56c48ff486f42926778c0a3cce1cc85dc46683b92b1271865bcf015a","impliedFormat":1},{"version":"68bd56c92c2bd7d2339457eb84d63e7de3bd56a69b25f3576e1568d21a162398","affectsGlobalScope":true,"impliedFormat":1},{"version":"3e93b123f7c2944969d291b35fed2af79a6e9e27fdd5faa99748a51c07c02d28","impliedFormat":1},{"version":"9d19808c8c291a9010a6c788e8532a2da70f811adb431c97520803e0ec649991","impliedFormat":1},{"version":"87aad3dd9752067dc875cfaa466fc44246451c0c560b820796bdd528e29bef40","impliedFormat":1},{"version":"4aacb0dd020eeaef65426153686cc639a78ec2885dc72ad220be1d25f1a439df","impliedFormat":1},{"version":"f0bd7e6d931657b59605c44112eaf8b980ba7f957a5051ed21cb93d978cf2f45","impliedFormat":1},{"version":"8db0ae9cb14d9955b14c214f34dae1b9ef2baee2fe4ce794a4cd3ac2531e3255","affectsGlobalScope":true,"impliedFormat":1},{"version":"15fc6f7512c86810273af28f224251a5a879e4261b4d4c7e532abfbfc3983134","impliedFormat":1},{"version":"58adba1a8ab2d10b54dc1dced4e41f4e7c9772cbbac40939c0dc8ce2cdb1d442","impliedFormat":1},{"version":"2fd4c143eff88dabb57701e6a40e02a4dbc36d5eb1362e7964d32028056a782b","impliedFormat":1},{"version":"714435130b9015fae551788df2a88038471a5a11eb471f27c4ede86552842bc9","impliedFormat":1},{"version":"855cd5f7eb396f5f1ab1bc0f8580339bff77b68a770f84c6b254e319bbfd1ac7","impliedFormat":1},{"version":"5650cf3dace09e7c25d384e3e6b818b938f68f4e8de96f52d9c5a1b3db068e86","impliedFormat":1},{"version":"1354ca5c38bd3fd3836a68e0f7c9f91f172582ba30ab15bb8c075891b91502b7","affectsGlobalScope":true,"impliedFormat":1},{"version":"27fdb0da0daf3b337c5530c5f266efe046a6ceb606e395b346974e4360c36419","impliedFormat":1},{"version":"2d2fcaab481b31a5882065c7951255703ddbe1c0e507af56ea42d79ac3911201","impliedFormat":1},{"version":"a192fe8ec33f75edbc8d8f3ed79f768dfae11ff5735e7fe52bfa69956e46d78d","impliedFormat":1},{"version":"ca867399f7db82df981d6915bcbb2d81131d7d1ef683bc782b59f71dda59bc85","affectsGlobalScope":true,"impliedFormat":1},{"version":"0e456fd5b101271183d99a9087875a282323e3a3ff0d7bcf1881537eaa8b8e63","affectsGlobalScope":true,"impliedFormat":1},{"version":"9e043a1bc8fbf2a255bccf9bf27e0f1caf916c3b0518ea34aa72357c0afd42ec","impliedFormat":1},{"version":"b4f70ec656a11d570e1a9edce07d118cd58d9760239e2ece99306ee9dfe61d02","impliedFormat":1},{"version":"3bc2f1e2c95c04048212c569ed38e338873f6a8593930cf5a7ef24ffb38fc3b6","impliedFormat":1},{"version":"6e70e9570e98aae2b825b533aa6292b6abd542e8d9f6e9475e88e1d7ba17c866","impliedFormat":1},{"version":"f9d9d753d430ed050dc1bf2667a1bab711ccbb1c1507183d794cc195a5b085cc","impliedFormat":1},{"version":"9eece5e586312581ccd106d4853e861aaaa1a39f8e3ea672b8c3847eedd12f6e","impliedFormat":1},{"version":"47ab634529c5955b6ad793474ae188fce3e6163e3a3fb5edd7e0e48f14435333","impliedFormat":1},{"version":"37ba7b45141a45ce6e80e66f2a96c8a5ab1bcef0fc2d0f56bb58df96ec67e972","impliedFormat":1},{"version":"45650f47bfb376c8a8ed39d4bcda5902ab899a3150029684ee4c10676d9fbaee","impliedFormat":1},{"version":"0225ecb9ed86bdb7a2c7fd01f1556906902929377b44483dc4b83e03b3ef227d","affectsGlobalScope":true,"impliedFormat":1},{"version":"74cf591a0f63db318651e0e04cb55f8791385f86e987a67fd4d2eaab8191f730","impliedFormat":1},{"version":"5eab9b3dc9b34f185417342436ec3f106898da5f4801992d8ff38ab3aff346b5","impliedFormat":1},{"version":"12ed4559eba17cd977aa0db658d25c4047067444b51acfdcbf38470630642b23","affectsGlobalScope":true,"impliedFormat":1},{"version":"f3ffabc95802521e1e4bcba4c88d8615176dc6e09111d920c7a213bdda6e1d65","impliedFormat":1},{"version":"ddc734b4fae82a01d247e9e342d020976640b5e93b4e9b3a1e30e5518883a060","impliedFormat":1},{"version":"ae56f65caf3be91108707bd8dfbccc2a57a91feb5daabf7165a06a945545ed26","impliedFormat":1},{"version":"a136d5de521da20f31631a0a96bf712370779d1c05b7015d7019a9b2a0446ca9","impliedFormat":1},{"version":"c3b41e74b9a84b88b1dca61ec39eee25c0dbc8e7d519ba11bb070918cfacf656","affectsGlobalScope":true,"impliedFormat":1},{"version":"4737a9dc24d0e68b734e6cfbcea0c15a2cfafeb493485e27905f7856988c6b29","affectsGlobalScope":true,"impliedFormat":1},{"version":"36d8d3e7506b631c9582c251a2c0b8a28855af3f76719b12b534c6edf952748d","impliedFormat":1},{"version":"1ca69210cc42729e7ca97d3a9ad48f2e9cb0042bada4075b588ae5387debd318","impliedFormat":1},{"version":"f5ebe66baaf7c552cfa59d75f2bfba679f329204847db3cec385acda245e574e","impliedFormat":1},{"version":"ed59add13139f84da271cafd32e2171876b0a0af2f798d0c663e8eeb867732cf","affectsGlobalScope":true,"impliedFormat":1},{"version":"05db535df8bdc30d9116fe754a3473d1b6479afbc14ae8eb18b605c62677d518","impliedFormat":1},{"version":"b1810689b76fd473bd12cc9ee219f8e62f54a7d08019a235d07424afbf074d25","impliedFormat":1},{"version":"5136ada8a6ff5eb706bb93d47ee7908da70567ebe307c4407778bf110ff390cb","impliedFormat":99},{"version":"4e4a6e416bb145a0eaa5d16e34bb29f3245f7f99c1cb1379b92766513ee48644","impliedFormat":99},{"version":"36cb7b515b1f37c672b0bef9e2d7f79fb9691cee740cb4b76ee6b4636e95639c","impliedFormat":99},{"version":"3f11172cb639fe19b4208a62a3b80c2a3cdd9e4e5711dee78254bfe947c2ce2b","impliedFormat":99},{"version":"15eebd236c4b7863dcf188858e5e8e5026f9fa057ea3d2c398f8b6d599565b89","impliedFormat":99},{"version":"014bf90700068528413e7acc47e58b89806c4540d433b65758e0d5ee757e45e2","impliedFormat":99},{"version":"0989dc719f7bd59eeab06772bc7dd8a399bb447a862b679b39a470e289d206f0","impliedFormat":99},{"version":"b169719d4e98c9046342f5e716fcdc60e391d411a1c7f9d0f94afe762fcc75b6","impliedFormat":99},{"version":"41f9135d77d1261d54197b4bdbe810584bf795a16f9fc4e798a05851ca87ab22","impliedFormat":99},{"version":"b7c1c2e3dac22ea6fd67281cb278f9eb26522b3e90b98417fd0eae470cf42f1d","impliedFormat":99},{"version":"db5f67f306930c6fd94cfe2cee36029b3378cd79a8203d3a27d2453efbbabc34","impliedFormat":99},{"version":"2ff7af30d64bc08b57caa723496060025fed56d513e6b7b92026f26c652a98fc","impliedFormat":99},{"version":"8251617ef839ce4f370ccd89a4b7cfca0f2166ef771ef6965642c26c0470175a","impliedFormat":99},{"version":"0f3fa7383d3f2ebed173ff59c102b4a68d10acdff5db4a009b73429ddaa15768","impliedFormat":99},{"version":"17bfc7019aa3430425ca11eb854c95f4abd51d1f4b29a296588f9c74ff440b97","impliedFormat":99},{"version":"b131bc8849f40ebc6f281b3be08f5e44676a6d43e336a166c48c3ca6770868b2","impliedFormat":99},{"version":"08b1758d7e210efaaa3f627fbeac287242307fa96b4c1bfc210d9a2ae5809d5c","impliedFormat":99},{"version":"b6c3995be1adb84b6f81cbf9dfdecaa0da5cc71c5a61b5fc0e4a5a31765d8257","impliedFormat":1},{"version":"e04ecf1120bd45f71531297c3ce1007bcf9a0739b11a84fd3c2b97d6ac26a2a8","impliedFormat":99},{"version":"0c0d4c550d90c330a3129efed22ba8fda8f6151d4f2b2582edebac7582b5b74b","impliedFormat":1},{"version":"ac95c17ee580f44c263ee5ddf675f6cca96d634c337122c156eecfcbc2e8640c","impliedFormat":99},{"version":"3da723823982206178406b7c2b8570152c6347a047fa7e59fa46011d10ac26b6","impliedFormat":1},{"version":"6bfa4df9d648afd10ea7f3aa249a64923dc215521a0f21a9604f526a19b7f1ee","impliedFormat":99},{"version":"a2d38762bff48f42e0add267a50e28079328f416a080fafed61563ff0c17cb7c","impliedFormat":99},{"version":"787b9cab1fdae10ada8ba1fa8fea2c552faf2a3fb4b35e9af9570e758450b49a","impliedFormat":99},{"version":"a5bf486e2de5ca9d3ed6726c334d399c26d3f3b7c56915ce6e98bdb7575b6ac8","impliedFormat":99},{"version":"8084463349fe0711b0d13923bedea19025161582fd73602b6ace6944daeb657c","impliedFormat":99},{"version":"95dd2fa1a14df6e0e6347f2b67e02f516545df373fb2c694ef3ab2790206c338","impliedFormat":1},{"version":"6bc78ca431af68b902781d24cbf7c6ae662e6b1610e56ed6173f3a9384c50304","impliedFormat":1},{"version":"d07db3c9e8acd436cf83ce1291ea689e3798d9002ba77014c6fb75f651e345ed","impliedFormat":99},{"version":"1947248ae2322f74b45b753dc5775cdd804114a4d424a7b15df47a73bab93c31","affectsGlobalScope":true,"impliedFormat":99},"78aed401fb55a66f4c2ccc3458e7f42269e6b937e1e38700f3862d6144eec62a","f7e2cfd7bffc1648f51ce26c5067c8230c8e5c8880d09e29b3d50069814ef720","9928430ecb765a788ec083583bf62e7fbb1ea912f08bfcb575c2106774907b30","48d77dcf89beeac2a8161847c41c7f6165deb396aa2e70b06ca1fd5dc5ffff04","e48974e995d9191e012ce1dcba48e199bcab7ca612917bdc81200379d175847b","1224a84930b9ba75452e703a352707842ec29ac944e4ed4551618ca8ddb87840","2f1192d5ab5ef755a0d5a91cb39fbb3113c9aa794be6aca87918332eb71c26c1","553f8cebed060e9c0c1f47772b0a39f5b562da311edbae0c57e402bf4f1b48fa",{"version":"cd475333bd4dcca7d149dec806f75a27dfe53790ed58fd8480dcd49bcfd28b40","signature":"a5ce6a3b079cff4f28f14194deb2bb872dda6cd29a2231d4f28ff9fa2e9f3ff8"},{"version":"bee3e623dd95581fff9413fb10fc2f085109e25e35fb0d7e6bf5ecbb1a6fa32f","signature":"2cb14a947390ad7b355700c11fafc5e4755ae6d6b6c26623480356a75cbeb74d"},"f573cbb1f3fb7395181815610ccc7cda7a9515f7e022d5c1d6be14ec97877f7b","54aa22b0c83dd747403b93c3f4dfd73c5487df0a5b53a8d42815b9a7b40a98ff","6837650d7591e57abf0241e8864c8281a71080896c49a1c59c1800a26ed7af7e","86cd742d8d69770ce9a938a3cef98981422c7c7369875cdc6ed12927a57fe7ae","beb305b8775d53d07e06689c8a7470b6b85a1abf1f2023b82df67c8acaef98a8","af1891996ea0c471e180cab52226eeab06fc7e834aac33d56e34a99c5ccd8f05","344ef19a330943ce5885c6399f5580e0bc63646574e687c52da1a4d89d9f6109","b67ec84dbee924247af4fc2e0bc72a7aa11a8c9d8b4401ce1afca0560b78f0e2","fcf572c5bc6adfbc1a04a16994c39fb22058187c546977e0b3c35874bf9bfd7d","dfe66f25c2789c727e6d0cadc984e340e67e23471340d34fa0c4923d4f0fc9f0","a2c457a8f5d8efde5bdfdbecfeeac4cd107372588545657453b30351b5947062","b3639f2e7895c7cef734514cf68d8ed4f97f6c7861cdb85d20285c95e92b4cd4","09446d39b5a538112c1e45ca525a60123bbbc88a1e5af9480dbedcefb66f1acf","3a430f1747e031d84aee01d5b0dbd3075bcf8577f471a585b646307a72d24d70","5fee43e3b94e4821cbde42028a6efe5729307490d0c51064599e8f0e6236b876","d7e168f9208662353b517ffa3e6438e7d89a6625d9afa487b9c06cbe4ead80d9",{"version":"b661dc7db752856d86fa80ff2567637c54d0645cf7dabd869e18b8b79d899e73","signature":"0747d3bd764e14bb0d86d424a08310bb108aa16459cc39dfeb60481d79087569"},{"version":"34228b5c0782fb6a9d7a0b00a79c215ec0059e8a14832fbffabd6c3bf308ca7a","signature":"f38546d83a5507aa1559850371a860d6fc349cdffe5b30b59f933c3a43130a4b"},{"version":"606d9b6330ee031f6c60dd7ed4c838816512c55cdd20c68546248875515b32a0","signature":"bf203e4fd9571cb572770681450e1bfbe7c858835bdff1d41c0723119a7105ae"},{"version":"a6adc252e0cfcae5a5fcb36a13a2e0fd4ddc517c4216a67a22fb736dd6f9932b","signature":"2d59adba2bafbf63c011b5a86e6b0f40a89059c681d96f5d1e08f6c09f5e7eae"},{"version":"db7d3123ffb10e2565491ad9314ffaff4d28b54b6c0327d5ee8c19f075bd4356","signature":"efd29da5a497841663dd60aa22498811733c49e927bafdadc58dde0584b1d2bf"},{"version":"c4a36773554559be2113ff4f5bb4e3b3dddba08b3001581be1b4a0e25af60271","signature":"3f02a000cffe8acf7264df5fc79791cf061644bf4cfd98de77b2d1c071e6782f"},{"version":"7ab9e2bfb75fc68b5b3528e686b3590268c68cd4d02b09720b17af2fe6717df8","signature":"6e4b6bb006bd96735be194d0557dfb397716764f72232e0995cd481c464375ad"},{"version":"5d34e1b88fa4712b32857e67979ff8527d33de3c4d4a4d05d2331c480f46dbbe","signature":"90d515bf1c9941afa9267092b19ebc467a988f8205e8e0d5a418600cb1b68fb5"},{"version":"511a5f4f77165dc1b73ceae1e28b4a8f78f3443d8e18a1fd43bfafd2b0133bbe","impliedFormat":1},{"version":"b6d03c9cfe2cf0ba4c673c209fcd7c46c815b2619fd2aad59fc4229aaef2ed43","impliedFormat":1},{"version":"95aba78013d782537cc5e23868e736bec5d377b918990e28ed56110e3ae8b958","impliedFormat":1},{"version":"670a76db379b27c8ff42f1ba927828a22862e2ab0b0908e38b671f0e912cc5ed","impliedFormat":1},{"version":"13b77ab19ef7aadd86a1e54f2f08ea23a6d74e102909e3c00d31f231ed040f62","impliedFormat":1},{"version":"069bebfee29864e3955378107e243508b163e77ab10de6a5ee03ae06939f0bb9","impliedFormat":1},{"version":"104c67f0da1bdf0d94865419247e20eded83ce7f9911a1aa75fc675c077ca66e","impliedFormat":1},{"version":"cc0d0b339f31ce0ab3b7a5b714d8e578ce698f1e13d7f8c60bfb766baeb1d35c","impliedFormat":1},{"version":"427fe2004642504828c1476d0af4270e6ad4db6de78c0b5da3e4c5ca95052a99","impliedFormat":1},{"version":"2eeffcee5c1661ddca53353929558037b8cf305ffb86a803512982f99bcab50d","impliedFormat":99},{"version":"9afb4cb864d297e4092a79ee2871b5d3143ea14153f62ef0bb04ede25f432030","affectsGlobalScope":true,"impliedFormat":99},{"version":"380b919bfa0516118edaf25b99e45f855e7bc3fd75ce4163a1cfe4a666388804","impliedFormat":1},{"version":"0d89e5c4ce6e3096e64504e1fa45a8ddccf488cb5fdc1980ea09db2a451f0b91","impliedFormat":1},{"version":"fcf79300e5257a23ed3bacaa6861d7c645139c6f7ece134d15e6669447e5e6db","impliedFormat":1},{"version":"187119ff4f9553676a884e296089e131e8cc01691c546273b1d0089c3533ce42","impliedFormat":1},{"version":"aa2c18a1b5a086bbcaae10a4efba409cc95ba7287d8cf8f2591b53704fea3dea","impliedFormat":1},{"version":"5a0b15210129310cee9fa6af9200714bb4b12af4a04d890e15f34dbea1cf1852","impliedFormat":1},{"version":"0244119dbcbcf34faf3ffdae72dab1e9bc2bc9efc3c477b2240ffa94af3bca56","impliedFormat":1},{"version":"00baffbe8a2f2e4875367479489b5d43b5fc1429ecb4a4cc98cfc3009095f52a","impliedFormat":1},{"version":"a873c50d3e47c21aa09fbe1e2023d9a44efb07cc0cb8c72f418bf301b0771fd3","impliedFormat":1},{"version":"7c14ccd2eaa82619fffc1bfa877eb68a012e9fb723d07ee98db451fadb618906","impliedFormat":1},{"version":"49c36529ee09ea9ce19525af5bb84985ea8e782cb7ee8c493d9e36d027a3d019","impliedFormat":1},{"version":"df996e25faa505f85aeb294d15ebe61b399cf1d1e49959cdfaf2cc0815c203f9","impliedFormat":1},{"version":"4f6a12044ee6f458db11964153830abbc499e73d065c51c329ec97407f4b13dd","impliedFormat":1},{"version":"1f164f3717c73c0386cbfdfa81478d1b1cc253ccafed09de2b4e95933e6cd1c1","impliedFormat":1},{"version":"70683130063cbf66881365f07cff86840b6fa0238c076970f89aa7a43d9c1341","affectsGlobalScope":true,"impliedFormat":1},{"version":"0dc6940ff35d845686a118ee7384713a84024d60ef26f25a2f87992ec7ddbd64","impliedFormat":1},{"version":"151ff381ef9ff8da2da9b9663ebf657eac35c4c9a19183420c05728f31a6761d","impliedFormat":1},{"version":"f3d8c757e148ad968f0d98697987db363070abada5f503da3c06aefd9d4248c1","impliedFormat":1},{"version":"a4a39b5714adfcadd3bbea6698ca2e942606d833bde62ad5fb6ec55f5e438ff8","impliedFormat":1},{"version":"bbc1d029093135d7d9bfa4b38cbf8761db505026cc458b5e9c8b74f4000e5e75","impliedFormat":1},{"version":"ac450542cbfd50a4d7bf0f3ec8aeedb9e95791ecc6f2b2b19367696bd303e8c6","impliedFormat":99},{"version":"8a190298d0ff502ad1c7294ba6b0abb3a290fc905b3a00603016a97c363a4c7a","impliedFormat":1},{"version":"5ba4a4a1f9fae0550de86889fb06cd997c8406795d85647cbcd992245625680c","impliedFormat":1},{"version":"1f68ab0e055994eb337b67aa87d2a15e0200951e9664959b3866ee6f6b11a0fe","impliedFormat":1},{"version":"d34aa8df2d0b18fb56b1d772ff9b3c7aea7256cf0d692f969be6e1d27b74d660","impliedFormat":1},{"version":"baac9896d29bcc55391d769e408ff400d61273d832dd500f21de766205255acb","impliedFormat":1},{"version":"2f5747b1508ccf83fad0c251ba1e5da2f5a30b78b09ffa1cfaf633045160afed","impliedFormat":1},{"version":"6823ccc7b5b77bbf898d878dbcad18aa45e0fa96bdd0abd0de98d514845d9ed9","affectsGlobalScope":true,"impliedFormat":1},{"version":"b71c603a539078a5e3a039b20f2b0a0d1708967530cf97dec8850a9ca45baa2b","impliedFormat":1},{"version":"168d88e14e0d81fe170e0dadd38ae9d217476c11435ea640ddb9b7382bdb6c1f","impliedFormat":1},{"version":"8e04cf0688e0d921111659c2b55851957017148fa7b977b02727477d155b3c47","impliedFormat":1},{"version":"afe73051ff6a03a9565cbd8ebb0e956ee3df5e913ad5c1ded64218aabfa3dcb5","impliedFormat":1},{"version":"035a5df183489c2e22f3cf59fc1ed2b043d27f357eecc0eb8d8e840059d44245","impliedFormat":1},{"version":"a4809f4d92317535e6b22b01019437030077a76fec1d93b9881c9ed4738fcc54","impliedFormat":1},{"version":"5f53fa0bd22096d2a78533f94e02c899143b8f0f9891a46965294ee8b91a9434","impliedFormat":1},{"version":"cdcc132f207d097d7d3aa75615ab9a2e71d6a478162dde8b67f88ea19f3e54de","impliedFormat":1},{"version":"0d14fa22c41fdc7277e6f71473b20ebc07f40f00e38875142335d5b63cdfc9d2","impliedFormat":1},{"version":"e1028394c1cf96d5d057ecc647e31e457b919092f882ed0c7092152b077fed9d","impliedFormat":1},{"version":"f315e1e65a1f80992f0509e84e4ae2df15ecd9ef73df975f7c98813b71e4c8da","impliedFormat":1},{"version":"5b9586e9b0b6322e5bfbd2c29bd3b8e21ab9d871f82346cb71020e3d84bae73e","impliedFormat":1},{"version":"3e70a7e67c2cb16f8cd49097360c0309fe9d1e3210ff9222e9dac1f8df9d4fb6","impliedFormat":1},{"version":"ab68d2a3e3e8767c3fba8f80de099a1cfc18c0de79e42cb02ae66e22dfe14a66","impliedFormat":1},{"version":"d96cc6598148bf1a98fb2e8dcf01c63a4b3558bdaec6ef35e087fd0562eb40ec","impliedFormat":1},{"version":"f8db4fea512ab759b2223b90ecbbe7dae919c02f8ce95ec03f7fb1cf757cfbeb","affectsGlobalScope":true,"impliedFormat":1},{"version":"96d14f21b7652903852eef49379d04dbda28c16ed36468f8c9fa08f7c14c9538","impliedFormat":1},{"version":"b0f9ef6423d6b29dde29fd60d83d215796b2c1b76bfca28ac374ae18702cfb8e","impliedFormat":1},{"version":"29f72ec1289ae3aeda78bf14b38086d3d803262ac13904b400422941a26a3636","affectsGlobalScope":true,"impliedFormat":1},{"version":"170d4db14678c68178ee8a3d5a990d5afb759ecb6ec44dbd885c50f6da6204f6","affectsGlobalScope":true,"impliedFormat":1},{"version":"ac51dd7d31333793807a6abaa5ae168512b6131bd41d9c5b98477fc3b7800f9f","impliedFormat":1},{"version":"cf8db38686dfd74567ea692266fe44fbb32fa0e25fc0888ad6fc40e65873607e","impliedFormat":1},{"version":"be1cc4d94ea60cbe567bc29ed479d42587bf1e6cba490f123d329976b0fe4ee5","impliedFormat":1},{"version":"ab82804a14454734010dcdcd43f564ff7b0389bee4c5692eec76ff5b30d4cf66","impliedFormat":1},{"version":"e7bb49fac2aa46a13011b5eb5e4a8648f70a28aea1853fab2444dd4fcb4d4ec7","impliedFormat":1},{"version":"464e45d1a56dae066d7e1a2f32e55b8de4bfb072610c3483a4091d73c9924908","impliedFormat":1},{"version":"da318e126ac39362c899829547cc8ee24fa3e8328b52cdd27e34173cf19c7941","impliedFormat":1},{"version":"24bd01a91f187b22456c7171c07dbf44f3ad57ebd50735aab5c13fa23d7114b4","impliedFormat":1},{"version":"4738eefeaaba4d4288a08c1c226a76086095a4d5bcc7826d2564e7c29da47671","impliedFormat":1},{"version":"736097ddbb2903bef918bb3b5811ef1c9c5656f2a73bd39b22a91b9cc2525e50","impliedFormat":1},{"version":"dbec715e9e82df297e49e3ed0029f6151aa40517ebfd6fcdba277a8a2e1d3a1b","impliedFormat":1},{"version":"097f1f8ca02e8940cfdcca553279e281f726485fa6fb214b3c9f7084476f6bcc","impliedFormat":1},{"version":"8f75e211a2e83ff216eb66330790fb6412dcda2feb60c4f165c903cf375633ee","impliedFormat":1},{"version":"c3fb0d969970b37d91f0dbf493c014497fe457a2280ac42ae24567015963dbf7","impliedFormat":1},{"version":"a9155c6deffc2f6a69e69dc12f0950ba1b4db03b3d26ab7a523efc89149ce979","impliedFormat":1},{"version":"c99faf0d7cb755b0424a743ea0cbf195606bf6cd023b5d10082dba8d3714673c","impliedFormat":1},{"version":"21942c5a654cc18ffc2e1e063c8328aca3b127bbf259c4e97906d4696e3fa915","impliedFormat":1},{"version":"c6cdcd12d577032b84eed1de4d2de2ae343463701a25961b202cff93989439fb","impliedFormat":1},{"version":"3dc633586d48fcd04a4f8acdbf7631b8e4a334632f252d5707e04b299069721e","impliedFormat":1},{"version":"3322858f01c0349ee7968a5ce93a1ca0c154c4692aa8f1721dc5192a9191a168","impliedFormat":1},{"version":"6dde0a77adad4173a49e6de4edd6ef70f5598cbebb5c80d76c111943854636ca","impliedFormat":1},{"version":"09acacae732e3cc67a6415026cfae979ebe900905500147a629837b790a366b3","impliedFormat":1},{"version":"f7b622759e094a3c2e19640e0cb233b21810d2762b3e894ef7f415334125eb22","impliedFormat":1},{"version":"99236ea5c4c583082975823fd19bcce6a44963c5c894e20384bc72e7eccf9b03","impliedFormat":1},{"version":"f6688a02946a3f7490aa9e26d76d1c97a388e42e77388cbab010b69982c86e9e","impliedFormat":1},{"version":"9f642953aba68babd23de41de85d4e97f0c39ef074cb8ab8aa7d55237f62aff6","impliedFormat":1},{"version":"159d95163a0ed369175ae7838fa21a9e9e703de5fdb0f978721293dd403d9f4a","impliedFormat":1},{"version":"bae8d023ef6b23df7da26f51cea44321f95817c190342a36882e93b80d07a960","impliedFormat":1},{"version":"26a770cec4bd2e7dbba95c6e536390fffe83c6268b78974a93727903b515c4e7","impliedFormat":1}],"root":[222,223,[240,247]],"options":{"composite":true,"declaration":true,"declarationMap":true,"esModuleInterop":true,"experimentalDecorators":true,"module":99,"outDir":"./dist","rootDir":"./src","skipLibCheck":true,"target":7},"referencedMap":[[250,1],[248,2],[212,3],[213,4],[184,5],[207,6],[203,7],[185,2],[208,8],[209,9],[183,2],[196,2],[187,10],[195,11],[188,10],[189,10],[190,10],[191,10],[194,10],[192,10],[193,10],[205,12],[201,13],[199,14],[197,2],[198,2],[206,15],[186,2],[279,16],[294,2],[297,17],[296,2],[253,18],[249,1],[251,19],[252,1],[255,20],[273,21],[258,22],[254,23],[274,2],[256,2],[282,24],[278,25],[277,26],[275,2],[286,27],[289,28],[290,29],[287,2],[291,2],[292,30],[293,31],[302,32],[276,2],[303,2],[272,33],[260,34],[261,35],[259,36],[262,37],[263,38],[264,39],[265,40],[266,41],[267,42],[268,43],[269,44],[270,45],[271,46],[304,2],[305,2],[131,47],[132,47],[133,48],[87,49],[134,50],[135,51],[136,52],[82,2],[85,53],[83,2],[84,2],[137,54],[138,55],[139,56],[140,57],[141,58],[142,59],[143,59],[144,60],[145,61],[146,62],[147,63],[88,2],[86,2],[148,64],[149,65],[150,66],[182,67],[151,68],[152,69],[153,70],[154,71],[155,72],[156,73],[157,74],[158,75],[159,76],[160,77],[161,77],[162,78],[163,2],[164,79],[166,80],[165,81],[167,82],[168,83],[169,84],[170,85],[171,86],[172,87],[173,88],[174,89],[175,90],[176,91],[177,92],[178,93],[179,94],[89,2],[90,2],[91,2],[130,95],[180,96],[181,97],[284,2],[285,2],[309,98],[306,2],[308,99],[283,100],[288,101],[310,2],[319,102],[311,2],[314,103],[317,104],[318,105],[312,106],[315,107],[313,108],[323,109],[321,110],[322,111],[320,112],[333,113],[324,2],[325,2],[326,2],[327,2],[328,2],[329,2],[330,2],[331,2],[332,2],[334,2],[335,114],[257,2],[200,115],[204,116],[210,115],[211,117],[92,2],[295,2],[307,2],[281,118],[280,119],[301,120],[316,121],[299,122],[300,123],[298,124],[80,2],[81,2],[13,2],[15,2],[14,2],[2,2],[16,2],[17,2],[18,2],[19,2],[20,2],[21,2],[22,2],[23,2],[3,2],[24,2],[25,2],[4,2],[26,2],[30,2],[27,2],[28,2],[29,2],[31,2],[32,2],[33,2],[5,2],[34,2],[35,2],[36,2],[37,2],[6,2],[41,2],[38,2],[39,2],[40,2],[42,2],[7,2],[43,2],[48,2],[49,2],[44,2],[45,2],[46,2],[47,2],[8,2],[53,2],[50,2],[51,2],[52,2],[54,2],[9,2],[55,2],[56,2],[57,2],[59,2],[58,2],[60,2],[61,2],[10,2],[62,2],[63,2],[64,2],[11,2],[65,2],[66,2],[67,2],[68,2],[69,2],[1,2],[70,2],[71,2],[12,2],[75,2],[73,2],[78,2],[77,2],[72,2],[76,2],[74,2],[79,2],[108,125],[118,126],[107,125],[128,127],[99,128],[98,129],[127,115],[121,130],[126,131],[101,132],[115,133],[100,134],[124,135],[96,136],[95,115],[125,137],[97,138],[102,139],[103,2],[106,139],[93,2],[129,140],[119,141],[110,142],[111,143],[113,144],[109,145],[112,146],[122,115],[104,147],[105,148],[114,149],[94,150],[117,141],[116,139],[120,2],[123,151],[202,115],[228,152],[235,153],[238,154],[232,155],[237,152],[231,156],[236,157],[233,158],[234,159],[239,160],[229,161],[230,156],[227,161],[226,161],[225,161],[224,161],[244,162],[243,162],[246,163],[245,162],[242,162],[241,162],[240,162],[222,164],[223,165],[247,166],[219,2],[221,167],[214,2],[218,168],[217,2],[215,2],[216,2],[220,2]],"latestChangedDtsFile":"./dist/clients/teacherClient.d.ts","version":"5.9.3"}
+{"fileNames":["../../node_modules/typescript/lib/lib.es5.d.ts","../../node_modules/typescript/lib/lib.es2015.d.ts","../../node_modules/typescript/lib/lib.es2016.d.ts","../../node_modules/typescript/lib/lib.es2017.d.ts","../../node_modules/typescript/lib/lib.es2018.d.ts","../../node_modules/typescript/lib/lib.es2019.d.ts","../../node_modules/typescript/lib/lib.es2020.d.ts","../../node_modules/typescript/lib/lib.es2021.d.ts","../../node_modules/typescript/lib/lib.es2022.d.ts","../../node_modules/typescript/lib/lib.es2023.d.ts","../../node_modules/typescript/lib/lib.es2024.d.ts","../../node_modules/typescript/lib/lib.esnext.d.ts","../../node_modules/typescript/lib/lib.dom.d.ts","../../node_modules/typescript/lib/lib.es2015.core.d.ts","../../node_modules/typescript/lib/lib.es2015.collection.d.ts","../../node_modules/typescript/lib/lib.es2015.generator.d.ts","../../node_modules/typescript/lib/lib.es2015.iterable.d.ts","../../node_modules/typescript/lib/lib.es2015.promise.d.ts","../../node_modules/typescript/lib/lib.es2015.proxy.d.ts","../../node_modules/typescript/lib/lib.es2015.reflect.d.ts","../../node_modules/typescript/lib/lib.es2015.symbol.d.ts","../../node_modules/typescript/lib/lib.es2015.symbol.wellknown.d.ts","../../node_modules/typescript/lib/lib.es2016.array.include.d.ts","../../node_modules/typescript/lib/lib.es2016.intl.d.ts","../../node_modules/typescript/lib/lib.es2017.arraybuffer.d.ts","../../node_modules/typescript/lib/lib.es2017.date.d.ts","../../node_modules/typescript/lib/lib.es2017.object.d.ts","../../node_modules/typescript/lib/lib.es2017.sharedmemory.d.ts","../../node_modules/typescript/lib/lib.es2017.string.d.ts","../../node_modules/typescript/lib/lib.es2017.intl.d.ts","../../node_modules/typescript/lib/lib.es2017.typedarrays.d.ts","../../node_modules/typescript/lib/lib.es2018.asyncgenerator.d.ts","../../node_modules/typescript/lib/lib.es2018.asynciterable.d.ts","../../node_modules/typescript/lib/lib.es2018.intl.d.ts","../../node_modules/typescript/lib/lib.es2018.promise.d.ts","../../node_modules/typescript/lib/lib.es2018.regexp.d.ts","../../node_modules/typescript/lib/lib.es2019.array.d.ts","../../node_modules/typescript/lib/lib.es2019.object.d.ts","../../node_modules/typescript/lib/lib.es2019.string.d.ts","../../node_modules/typescript/lib/lib.es2019.symbol.d.ts","../../node_modules/typescript/lib/lib.es2019.intl.d.ts","../../node_modules/typescript/lib/lib.es2020.bigint.d.ts","../../node_modules/typescript/lib/lib.es2020.date.d.ts","../../node_modules/typescript/lib/lib.es2020.promise.d.ts","../../node_modules/typescript/lib/lib.es2020.sharedmemory.d.ts","../../node_modules/typescript/lib/lib.es2020.string.d.ts","../../node_modules/typescript/lib/lib.es2020.symbol.wellknown.d.ts","../../node_modules/typescript/lib/lib.es2020.intl.d.ts","../../node_modules/typescript/lib/lib.es2020.number.d.ts","../../node_modules/typescript/lib/lib.es2021.promise.d.ts","../../node_modules/typescript/lib/lib.es2021.string.d.ts","../../node_modules/typescript/lib/lib.es2021.weakref.d.ts","../../node_modules/typescript/lib/lib.es2021.intl.d.ts","../../node_modules/typescript/lib/lib.es2022.array.d.ts","../../node_modules/typescript/lib/lib.es2022.error.d.ts","../../node_modules/typescript/lib/lib.es2022.intl.d.ts","../../node_modules/typescript/lib/lib.es2022.object.d.ts","../../node_modules/typescript/lib/lib.es2022.string.d.ts","../../node_modules/typescript/lib/lib.es2022.regexp.d.ts","../../node_modules/typescript/lib/lib.es2023.array.d.ts","../../node_modules/typescript/lib/lib.es2023.collection.d.ts","../../node_modules/typescript/lib/lib.es2023.intl.d.ts","../../node_modules/typescript/lib/lib.es2024.arraybuffer.d.ts","../../node_modules/typescript/lib/lib.es2024.collection.d.ts","../../node_modules/typescript/lib/lib.es2024.object.d.ts","../../node_modules/typescript/lib/lib.es2024.promise.d.ts","../../node_modules/typescript/lib/lib.es2024.regexp.d.ts","../../node_modules/typescript/lib/lib.es2024.sharedmemory.d.ts","../../node_modules/typescript/lib/lib.es2024.string.d.ts","../../node_modules/typescript/lib/lib.esnext.array.d.ts","../../node_modules/typescript/lib/lib.esnext.collection.d.ts","../../node_modules/typescript/lib/lib.esnext.intl.d.ts","../../node_modules/typescript/lib/lib.esnext.disposable.d.ts","../../node_modules/typescript/lib/lib.esnext.promise.d.ts","../../node_modules/typescript/lib/lib.esnext.decorators.d.ts","../../node_modules/typescript/lib/lib.esnext.iterator.d.ts","../../node_modules/typescript/lib/lib.esnext.float16.d.ts","../../node_modules/typescript/lib/lib.esnext.error.d.ts","../../node_modules/typescript/lib/lib.esnext.sharedmemory.d.ts","../../node_modules/typescript/lib/lib.decorators.d.ts","../../node_modules/typescript/lib/lib.decorators.legacy.d.ts","../../node_modules/@types/node/compatibility/disposable.d.ts","../../node_modules/@types/node/compatibility/indexable.d.ts","../../node_modules/@types/node/compatibility/iterators.d.ts","../../node_modules/@types/node/compatibility/index.d.ts","../../node_modules/@types/node/globals.typedarray.d.ts","../../node_modules/@types/node/buffer.buffer.d.ts","../../node_modules/@types/node/globals.d.ts","../../node_modules/@types/node/web-globals/abortcontroller.d.ts","../../node_modules/@types/node/web-globals/domexception.d.ts","../../node_modules/@types/node/web-globals/events.d.ts","../../node_modules/buffer/index.d.ts","../../node_modules/undici-types/header.d.ts","../../node_modules/undici-types/readable.d.ts","../../node_modules/undici-types/file.d.ts","../../node_modules/undici-types/fetch.d.ts","../../node_modules/undici-types/formdata.d.ts","../../node_modules/undici-types/connector.d.ts","../../node_modules/undici-types/client.d.ts","../../node_modules/undici-types/errors.d.ts","../../node_modules/undici-types/dispatcher.d.ts","../../node_modules/undici-types/global-dispatcher.d.ts","../../node_modules/undici-types/global-origin.d.ts","../../node_modules/undici-types/pool-stats.d.ts","../../node_modules/undici-types/pool.d.ts","../../node_modules/undici-types/handlers.d.ts","../../node_modules/undici-types/balanced-pool.d.ts","../../node_modules/undici-types/agent.d.ts","../../node_modules/undici-types/mock-interceptor.d.ts","../../node_modules/undici-types/mock-agent.d.ts","../../node_modules/undici-types/mock-client.d.ts","../../node_modules/undici-types/mock-pool.d.ts","../../node_modules/undici-types/mock-errors.d.ts","../../node_modules/undici-types/proxy-agent.d.ts","../../node_modules/undici-types/env-http-proxy-agent.d.ts","../../node_modules/undici-types/retry-handler.d.ts","../../node_modules/undici-types/retry-agent.d.ts","../../node_modules/undici-types/api.d.ts","../../node_modules/undici-types/interceptors.d.ts","../../node_modules/undici-types/util.d.ts","../../node_modules/undici-types/cookies.d.ts","../../node_modules/undici-types/patch.d.ts","../../node_modules/undici-types/websocket.d.ts","../../node_modules/undici-types/eventsource.d.ts","../../node_modules/undici-types/filereader.d.ts","../../node_modules/undici-types/diagnostics-channel.d.ts","../../node_modules/undici-types/content-type.d.ts","../../node_modules/undici-types/cache.d.ts","../../node_modules/undici-types/index.d.ts","../../node_modules/@types/node/web-globals/fetch.d.ts","../../node_modules/@types/node/assert.d.ts","../../node_modules/@types/node/assert/strict.d.ts","../../node_modules/@types/node/async_hooks.d.ts","../../node_modules/@types/node/buffer.d.ts","../../node_modules/@types/node/child_process.d.ts","../../node_modules/@types/node/cluster.d.ts","../../node_modules/@types/node/console.d.ts","../../node_modules/@types/node/constants.d.ts","../../node_modules/@types/node/crypto.d.ts","../../node_modules/@types/node/dgram.d.ts","../../node_modules/@types/node/diagnostics_channel.d.ts","../../node_modules/@types/node/dns.d.ts","../../node_modules/@types/node/dns/promises.d.ts","../../node_modules/@types/node/domain.d.ts","../../node_modules/@types/node/events.d.ts","../../node_modules/@types/node/fs.d.ts","../../node_modules/@types/node/fs/promises.d.ts","../../node_modules/@types/node/http.d.ts","../../node_modules/@types/node/http2.d.ts","../../node_modules/@types/node/https.d.ts","../../node_modules/@types/node/inspector.generated.d.ts","../../node_modules/@types/node/module.d.ts","../../node_modules/@types/node/net.d.ts","../../node_modules/@types/node/os.d.ts","../../node_modules/@types/node/path.d.ts","../../node_modules/@types/node/perf_hooks.d.ts","../../node_modules/@types/node/process.d.ts","../../node_modules/@types/node/punycode.d.ts","../../node_modules/@types/node/querystring.d.ts","../../node_modules/@types/node/readline.d.ts","../../node_modules/@types/node/readline/promises.d.ts","../../node_modules/@types/node/repl.d.ts","../../node_modules/@types/node/sea.d.ts","../../node_modules/@types/node/stream.d.ts","../../node_modules/@types/node/stream/promises.d.ts","../../node_modules/@types/node/stream/consumers.d.ts","../../node_modules/@types/node/stream/web.d.ts","../../node_modules/@types/node/string_decoder.d.ts","../../node_modules/@types/node/test.d.ts","../../node_modules/@types/node/timers.d.ts","../../node_modules/@types/node/timers/promises.d.ts","../../node_modules/@types/node/tls.d.ts","../../node_modules/@types/node/trace_events.d.ts","../../node_modules/@types/node/tty.d.ts","../../node_modules/@types/node/url.d.ts","../../node_modules/@types/node/util.d.ts","../../node_modules/@types/node/v8.d.ts","../../node_modules/@types/node/vm.d.ts","../../node_modules/@types/node/wasi.d.ts","../../node_modules/@types/node/worker_threads.d.ts","../../node_modules/@types/node/zlib.d.ts","../../node_modules/@types/node/index.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/networks.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/address.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/crypto.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/types.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/embed.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/p2ms.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/p2pk.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/p2pkh.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/p2sh.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/p2wpkh.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/p2wsh.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/p2tr.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/payments/index.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/ops.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/script_number.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/script_signature.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/script.d.ts","../../node_modules/bip174/src/lib/interfaces.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/psbt/bip371.d.ts","../../node_modules/varuint-bitcoin/index.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/bufferutils.d.ts","../../node_modules/bip174/src/lib/psbt.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/psbt.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/transaction.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/block.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/ecc_lib.d.ts","../../node_modules/@bitcoin-computer/nakamotojs/src/index.d.ts","../../node_modules/bip32/types/bip32.d.ts","../../node_modules/bip32/types/index.d.ts","../../node_modules/@bitcoin-computer/lib/computer.d.ts","../../node_modules/@bitcoin-computer/lib/index.d.ts","../shared/dist/types/config.types.d.ts","../shared/dist/types/quiz.types.d.ts","../shared/dist/types/user.types.d.ts","../shared/dist/types/payment.types.d.ts","../shared/dist/types/index.d.ts","../shared/dist/constants/index.d.ts","../shared/dist/utils/index.d.ts","../shared/dist/index.d.ts","./src/computer/createcomputer.ts","./src/computer/index.ts","../quiz-contracts/dist/teacher.d.ts","../quiz-contracts/dist/student.d.ts","../quiz-contracts/dist/quiz.d.ts","../quiz-contracts/dist/quiz-access.d.ts","../quiz-contracts/dist/attempt.d.ts","../quiz-contracts/dist/payment.d.ts","../quiz-contracts/dist/quiz-access-sale.d.ts","../quiz-contracts/dist/helpers/quiz-access-sale-helper.d.ts","../quiz-contracts/dist/helpers/payment-helper.d.ts","../quiz-contracts/dist/helpers/student-helper.d.ts","../quiz-contracts/dist/helpers/teacher-helper.d.ts","../quiz-contracts/dist/helpers/attempt-helper.d.ts","../quiz-contracts/dist/helpers/quiz-helper.d.ts","../quiz-contracts/dist/helpers/quiz-access-helper.d.ts","../quiz-contracts/dist/helpers/leaderboard-helper.d.ts","../quiz-contracts/dist/index.d.ts","./src/clients/teacherclient.ts","./src/clients/studentclient.ts","./src/clients/quizclient.ts","./src/clients/attemptclient.ts","./src/clients/accessclient.ts","./src/clients/paymentclient.ts","./src/clients/index.ts","./src/index.ts","../../node_modules/@babel/types/lib/index.d.ts","../../node_modules/@types/babel__generator/index.d.ts","../../node_modules/@babel/parser/typings/babel-parser.d.ts","../../node_modules/@types/babel__template/index.d.ts","../../node_modules/@types/babel__traverse/index.d.ts","../../node_modules/@types/babel__core/index.d.ts","../../node_modules/@types/connect/index.d.ts","../../node_modules/@types/body-parser/index.d.ts","../../node_modules/@types/deep-eql/index.d.ts","../../node_modules/assertion-error/index.d.ts","../../node_modules/@types/chai/index.d.ts","../../node_modules/@types/lodash/common/common.d.ts","../../node_modules/@types/lodash/common/array.d.ts","../../node_modules/@types/lodash/common/collection.d.ts","../../node_modules/@types/lodash/common/date.d.ts","../../node_modules/@types/lodash/common/function.d.ts","../../node_modules/@types/lodash/common/lang.d.ts","../../node_modules/@types/lodash/common/math.d.ts","../../node_modules/@types/lodash/common/number.d.ts","../../node_modules/@types/lodash/common/object.d.ts","../../node_modules/@types/lodash/common/seq.d.ts","../../node_modules/@types/lodash/common/string.d.ts","../../node_modules/@types/lodash/common/util.d.ts","../../node_modules/@types/lodash/index.d.ts","../../node_modules/@types/lodash-match-pattern/index.d.ts","../../node_modules/@types/chai-match-pattern/index.d.ts","../../node_modules/@types/cookiejar/index.d.ts","../../node_modules/@types/estree/index.d.ts","../../node_modules/@types/json-schema/index.d.ts","../../node_modules/@types/eslint/use-at-your-own-risk.d.ts","../../node_modules/@types/eslint/index.d.ts","../../node_modules/@eslint/core/dist/esm/types.d.ts","../../node_modules/eslint/lib/types/use-at-your-own-risk.d.ts","../../node_modules/eslint/lib/types/index.d.ts","../../node_modules/@types/eslint-scope/index.d.ts","../../node_modules/@types/send/index.d.ts","../../node_modules/@types/qs/index.d.ts","../../node_modules/@types/range-parser/index.d.ts","../../node_modules/@types/express-serve-static-core/index.d.ts","../../node_modules/@types/http-errors/index.d.ts","../../node_modules/@types/serve-static/index.d.ts","../../node_modules/@types/express/index.d.ts","../../node_modules/@types/graceful-fs/index.d.ts","../../node_modules/@types/istanbul-lib-coverage/index.d.ts","../../node_modules/@types/istanbul-lib-report/index.d.ts","../../node_modules/@types/istanbul-reports/index.d.ts","../../node_modules/@jest/expect-utils/build/index.d.ts","../../node_modules/chalk/index.d.ts","../../node_modules/@sinclair/typebox/typebox.d.ts","../../node_modules/@jest/schemas/build/index.d.ts","../../node_modules/pretty-format/build/index.d.ts","../../node_modules/jest-diff/build/index.d.ts","../../node_modules/jest-matcher-utils/build/index.d.ts","../../node_modules/expect/build/index.d.ts","../../node_modules/@types/jest/index.d.ts","../../node_modules/@types/json5/index.d.ts","../../node_modules/@types/methods/index.d.ts","../../node_modules/@types/mocha/index.d.ts","../../node_modules/@types/react/global.d.ts","../../node_modules/csstype/index.d.ts","../../node_modules/@types/react/index.d.ts","../../node_modules/@types/react-dom/index.d.ts","../../node_modules/@types/resolve/index.d.ts","../../node_modules/@types/stack-utils/index.d.ts","../../node_modules/@types/superagent/lib/agent-base.d.ts","../../node_modules/@types/superagent/lib/node/response.d.ts","../../node_modules/@types/superagent/types.d.ts","../../node_modules/@types/superagent/lib/node/agent.d.ts","../../node_modules/@types/superagent/lib/request-base.d.ts","../../node_modules/form-data/index.d.ts","../../node_modules/@types/superagent/lib/node/http2wrapper.d.ts","../../node_modules/@types/superagent/lib/node/index.d.ts","../../node_modules/@types/superagent/index.d.ts","../../node_modules/@types/supertest/types.d.ts","../../node_modules/@types/supertest/lib/agent.d.ts","../../node_modules/@types/supertest/lib/test.d.ts","../../node_modules/@types/supertest/index.d.ts","../../node_modules/@types/validator/lib/isboolean.d.ts","../../node_modules/@types/validator/lib/isemail.d.ts","../../node_modules/@types/validator/lib/isfqdn.d.ts","../../node_modules/@types/validator/lib/isiban.d.ts","../../node_modules/@types/validator/lib/isiso31661alpha2.d.ts","../../node_modules/@types/validator/lib/isiso4217.d.ts","../../node_modules/@types/validator/lib/isiso6391.d.ts","../../node_modules/@types/validator/lib/istaxid.d.ts","../../node_modules/@types/validator/lib/isurl.d.ts","../../node_modules/@types/validator/index.d.ts","../../node_modules/@types/yargs-parser/index.d.ts","../../node_modules/@types/yargs/index.d.ts"],"fileIdsList":[[87,134,248],[87,134],[87,134,182,209,211],[87,134,212],[87,134,183],[87,134,206],[87,134,202],[87,134,186],[87,134,183,184,185,195,196,199,201,203,205,206,207,208],[87,134,195],[87,134,183,186,187,188,189,190,191,192,193,194],[87,134,183,200,204,206],[87,134,186,200],[87,134,183,195,196,197,198],[87,134,205],[87,134,276],[87,134,296],[87,134,248,249,250,251,252],[87,134,248,250],[87,134,148,182,254],[87,134,258,272],[87,134,256,257],[87,134,148,182],[87,134,275,281],[87,134,275,276,277],[87,134,278],[87,134,145,148,182,283,284,285],[87,134,255,286,288],[87,134,146,182],[87,134,291],[87,134,292],[87,134,298,301],[87,134,259,260,261,262,263,264,265,266,267,268,269,270,271],[87,134,259,261,262,263,264,265,266,267,268,269,270,271,272],[87,134,259,260,262,263,264,265,266,267,268,269,270,271,272],[87,134,260,261,262,263,264,265,266,267,268,269,270,271,272],[87,134,259,260,261,263,264,265,266,267,268,269,270,271,272],[87,134,259,260,261,262,264,265,266,267,268,269,270,271,272],[87,134,259,260,261,262,263,265,266,267,268,269,270,271,272],[87,134,259,260,261,262,263,264,266,267,268,269,270,271,272],[87,134,259,260,261,262,263,264,265,267,268,269,270,271,272],[87,134,259,260,261,262,263,264,265,266,268,269,270,271,272],[87,134,259,260,261,262,263,264,265,266,267,269,270,271,272],[87,134,259,260,261,262,263,264,265,266,267,268,270,271,272],[87,134,259,260,261,262,263,264,265,266,267,268,269,271,272],[87,134,259,260,261,262,263,264,265,266,267,268,269,270],[87,131,134],[87,133,134],[134],[87,134,139,167],[87,134,135,140,145,153,164,175],[87,134,135,136,145,153],[82,83,84,87,134],[87,134,137,176],[87,134,138,139,146,154],[87,134,139,164,172],[87,134,140,142,145,153],[87,133,134,141],[87,134,142,143],[87,134,144,145],[87,133,134,145],[87,134,145,146,147,164,175],[87,134,145,146,147,160,164,167],[87,134,142,145,148,153,164,175],[87,134,145,146,148,149,153,164,172,175],[87,134,148,150,164,172,175],[85,86,87,88,89,90,91,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181],[87,134,145,151],[87,134,152,175,180],[87,134,142,145,153,164],[87,134,154],[87,134,155],[87,133,134,156],[87,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181],[87,134,158],[87,134,159],[87,134,145,160,161],[87,134,160,162,176,178],[87,134,145,164,165,167],[87,134,166,167],[87,134,164,165],[87,134,167],[87,134,168],[87,131,134,164,169],[87,134,145,170,171],[87,134,170,171],[87,134,139,153,164,172],[87,134,173],[87,134,153,174],[87,134,148,159,175],[87,134,139,176],[87,134,164,177],[87,134,152,178],[87,134,179],[87,129,134],[87,129,134,145,147,156,164,167,175,178,180],[87,134,164,181],[87,134,308],[87,134,306,307],[87,134,146,164,182],[87,134,148,182,287],[87,134,319],[87,134,274,304,312,314,320],[87,134,149,153,164,172,182],[87,134,146,148,149,150,153,164,304,313,314,315,316,317,318],[87,134,148,164,319],[87,134,146,313,314],[87,134,175,313],[87,134,320,321,322,323],[87,134,320,321,324],[87,134,320,321],[87,134,148,149,153,304,320],[87,134,325,326,327,328,329,330,331,332,333],[87,134,335],[87,134,182],[87,134,182,200],[87,134,210],[87,134,275,279,280],[87,134,281],[87,134,294,300],[87,134,148,164,182],[87,134,298],[87,134,295,299],[87,134,297],[87,101,105,134,175],[87,101,134,164,175],[87,96,134],[87,98,101,134,172,175],[87,134,153,172],[87,96,134,182],[87,98,101,134,153,175],[87,93,94,97,100,134,145,164,175],[87,101,108,134],[87,93,99,134],[87,101,122,123,134],[87,97,101,134,167,175,182],[87,122,134,182],[87,95,96,134,182],[87,101,134],[87,95,96,97,98,99,100,101,102,103,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,123,124,125,126,127,128,134],[87,101,116,134],[87,101,108,109,134],[87,99,101,109,110,134],[87,100,134],[87,93,96,101,134],[87,101,105,109,110,134],[87,105,134],[87,99,101,104,134,175],[87,93,98,101,108,134],[87,134,164],[87,96,101,122,134,180,182],[87,134,213,227],[87,134,213,226,227,228],[87,134,232],[87,134,229],[87,134,213,227,229],[87,134,213,226],[87,134,213,225,226,227,232],[87,134,213,224,226,229,232],[87,134,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238],[87,134,213],[87,134,213,221,239],[87,134,240,241,242,243,244,245],[87,134,213,221],[87,134,222],[87,134,221,223,246],[87,134,218,219,220],[87,134,214,215,216,217]],"fileInfos":[{"version":"c430d44666289dae81f30fa7b2edebf186ecc91a2d4c71266ea6ae76388792e1","affectsGlobalScope":true,"impliedFormat":1},{"version":"45b7ab580deca34ae9729e97c13cfd999df04416a79116c3bfb483804f85ded4","impliedFormat":1},{"version":"3facaf05f0c5fc569c5649dd359892c98a85557e3e0c847964caeb67076f4d75","impliedFormat":1},{"version":"e44bb8bbac7f10ecc786703fe0a6a4b952189f908707980ba8f3c8975a760962","impliedFormat":1},{"version":"5e1c4c362065a6b95ff952c0eab010f04dcd2c3494e813b493ecfd4fcb9fc0d8","impliedFormat":1},{"version":"68d73b4a11549f9c0b7d352d10e91e5dca8faa3322bfb77b661839c42b1ddec7","impliedFormat":1},{"version":"5efce4fc3c29ea84e8928f97adec086e3dc876365e0982cc8479a07954a3efd4","impliedFormat":1},{"version":"feecb1be483ed332fad555aff858affd90a48ab19ba7272ee084704eb7167569","impliedFormat":1},{"version":"ee7bad0c15b58988daa84371e0b89d313b762ab83cb5b31b8a2d1162e8eb41c2","impliedFormat":1},{"version":"27bdc30a0e32783366a5abeda841bc22757c1797de8681bbe81fbc735eeb1c10","impliedFormat":1},{"version":"8fd575e12870e9944c7e1d62e1f5a73fcf23dd8d3a321f2a2c74c20d022283fe","impliedFormat":1},{"version":"2ab096661c711e4a81cc464fa1e6feb929a54f5340b46b0a07ac6bbf857471f0","impliedFormat":1},{"version":"080941d9f9ff9307f7e27a83bcd888b7c8270716c39af943532438932ec1d0b9","affectsGlobalScope":true,"impliedFormat":1},{"version":"c57796738e7f83dbc4b8e65132f11a377649c00dd3eee333f672b8f0a6bea671","affectsGlobalScope":true,"impliedFormat":1},{"version":"dc2df20b1bcdc8c2d34af4926e2c3ab15ffe1160a63e58b7e09833f616efff44","affectsGlobalScope":true,"impliedFormat":1},{"version":"515d0b7b9bea2e31ea4ec968e9edd2c39d3eebf4a2d5cbd04e88639819ae3b71","affectsGlobalScope":true,"impliedFormat":1},{"version":"0559b1f683ac7505ae451f9a96ce4c3c92bdc71411651ca6ddb0e88baaaad6a3","affectsGlobalScope":true,"impliedFormat":1},{"version":"0dc1e7ceda9b8b9b455c3a2d67b0412feab00bd2f66656cd8850e8831b08b537","affectsGlobalScope":true,"impliedFormat":1},{"version":"ce691fb9e5c64efb9547083e4a34091bcbe5bdb41027e310ebba8f7d96a98671","affectsGlobalScope":true,"impliedFormat":1},{"version":"8d697a2a929a5fcb38b7a65594020fcef05ec1630804a33748829c5ff53640d0","affectsGlobalScope":true,"impliedFormat":1},{"version":"4ff2a353abf8a80ee399af572debb8faab2d33ad38c4b4474cff7f26e7653b8d","affectsGlobalScope":true,"impliedFormat":1},{"version":"fb0f136d372979348d59b3f5020b4cdb81b5504192b1cacff5d1fbba29378aa1","affectsGlobalScope":true,"impliedFormat":1},{"version":"d15bea3d62cbbdb9797079416b8ac375ae99162a7fba5de2c6c505446486ac0a","affectsGlobalScope":true,"impliedFormat":1},{"version":"68d18b664c9d32a7336a70235958b8997ebc1c3b8505f4f1ae2b7e7753b87618","affectsGlobalScope":true,"impliedFormat":1},{"version":"eb3d66c8327153d8fa7dd03f9c58d351107fe824c79e9b56b462935176cdf12a","affectsGlobalScope":true,"impliedFormat":1},{"version":"38f0219c9e23c915ef9790ab1d680440d95419ad264816fa15009a8851e79119","affectsGlobalScope":true,"impliedFormat":1},{"version":"69ab18c3b76cd9b1be3d188eaf8bba06112ebbe2f47f6c322b5105a6fbc45a2e","affectsGlobalScope":true,"impliedFormat":1},{"version":"a680117f487a4d2f30ea46f1b4b7f58bef1480456e18ba53ee85c2746eeca012","affectsGlobalScope":true,"impliedFormat":1},{"version":"2f11ff796926e0832f9ae148008138ad583bd181899ab7dd768a2666700b1893","affectsGlobalScope":true,"impliedFormat":1},{"version":"4de680d5bb41c17f7f68e0419412ca23c98d5749dcaaea1896172f06435891fc","affectsGlobalScope":true,"impliedFormat":1},{"version":"954296b30da6d508a104a3a0b5d96b76495c709785c1d11610908e63481ee667","affectsGlobalScope":true,"impliedFormat":1},{"version":"ac9538681b19688c8eae65811b329d3744af679e0bdfa5d842d0e32524c73e1c","affectsGlobalScope":true,"impliedFormat":1},{"version":"0a969edff4bd52585473d24995c5ef223f6652d6ef46193309b3921d65dd4376","affectsGlobalScope":true,"impliedFormat":1},{"version":"9e9fbd7030c440b33d021da145d3232984c8bb7916f277e8ffd3dc2e3eae2bdb","affectsGlobalScope":true,"impliedFormat":1},{"version":"811ec78f7fefcabbda4bfa93b3eb67d9ae166ef95f9bff989d964061cbf81a0c","affectsGlobalScope":true,"impliedFormat":1},{"version":"717937616a17072082152a2ef351cb51f98802fb4b2fdabd32399843875974ca","affectsGlobalScope":true,"impliedFormat":1},{"version":"d7e7d9b7b50e5f22c915b525acc5a49a7a6584cf8f62d0569e557c5cfc4b2ac2","affectsGlobalScope":true,"impliedFormat":1},{"version":"71c37f4c9543f31dfced6c7840e068c5a5aacb7b89111a4364b1d5276b852557","affectsGlobalScope":true,"impliedFormat":1},{"version":"576711e016cf4f1804676043e6a0a5414252560eb57de9faceee34d79798c850","affectsGlobalScope":true,"impliedFormat":1},{"version":"89c1b1281ba7b8a96efc676b11b264de7a8374c5ea1e6617f11880a13fc56dc6","affectsGlobalScope":true,"impliedFormat":1},{"version":"74f7fa2d027d5b33eb0471c8e82a6c87216223181ec31247c357a3e8e2fddc5b","affectsGlobalScope":true,"impliedFormat":1},{"version":"d6d7ae4d1f1f3772e2a3cde568ed08991a8ae34a080ff1151af28b7f798e22ca","affectsGlobalScope":true,"impliedFormat":1},{"version":"063600664504610fe3e99b717a1223f8b1900087fab0b4cad1496a114744f8df","affectsGlobalScope":true,"impliedFormat":1},{"version":"934019d7e3c81950f9a8426d093458b65d5aff2c7c1511233c0fd5b941e608ab","affectsGlobalScope":true,"impliedFormat":1},{"version":"52ada8e0b6e0482b728070b7639ee42e83a9b1c22d205992756fe020fd9f4a47","affectsGlobalScope":true,"impliedFormat":1},{"version":"3bdefe1bfd4d6dee0e26f928f93ccc128f1b64d5d501ff4a8cf3c6371200e5e6","affectsGlobalScope":true,"impliedFormat":1},{"version":"59fb2c069260b4ba00b5643b907ef5d5341b167e7d1dbf58dfd895658bda2867","affectsGlobalScope":true,"impliedFormat":1},{"version":"639e512c0dfc3fad96a84caad71b8834d66329a1f28dc95e3946c9b58176c73a","affectsGlobalScope":true,"impliedFormat":1},{"version":"368af93f74c9c932edd84c58883e736c9e3d53cec1fe24c0b0ff451f529ceab1","affectsGlobalScope":true,"impliedFormat":1},{"version":"af3dd424cf267428f30ccfc376f47a2c0114546b55c44d8c0f1d57d841e28d74","affectsGlobalScope":true,"impliedFormat":1},{"version":"995c005ab91a498455ea8dfb63aa9f83fa2ea793c3d8aa344be4a1678d06d399","affectsGlobalScope":true,"impliedFormat":1},{"version":"959d36cddf5e7d572a65045b876f2956c973a586da58e5d26cde519184fd9b8a","affectsGlobalScope":true,"impliedFormat":1},{"version":"965f36eae237dd74e6cca203a43e9ca801ce38824ead814728a2807b1910117d","affectsGlobalScope":true,"impliedFormat":1},{"version":"3925a6c820dcb1a06506c90b1577db1fdbf7705d65b62b99dce4be75c637e26b","affectsGlobalScope":true,"impliedFormat":1},{"version":"0a3d63ef2b853447ec4f749d3f368ce642264246e02911fcb1590d8c161b8005","affectsGlobalScope":true,"impliedFormat":1},{"version":"8cdf8847677ac7d20486e54dd3fcf09eda95812ac8ace44b4418da1bbbab6eb8","affectsGlobalScope":true,"impliedFormat":1},{"version":"8444af78980e3b20b49324f4a16ba35024fef3ee069a0eb67616ea6ca821c47a","affectsGlobalScope":true,"impliedFormat":1},{"version":"3287d9d085fbd618c3971944b65b4be57859f5415f495b33a6adc994edd2f004","affectsGlobalScope":true,"impliedFormat":1},{"version":"b4b67b1a91182421f5df999988c690f14d813b9850b40acd06ed44691f6727ad","affectsGlobalScope":true,"impliedFormat":1},{"version":"df83c2a6c73228b625b0beb6669c7ee2a09c914637e2d35170723ad49c0f5cd4","affectsGlobalScope":true,"impliedFormat":1},{"version":"436aaf437562f276ec2ddbee2f2cdedac7664c1e4c1d2c36839ddd582eeb3d0a","affectsGlobalScope":true,"impliedFormat":1},{"version":"8e3c06ea092138bf9fa5e874a1fdbc9d54805d074bee1de31b99a11e2fec239d","affectsGlobalScope":true,"impliedFormat":1},{"version":"87dc0f382502f5bbce5129bdc0aea21e19a3abbc19259e0b43ae038a9fc4e326","affectsGlobalScope":true,"impliedFormat":1},{"version":"b1cb28af0c891c8c96b2d6b7be76bd394fddcfdb4709a20ba05a7c1605eea0f9","affectsGlobalScope":true,"impliedFormat":1},{"version":"2fef54945a13095fdb9b84f705f2b5994597640c46afeb2ce78352fab4cb3279","affectsGlobalScope":true,"impliedFormat":1},{"version":"ac77cb3e8c6d3565793eb90a8373ee8033146315a3dbead3bde8db5eaf5e5ec6","affectsGlobalScope":true,"impliedFormat":1},{"version":"56e4ed5aab5f5920980066a9409bfaf53e6d21d3f8d020c17e4de584d29600ad","affectsGlobalScope":true,"impliedFormat":1},{"version":"4ece9f17b3866cc077099c73f4983bddbcb1dc7ddb943227f1ec070f529dedd1","affectsGlobalScope":true,"impliedFormat":1},{"version":"0a6282c8827e4b9a95f4bf4f5c205673ada31b982f50572d27103df8ceb8013c","affectsGlobalScope":true,"impliedFormat":1},{"version":"1c9319a09485199c1f7b0498f2988d6d2249793ef67edda49d1e584746be9032","affectsGlobalScope":true,"impliedFormat":1},{"version":"e3a2a0cee0f03ffdde24d89660eba2685bfbdeae955a6c67e8c4c9fd28928eeb","affectsGlobalScope":true,"impliedFormat":1},{"version":"811c71eee4aa0ac5f7adf713323a5c41b0cf6c4e17367a34fbce379e12bbf0a4","affectsGlobalScope":true,"impliedFormat":1},{"version":"51ad4c928303041605b4d7ae32e0c1ee387d43a24cd6f1ebf4a2699e1076d4fa","affectsGlobalScope":true,"impliedFormat":1},{"version":"60037901da1a425516449b9a20073aa03386cce92f7a1fd902d7602be3a7c2e9","affectsGlobalScope":true,"impliedFormat":1},{"version":"d4b1d2c51d058fc21ec2629fff7a76249dec2e36e12960ea056e3ef89174080f","affectsGlobalScope":true,"impliedFormat":1},{"version":"22adec94ef7047a6c9d1af3cb96be87a335908bf9ef386ae9fd50eeb37f44c47","affectsGlobalScope":true,"impliedFormat":1},{"version":"196cb558a13d4533a5163286f30b0509ce0210e4b316c56c38d4c0fd2fb38405","affectsGlobalScope":true,"impliedFormat":1},{"version":"73f78680d4c08509933daf80947902f6ff41b6230f94dd002ae372620adb0f60","affectsGlobalScope":true,"impliedFormat":1},{"version":"c5239f5c01bcfa9cd32f37c496cf19c61d69d37e48be9de612b541aac915805b","affectsGlobalScope":true,"impliedFormat":1},{"version":"8e7f8264d0fb4c5339605a15daadb037bf238c10b654bb3eee14208f860a32ea","affectsGlobalScope":true,"impliedFormat":1},{"version":"782dec38049b92d4e85c1585fbea5474a219c6984a35b004963b00beb1aab538","affectsGlobalScope":true,"impliedFormat":1},{"version":"70521b6ab0dcba37539e5303104f29b721bfb2940b2776da4cc818c07e1fefc1","affectsGlobalScope":true,"impliedFormat":1},{"version":"ab41ef1f2cdafb8df48be20cd969d875602483859dc194e9c97c8a576892c052","affectsGlobalScope":true,"impliedFormat":1},{"version":"d153a11543fd884b596587ccd97aebbeed950b26933ee000f94009f1ab142848","affectsGlobalScope":true,"impliedFormat":1},{"version":"21d819c173c0cf7cc3ce57c3276e77fd9a8a01d35a06ad87158781515c9a438a","impliedFormat":1},{"version":"98cffbf06d6bab333473c70a893770dbe990783904002c4f1a960447b4b53dca","affectsGlobalScope":true,"impliedFormat":1},{"version":"ba481bca06f37d3f2c137ce343c7d5937029b2468f8e26111f3c9d9963d6568d","affectsGlobalScope":true,"impliedFormat":1},{"version":"6d9ef24f9a22a88e3e9b3b3d8c40ab1ddb0853f1bfbd5c843c37800138437b61","affectsGlobalScope":true,"impliedFormat":1},{"version":"1db0b7dca579049ca4193d034d835f6bfe73096c73663e5ef9a0b5779939f3d0","affectsGlobalScope":true,"impliedFormat":1},{"version":"9798340ffb0d067d69b1ae5b32faa17ab31b82466a3fc00d8f2f2df0c8554aaa","affectsGlobalScope":true,"impliedFormat":1},{"version":"f26b11d8d8e4b8028f1c7d618b22274c892e4b0ef5b3678a8ccbad85419aef43","affectsGlobalScope":true,"impliedFormat":1},{"version":"4967529644e391115ca5592184d4b63980569adf60ee685f968fd59ab1557188","impliedFormat":1},{"version":"5929864ce17fba74232584d90cb721a89b7ad277220627cc97054ba15a98ea8f","impliedFormat":1},{"version":"763fe0f42b3d79b440a9b6e51e9ba3f3f91352469c1e4b3b67bfa4ff6352f3f4","impliedFormat":1},{"version":"25c8056edf4314820382a5fdb4bb7816999acdcb929c8f75e3f39473b87e85bc","impliedFormat":1},{"version":"c464d66b20788266e5353b48dc4aa6bc0dc4a707276df1e7152ab0c9ae21fad8","impliedFormat":1},{"version":"78d0d27c130d35c60b5e5566c9f1e5be77caf39804636bc1a40133919a949f21","impliedFormat":1},{"version":"c6fd2c5a395f2432786c9cb8deb870b9b0e8ff7e22c029954fabdd692bff6195","impliedFormat":1},{"version":"1d6e127068ea8e104a912e42fc0a110e2aa5a66a356a917a163e8cf9a65e4a75","impliedFormat":1},{"version":"5ded6427296cdf3b9542de4471d2aa8d3983671d4cac0f4bf9c637208d1ced43","impliedFormat":1},{"version":"7f182617db458e98fc18dfb272d40aa2fff3a353c44a89b2c0ccb3937709bfb5","impliedFormat":1},{"version":"cadc8aced301244057c4e7e73fbcae534b0f5b12a37b150d80e5a45aa4bebcbd","impliedFormat":1},{"version":"385aab901643aa54e1c36f5ef3107913b10d1b5bb8cbcd933d4263b80a0d7f20","impliedFormat":1},{"version":"9670d44354bab9d9982eca21945686b5c24a3f893db73c0dae0fd74217a4c219","impliedFormat":1},{"version":"0b8a9268adaf4da35e7fa830c8981cfa22adbbe5b3f6f5ab91f6658899e657a7","impliedFormat":1},{"version":"11396ed8a44c02ab9798b7dca436009f866e8dae3c9c25e8c1fbc396880bf1bb","impliedFormat":1},{"version":"ba7bc87d01492633cb5a0e5da8a4a42a1c86270e7b3d2dea5d156828a84e4882","impliedFormat":1},{"version":"4893a895ea92c85345017a04ed427cbd6a1710453338df26881a6019432febdd","impliedFormat":1},{"version":"c21dc52e277bcfc75fac0436ccb75c204f9e1b3fa5e12729670910639f27343e","impliedFormat":1},{"version":"13f6f39e12b1518c6650bbb220c8985999020fe0f21d818e28f512b7771d00f9","impliedFormat":1},{"version":"9b5369969f6e7175740bf51223112ff209f94ba43ecd3bb09eefff9fd675624a","impliedFormat":1},{"version":"4fe9e626e7164748e8769bbf74b538e09607f07ed17c2f20af8d680ee49fc1da","impliedFormat":1},{"version":"24515859bc0b836719105bb6cc3d68255042a9f02a6022b3187948b204946bd2","impliedFormat":1},{"version":"ea0148f897b45a76544ae179784c95af1bd6721b8610af9ffa467a518a086a43","impliedFormat":1},{"version":"24c6a117721e606c9984335f71711877293a9651e44f59f3d21c1ea0856f9cc9","impliedFormat":1},{"version":"dd3273ead9fbde62a72949c97dbec2247ea08e0c6952e701a483d74ef92d6a17","impliedFormat":1},{"version":"405822be75ad3e4d162e07439bac80c6bcc6dbae1929e179cf467ec0b9ee4e2e","impliedFormat":1},{"version":"0db18c6e78ea846316c012478888f33c11ffadab9efd1cc8bcc12daded7a60b6","impliedFormat":1},{"version":"e61be3f894b41b7baa1fbd6a66893f2579bfad01d208b4ff61daef21493ef0a8","impliedFormat":1},{"version":"bd0532fd6556073727d28da0edfd1736417a3f9f394877b6d5ef6ad88fba1d1a","impliedFormat":1},{"version":"89167d696a849fce5ca508032aabfe901c0868f833a8625d5a9c6e861ef935d2","impliedFormat":1},{"version":"615ba88d0128ed16bf83ef8ccbb6aff05c3ee2db1cc0f89ab50a4939bfc1943f","impliedFormat":1},{"version":"a4d551dbf8746780194d550c88f26cf937caf8d56f102969a110cfaed4b06656","impliedFormat":1},{"version":"8bd86b8e8f6a6aa6c49b71e14c4ffe1211a0e97c80f08d2c8cc98838006e4b88","impliedFormat":1},{"version":"317e63deeb21ac07f3992f5b50cdca8338f10acd4fbb7257ebf56735bf52ab00","impliedFormat":1},{"version":"4732aec92b20fb28c5fe9ad99521fb59974289ed1e45aecb282616202184064f","impliedFormat":1},{"version":"2e85db9e6fd73cfa3d7f28e0ab6b55417ea18931423bd47b409a96e4a169e8e6","impliedFormat":1},{"version":"c46e079fe54c76f95c67fb89081b3e399da2c7d109e7dca8e4b58d83e332e605","impliedFormat":1},{"version":"bf67d53d168abc1298888693338cb82854bdb2e69ef83f8a0092093c2d562107","impliedFormat":1},{"version":"2cbe0621042e2a68c7cbce5dfed3906a1862a16a7d496010636cdbdb91341c0f","affectsGlobalScope":true,"impliedFormat":1},{"version":"e2677634fe27e87348825bb041651e22d50a613e2fdf6a4a3ade971d71bac37e","impliedFormat":1},{"version":"7394959e5a741b185456e1ef5d64599c36c60a323207450991e7a42e08911419","impliedFormat":1},{"version":"8c0bcd6c6b67b4b503c11e91a1fb91522ed585900eab2ab1f61bba7d7caa9d6f","impliedFormat":1},{"version":"8cd19276b6590b3ebbeeb030ac271871b9ed0afc3074ac88a94ed2449174b776","affectsGlobalScope":true,"impliedFormat":1},{"version":"696eb8d28f5949b87d894b26dc97318ef944c794a9a4e4f62360cd1d1958014b","impliedFormat":1},{"version":"3f8fa3061bd7402970b399300880d55257953ee6d3cd408722cb9ac20126460c","impliedFormat":1},{"version":"35ec8b6760fd7138bbf5809b84551e31028fb2ba7b6dc91d95d098bf212ca8b4","affectsGlobalScope":true,"impliedFormat":1},{"version":"5524481e56c48ff486f42926778c0a3cce1cc85dc46683b92b1271865bcf015a","impliedFormat":1},{"version":"68bd56c92c2bd7d2339457eb84d63e7de3bd56a69b25f3576e1568d21a162398","affectsGlobalScope":true,"impliedFormat":1},{"version":"3e93b123f7c2944969d291b35fed2af79a6e9e27fdd5faa99748a51c07c02d28","impliedFormat":1},{"version":"9d19808c8c291a9010a6c788e8532a2da70f811adb431c97520803e0ec649991","impliedFormat":1},{"version":"87aad3dd9752067dc875cfaa466fc44246451c0c560b820796bdd528e29bef40","impliedFormat":1},{"version":"4aacb0dd020eeaef65426153686cc639a78ec2885dc72ad220be1d25f1a439df","impliedFormat":1},{"version":"f0bd7e6d931657b59605c44112eaf8b980ba7f957a5051ed21cb93d978cf2f45","impliedFormat":1},{"version":"8db0ae9cb14d9955b14c214f34dae1b9ef2baee2fe4ce794a4cd3ac2531e3255","affectsGlobalScope":true,"impliedFormat":1},{"version":"15fc6f7512c86810273af28f224251a5a879e4261b4d4c7e532abfbfc3983134","impliedFormat":1},{"version":"58adba1a8ab2d10b54dc1dced4e41f4e7c9772cbbac40939c0dc8ce2cdb1d442","impliedFormat":1},{"version":"2fd4c143eff88dabb57701e6a40e02a4dbc36d5eb1362e7964d32028056a782b","impliedFormat":1},{"version":"714435130b9015fae551788df2a88038471a5a11eb471f27c4ede86552842bc9","impliedFormat":1},{"version":"855cd5f7eb396f5f1ab1bc0f8580339bff77b68a770f84c6b254e319bbfd1ac7","impliedFormat":1},{"version":"5650cf3dace09e7c25d384e3e6b818b938f68f4e8de96f52d9c5a1b3db068e86","impliedFormat":1},{"version":"1354ca5c38bd3fd3836a68e0f7c9f91f172582ba30ab15bb8c075891b91502b7","affectsGlobalScope":true,"impliedFormat":1},{"version":"27fdb0da0daf3b337c5530c5f266efe046a6ceb606e395b346974e4360c36419","impliedFormat":1},{"version":"2d2fcaab481b31a5882065c7951255703ddbe1c0e507af56ea42d79ac3911201","impliedFormat":1},{"version":"a192fe8ec33f75edbc8d8f3ed79f768dfae11ff5735e7fe52bfa69956e46d78d","impliedFormat":1},{"version":"ca867399f7db82df981d6915bcbb2d81131d7d1ef683bc782b59f71dda59bc85","affectsGlobalScope":true,"impliedFormat":1},{"version":"0e456fd5b101271183d99a9087875a282323e3a3ff0d7bcf1881537eaa8b8e63","affectsGlobalScope":true,"impliedFormat":1},{"version":"9e043a1bc8fbf2a255bccf9bf27e0f1caf916c3b0518ea34aa72357c0afd42ec","impliedFormat":1},{"version":"b4f70ec656a11d570e1a9edce07d118cd58d9760239e2ece99306ee9dfe61d02","impliedFormat":1},{"version":"3bc2f1e2c95c04048212c569ed38e338873f6a8593930cf5a7ef24ffb38fc3b6","impliedFormat":1},{"version":"6e70e9570e98aae2b825b533aa6292b6abd542e8d9f6e9475e88e1d7ba17c866","impliedFormat":1},{"version":"f9d9d753d430ed050dc1bf2667a1bab711ccbb1c1507183d794cc195a5b085cc","impliedFormat":1},{"version":"9eece5e586312581ccd106d4853e861aaaa1a39f8e3ea672b8c3847eedd12f6e","impliedFormat":1},{"version":"47ab634529c5955b6ad793474ae188fce3e6163e3a3fb5edd7e0e48f14435333","impliedFormat":1},{"version":"37ba7b45141a45ce6e80e66f2a96c8a5ab1bcef0fc2d0f56bb58df96ec67e972","impliedFormat":1},{"version":"45650f47bfb376c8a8ed39d4bcda5902ab899a3150029684ee4c10676d9fbaee","impliedFormat":1},{"version":"0225ecb9ed86bdb7a2c7fd01f1556906902929377b44483dc4b83e03b3ef227d","affectsGlobalScope":true,"impliedFormat":1},{"version":"74cf591a0f63db318651e0e04cb55f8791385f86e987a67fd4d2eaab8191f730","impliedFormat":1},{"version":"5eab9b3dc9b34f185417342436ec3f106898da5f4801992d8ff38ab3aff346b5","impliedFormat":1},{"version":"12ed4559eba17cd977aa0db658d25c4047067444b51acfdcbf38470630642b23","affectsGlobalScope":true,"impliedFormat":1},{"version":"f3ffabc95802521e1e4bcba4c88d8615176dc6e09111d920c7a213bdda6e1d65","impliedFormat":1},{"version":"ddc734b4fae82a01d247e9e342d020976640b5e93b4e9b3a1e30e5518883a060","impliedFormat":1},{"version":"ae56f65caf3be91108707bd8dfbccc2a57a91feb5daabf7165a06a945545ed26","impliedFormat":1},{"version":"a136d5de521da20f31631a0a96bf712370779d1c05b7015d7019a9b2a0446ca9","impliedFormat":1},{"version":"c3b41e74b9a84b88b1dca61ec39eee25c0dbc8e7d519ba11bb070918cfacf656","affectsGlobalScope":true,"impliedFormat":1},{"version":"4737a9dc24d0e68b734e6cfbcea0c15a2cfafeb493485e27905f7856988c6b29","affectsGlobalScope":true,"impliedFormat":1},{"version":"36d8d3e7506b631c9582c251a2c0b8a28855af3f76719b12b534c6edf952748d","impliedFormat":1},{"version":"1ca69210cc42729e7ca97d3a9ad48f2e9cb0042bada4075b588ae5387debd318","impliedFormat":1},{"version":"f5ebe66baaf7c552cfa59d75f2bfba679f329204847db3cec385acda245e574e","impliedFormat":1},{"version":"ed59add13139f84da271cafd32e2171876b0a0af2f798d0c663e8eeb867732cf","affectsGlobalScope":true,"impliedFormat":1},{"version":"05db535df8bdc30d9116fe754a3473d1b6479afbc14ae8eb18b605c62677d518","impliedFormat":1},{"version":"b1810689b76fd473bd12cc9ee219f8e62f54a7d08019a235d07424afbf074d25","impliedFormat":1},{"version":"5136ada8a6ff5eb706bb93d47ee7908da70567ebe307c4407778bf110ff390cb","impliedFormat":99},{"version":"4e4a6e416bb145a0eaa5d16e34bb29f3245f7f99c1cb1379b92766513ee48644","impliedFormat":99},{"version":"36cb7b515b1f37c672b0bef9e2d7f79fb9691cee740cb4b76ee6b4636e95639c","impliedFormat":99},{"version":"3f11172cb639fe19b4208a62a3b80c2a3cdd9e4e5711dee78254bfe947c2ce2b","impliedFormat":99},{"version":"15eebd236c4b7863dcf188858e5e8e5026f9fa057ea3d2c398f8b6d599565b89","impliedFormat":99},{"version":"014bf90700068528413e7acc47e58b89806c4540d433b65758e0d5ee757e45e2","impliedFormat":99},{"version":"0989dc719f7bd59eeab06772bc7dd8a399bb447a862b679b39a470e289d206f0","impliedFormat":99},{"version":"b169719d4e98c9046342f5e716fcdc60e391d411a1c7f9d0f94afe762fcc75b6","impliedFormat":99},{"version":"41f9135d77d1261d54197b4bdbe810584bf795a16f9fc4e798a05851ca87ab22","impliedFormat":99},{"version":"b7c1c2e3dac22ea6fd67281cb278f9eb26522b3e90b98417fd0eae470cf42f1d","impliedFormat":99},{"version":"db5f67f306930c6fd94cfe2cee36029b3378cd79a8203d3a27d2453efbbabc34","impliedFormat":99},{"version":"2ff7af30d64bc08b57caa723496060025fed56d513e6b7b92026f26c652a98fc","impliedFormat":99},{"version":"8251617ef839ce4f370ccd89a4b7cfca0f2166ef771ef6965642c26c0470175a","impliedFormat":99},{"version":"0f3fa7383d3f2ebed173ff59c102b4a68d10acdff5db4a009b73429ddaa15768","impliedFormat":99},{"version":"17bfc7019aa3430425ca11eb854c95f4abd51d1f4b29a296588f9c74ff440b97","impliedFormat":99},{"version":"b131bc8849f40ebc6f281b3be08f5e44676a6d43e336a166c48c3ca6770868b2","impliedFormat":99},{"version":"08b1758d7e210efaaa3f627fbeac287242307fa96b4c1bfc210d9a2ae5809d5c","impliedFormat":99},{"version":"b6c3995be1adb84b6f81cbf9dfdecaa0da5cc71c5a61b5fc0e4a5a31765d8257","impliedFormat":1},{"version":"e04ecf1120bd45f71531297c3ce1007bcf9a0739b11a84fd3c2b97d6ac26a2a8","impliedFormat":99},{"version":"0c0d4c550d90c330a3129efed22ba8fda8f6151d4f2b2582edebac7582b5b74b","impliedFormat":1},{"version":"ac95c17ee580f44c263ee5ddf675f6cca96d634c337122c156eecfcbc2e8640c","impliedFormat":99},{"version":"3da723823982206178406b7c2b8570152c6347a047fa7e59fa46011d10ac26b6","impliedFormat":1},{"version":"6bfa4df9d648afd10ea7f3aa249a64923dc215521a0f21a9604f526a19b7f1ee","impliedFormat":99},{"version":"a2d38762bff48f42e0add267a50e28079328f416a080fafed61563ff0c17cb7c","impliedFormat":99},{"version":"787b9cab1fdae10ada8ba1fa8fea2c552faf2a3fb4b35e9af9570e758450b49a","impliedFormat":99},{"version":"a5bf486e2de5ca9d3ed6726c334d399c26d3f3b7c56915ce6e98bdb7575b6ac8","impliedFormat":99},{"version":"8084463349fe0711b0d13923bedea19025161582fd73602b6ace6944daeb657c","impliedFormat":99},{"version":"95dd2fa1a14df6e0e6347f2b67e02f516545df373fb2c694ef3ab2790206c338","impliedFormat":1},{"version":"6bc78ca431af68b902781d24cbf7c6ae662e6b1610e56ed6173f3a9384c50304","impliedFormat":1},{"version":"d07db3c9e8acd436cf83ce1291ea689e3798d9002ba77014c6fb75f651e345ed","impliedFormat":99},{"version":"1947248ae2322f74b45b753dc5775cdd804114a4d424a7b15df47a73bab93c31","affectsGlobalScope":true,"impliedFormat":99},"78aed401fb55a66f4c2ccc3458e7f42269e6b937e1e38700f3862d6144eec62a","f7e2cfd7bffc1648f51ce26c5067c8230c8e5c8880d09e29b3d50069814ef720","9928430ecb765a788ec083583bf62e7fbb1ea912f08bfcb575c2106774907b30","48d77dcf89beeac2a8161847c41c7f6165deb396aa2e70b06ca1fd5dc5ffff04","e48974e995d9191e012ce1dcba48e199bcab7ca612917bdc81200379d175847b","1224a84930b9ba75452e703a352707842ec29ac944e4ed4551618ca8ddb87840","2f1192d5ab5ef755a0d5a91cb39fbb3113c9aa794be6aca87918332eb71c26c1","553f8cebed060e9c0c1f47772b0a39f5b562da311edbae0c57e402bf4f1b48fa",{"version":"cd475333bd4dcca7d149dec806f75a27dfe53790ed58fd8480dcd49bcfd28b40","signature":"a5ce6a3b079cff4f28f14194deb2bb872dda6cd29a2231d4f28ff9fa2e9f3ff8"},{"version":"bee3e623dd95581fff9413fb10fc2f085109e25e35fb0d7e6bf5ecbb1a6fa32f","signature":"2cb14a947390ad7b355700c11fafc5e4755ae6d6b6c26623480356a75cbeb74d"},"f573cbb1f3fb7395181815610ccc7cda7a9515f7e022d5c1d6be14ec97877f7b","54aa22b0c83dd747403b93c3f4dfd73c5487df0a5b53a8d42815b9a7b40a98ff","6837650d7591e57abf0241e8864c8281a71080896c49a1c59c1800a26ed7af7e","86cd742d8d69770ce9a938a3cef98981422c7c7369875cdc6ed12927a57fe7ae","beb305b8775d53d07e06689c8a7470b6b85a1abf1f2023b82df67c8acaef98a8","af1891996ea0c471e180cab52226eeab06fc7e834aac33d56e34a99c5ccd8f05","344ef19a330943ce5885c6399f5580e0bc63646574e687c52da1a4d89d9f6109","b67ec84dbee924247af4fc2e0bc72a7aa11a8c9d8b4401ce1afca0560b78f0e2","fcf572c5bc6adfbc1a04a16994c39fb22058187c546977e0b3c35874bf9bfd7d","dfe66f25c2789c727e6d0cadc984e340e67e23471340d34fa0c4923d4f0fc9f0","f0e8af25ef72e70abf874a191a83fef7fe27255d349195db92542fe4668ee7e5","b3639f2e7895c7cef734514cf68d8ed4f97f6c7861cdb85d20285c95e92b4cd4","2f5abea04c6d18ca98946e84ae6899e2b9e6aeb02b3f95e15b1c0a7db32b8dfc","3a430f1747e031d84aee01d5b0dbd3075bcf8577f471a585b646307a72d24d70","5fee43e3b94e4821cbde42028a6efe5729307490d0c51064599e8f0e6236b876","d7e168f9208662353b517ffa3e6438e7d89a6625d9afa487b9c06cbe4ead80d9",{"version":"3b50d199a8ddf62d45b80fa13ba409c0aabec9abc6266884a4ce4bc912b67e8d","signature":"101a02f14fbdc9a9d3493290fcbb12f81176c1b299ef2e56e827be42aa042ae2"},{"version":"34228b5c0782fb6a9d7a0b00a79c215ec0059e8a14832fbffabd6c3bf308ca7a","signature":"f38546d83a5507aa1559850371a860d6fc349cdffe5b30b59f933c3a43130a4b"},{"version":"606d9b6330ee031f6c60dd7ed4c838816512c55cdd20c68546248875515b32a0","signature":"bf203e4fd9571cb572770681450e1bfbe7c858835bdff1d41c0723119a7105ae"},{"version":"a6adc252e0cfcae5a5fcb36a13a2e0fd4ddc517c4216a67a22fb736dd6f9932b","signature":"2d59adba2bafbf63c011b5a86e6b0f40a89059c681d96f5d1e08f6c09f5e7eae"},{"version":"db7d3123ffb10e2565491ad9314ffaff4d28b54b6c0327d5ee8c19f075bd4356","signature":"efd29da5a497841663dd60aa22498811733c49e927bafdadc58dde0584b1d2bf"},{"version":"c4a36773554559be2113ff4f5bb4e3b3dddba08b3001581be1b4a0e25af60271","signature":"3f02a000cffe8acf7264df5fc79791cf061644bf4cfd98de77b2d1c071e6782f"},{"version":"7ab9e2bfb75fc68b5b3528e686b3590268c68cd4d02b09720b17af2fe6717df8","signature":"6e4b6bb006bd96735be194d0557dfb397716764f72232e0995cd481c464375ad"},{"version":"5d34e1b88fa4712b32857e67979ff8527d33de3c4d4a4d05d2331c480f46dbbe","signature":"90d515bf1c9941afa9267092b19ebc467a988f8205e8e0d5a418600cb1b68fb5"},{"version":"511a5f4f77165dc1b73ceae1e28b4a8f78f3443d8e18a1fd43bfafd2b0133bbe","impliedFormat":1},{"version":"b6d03c9cfe2cf0ba4c673c209fcd7c46c815b2619fd2aad59fc4229aaef2ed43","impliedFormat":1},{"version":"95aba78013d782537cc5e23868e736bec5d377b918990e28ed56110e3ae8b958","impliedFormat":1},{"version":"670a76db379b27c8ff42f1ba927828a22862e2ab0b0908e38b671f0e912cc5ed","impliedFormat":1},{"version":"13b77ab19ef7aadd86a1e54f2f08ea23a6d74e102909e3c00d31f231ed040f62","impliedFormat":1},{"version":"069bebfee29864e3955378107e243508b163e77ab10de6a5ee03ae06939f0bb9","impliedFormat":1},{"version":"104c67f0da1bdf0d94865419247e20eded83ce7f9911a1aa75fc675c077ca66e","impliedFormat":1},{"version":"cc0d0b339f31ce0ab3b7a5b714d8e578ce698f1e13d7f8c60bfb766baeb1d35c","impliedFormat":1},{"version":"427fe2004642504828c1476d0af4270e6ad4db6de78c0b5da3e4c5ca95052a99","impliedFormat":1},{"version":"2eeffcee5c1661ddca53353929558037b8cf305ffb86a803512982f99bcab50d","impliedFormat":99},{"version":"9afb4cb864d297e4092a79ee2871b5d3143ea14153f62ef0bb04ede25f432030","affectsGlobalScope":true,"impliedFormat":99},{"version":"380b919bfa0516118edaf25b99e45f855e7bc3fd75ce4163a1cfe4a666388804","impliedFormat":1},{"version":"0d89e5c4ce6e3096e64504e1fa45a8ddccf488cb5fdc1980ea09db2a451f0b91","impliedFormat":1},{"version":"fcf79300e5257a23ed3bacaa6861d7c645139c6f7ece134d15e6669447e5e6db","impliedFormat":1},{"version":"187119ff4f9553676a884e296089e131e8cc01691c546273b1d0089c3533ce42","impliedFormat":1},{"version":"aa2c18a1b5a086bbcaae10a4efba409cc95ba7287d8cf8f2591b53704fea3dea","impliedFormat":1},{"version":"5a0b15210129310cee9fa6af9200714bb4b12af4a04d890e15f34dbea1cf1852","impliedFormat":1},{"version":"0244119dbcbcf34faf3ffdae72dab1e9bc2bc9efc3c477b2240ffa94af3bca56","impliedFormat":1},{"version":"00baffbe8a2f2e4875367479489b5d43b5fc1429ecb4a4cc98cfc3009095f52a","impliedFormat":1},{"version":"a873c50d3e47c21aa09fbe1e2023d9a44efb07cc0cb8c72f418bf301b0771fd3","impliedFormat":1},{"version":"7c14ccd2eaa82619fffc1bfa877eb68a012e9fb723d07ee98db451fadb618906","impliedFormat":1},{"version":"49c36529ee09ea9ce19525af5bb84985ea8e782cb7ee8c493d9e36d027a3d019","impliedFormat":1},{"version":"df996e25faa505f85aeb294d15ebe61b399cf1d1e49959cdfaf2cc0815c203f9","impliedFormat":1},{"version":"4f6a12044ee6f458db11964153830abbc499e73d065c51c329ec97407f4b13dd","impliedFormat":1},{"version":"1f164f3717c73c0386cbfdfa81478d1b1cc253ccafed09de2b4e95933e6cd1c1","impliedFormat":1},{"version":"70683130063cbf66881365f07cff86840b6fa0238c076970f89aa7a43d9c1341","affectsGlobalScope":true,"impliedFormat":1},{"version":"0dc6940ff35d845686a118ee7384713a84024d60ef26f25a2f87992ec7ddbd64","impliedFormat":1},{"version":"151ff381ef9ff8da2da9b9663ebf657eac35c4c9a19183420c05728f31a6761d","impliedFormat":1},{"version":"f3d8c757e148ad968f0d98697987db363070abada5f503da3c06aefd9d4248c1","impliedFormat":1},{"version":"a4a39b5714adfcadd3bbea6698ca2e942606d833bde62ad5fb6ec55f5e438ff8","impliedFormat":1},{"version":"bbc1d029093135d7d9bfa4b38cbf8761db505026cc458b5e9c8b74f4000e5e75","impliedFormat":1},{"version":"ac450542cbfd50a4d7bf0f3ec8aeedb9e95791ecc6f2b2b19367696bd303e8c6","impliedFormat":99},{"version":"8a190298d0ff502ad1c7294ba6b0abb3a290fc905b3a00603016a97c363a4c7a","impliedFormat":1},{"version":"5ba4a4a1f9fae0550de86889fb06cd997c8406795d85647cbcd992245625680c","impliedFormat":1},{"version":"1f68ab0e055994eb337b67aa87d2a15e0200951e9664959b3866ee6f6b11a0fe","impliedFormat":1},{"version":"d34aa8df2d0b18fb56b1d772ff9b3c7aea7256cf0d692f969be6e1d27b74d660","impliedFormat":1},{"version":"baac9896d29bcc55391d769e408ff400d61273d832dd500f21de766205255acb","impliedFormat":1},{"version":"2f5747b1508ccf83fad0c251ba1e5da2f5a30b78b09ffa1cfaf633045160afed","impliedFormat":1},{"version":"6823ccc7b5b77bbf898d878dbcad18aa45e0fa96bdd0abd0de98d514845d9ed9","affectsGlobalScope":true,"impliedFormat":1},{"version":"b71c603a539078a5e3a039b20f2b0a0d1708967530cf97dec8850a9ca45baa2b","impliedFormat":1},{"version":"168d88e14e0d81fe170e0dadd38ae9d217476c11435ea640ddb9b7382bdb6c1f","impliedFormat":1},{"version":"8e04cf0688e0d921111659c2b55851957017148fa7b977b02727477d155b3c47","impliedFormat":1},{"version":"afe73051ff6a03a9565cbd8ebb0e956ee3df5e913ad5c1ded64218aabfa3dcb5","impliedFormat":1},{"version":"035a5df183489c2e22f3cf59fc1ed2b043d27f357eecc0eb8d8e840059d44245","impliedFormat":1},{"version":"a4809f4d92317535e6b22b01019437030077a76fec1d93b9881c9ed4738fcc54","impliedFormat":1},{"version":"5f53fa0bd22096d2a78533f94e02c899143b8f0f9891a46965294ee8b91a9434","impliedFormat":1},{"version":"cdcc132f207d097d7d3aa75615ab9a2e71d6a478162dde8b67f88ea19f3e54de","impliedFormat":1},{"version":"0d14fa22c41fdc7277e6f71473b20ebc07f40f00e38875142335d5b63cdfc9d2","impliedFormat":1},{"version":"e1028394c1cf96d5d057ecc647e31e457b919092f882ed0c7092152b077fed9d","impliedFormat":1},{"version":"f315e1e65a1f80992f0509e84e4ae2df15ecd9ef73df975f7c98813b71e4c8da","impliedFormat":1},{"version":"5b9586e9b0b6322e5bfbd2c29bd3b8e21ab9d871f82346cb71020e3d84bae73e","impliedFormat":1},{"version":"3e70a7e67c2cb16f8cd49097360c0309fe9d1e3210ff9222e9dac1f8df9d4fb6","impliedFormat":1},{"version":"ab68d2a3e3e8767c3fba8f80de099a1cfc18c0de79e42cb02ae66e22dfe14a66","impliedFormat":1},{"version":"d96cc6598148bf1a98fb2e8dcf01c63a4b3558bdaec6ef35e087fd0562eb40ec","impliedFormat":1},{"version":"f8db4fea512ab759b2223b90ecbbe7dae919c02f8ce95ec03f7fb1cf757cfbeb","affectsGlobalScope":true,"impliedFormat":1},{"version":"96d14f21b7652903852eef49379d04dbda28c16ed36468f8c9fa08f7c14c9538","impliedFormat":1},{"version":"b0f9ef6423d6b29dde29fd60d83d215796b2c1b76bfca28ac374ae18702cfb8e","impliedFormat":1},{"version":"29f72ec1289ae3aeda78bf14b38086d3d803262ac13904b400422941a26a3636","affectsGlobalScope":true,"impliedFormat":1},{"version":"170d4db14678c68178ee8a3d5a990d5afb759ecb6ec44dbd885c50f6da6204f6","affectsGlobalScope":true,"impliedFormat":1},{"version":"ac51dd7d31333793807a6abaa5ae168512b6131bd41d9c5b98477fc3b7800f9f","impliedFormat":1},{"version":"cf8db38686dfd74567ea692266fe44fbb32fa0e25fc0888ad6fc40e65873607e","impliedFormat":1},{"version":"be1cc4d94ea60cbe567bc29ed479d42587bf1e6cba490f123d329976b0fe4ee5","impliedFormat":1},{"version":"8baa5d0febc68db886c40bf341e5c90dc215a90cd64552e47e8184be6b7e3358","impliedFormat":1},{"version":"ab82804a14454734010dcdcd43f564ff7b0389bee4c5692eec76ff5b30d4cf66","impliedFormat":1},{"version":"e7bb49fac2aa46a13011b5eb5e4a8648f70a28aea1853fab2444dd4fcb4d4ec7","impliedFormat":1},{"version":"464e45d1a56dae066d7e1a2f32e55b8de4bfb072610c3483a4091d73c9924908","impliedFormat":1},{"version":"da318e126ac39362c899829547cc8ee24fa3e8328b52cdd27e34173cf19c7941","impliedFormat":1},{"version":"24bd01a91f187b22456c7171c07dbf44f3ad57ebd50735aab5c13fa23d7114b4","impliedFormat":1},{"version":"4738eefeaaba4d4288a08c1c226a76086095a4d5bcc7826d2564e7c29da47671","impliedFormat":1},{"version":"736097ddbb2903bef918bb3b5811ef1c9c5656f2a73bd39b22a91b9cc2525e50","impliedFormat":1},{"version":"dbec715e9e82df297e49e3ed0029f6151aa40517ebfd6fcdba277a8a2e1d3a1b","impliedFormat":1},{"version":"097f1f8ca02e8940cfdcca553279e281f726485fa6fb214b3c9f7084476f6bcc","impliedFormat":1},{"version":"8f75e211a2e83ff216eb66330790fb6412dcda2feb60c4f165c903cf375633ee","impliedFormat":1},{"version":"c3fb0d969970b37d91f0dbf493c014497fe457a2280ac42ae24567015963dbf7","impliedFormat":1},{"version":"a9155c6deffc2f6a69e69dc12f0950ba1b4db03b3d26ab7a523efc89149ce979","impliedFormat":1},{"version":"c99faf0d7cb755b0424a743ea0cbf195606bf6cd023b5d10082dba8d3714673c","impliedFormat":1},{"version":"21942c5a654cc18ffc2e1e063c8328aca3b127bbf259c4e97906d4696e3fa915","impliedFormat":1},{"version":"c6cdcd12d577032b84eed1de4d2de2ae343463701a25961b202cff93989439fb","impliedFormat":1},{"version":"3dc633586d48fcd04a4f8acdbf7631b8e4a334632f252d5707e04b299069721e","impliedFormat":1},{"version":"3322858f01c0349ee7968a5ce93a1ca0c154c4692aa8f1721dc5192a9191a168","impliedFormat":1},{"version":"6dde0a77adad4173a49e6de4edd6ef70f5598cbebb5c80d76c111943854636ca","impliedFormat":1},{"version":"09acacae732e3cc67a6415026cfae979ebe900905500147a629837b790a366b3","impliedFormat":1},{"version":"f7b622759e094a3c2e19640e0cb233b21810d2762b3e894ef7f415334125eb22","impliedFormat":1},{"version":"99236ea5c4c583082975823fd19bcce6a44963c5c894e20384bc72e7eccf9b03","impliedFormat":1},{"version":"f6688a02946a3f7490aa9e26d76d1c97a388e42e77388cbab010b69982c86e9e","impliedFormat":1},{"version":"9f642953aba68babd23de41de85d4e97f0c39ef074cb8ab8aa7d55237f62aff6","impliedFormat":1},{"version":"159d95163a0ed369175ae7838fa21a9e9e703de5fdb0f978721293dd403d9f4a","impliedFormat":1},{"version":"bae8d023ef6b23df7da26f51cea44321f95817c190342a36882e93b80d07a960","impliedFormat":1},{"version":"26a770cec4bd2e7dbba95c6e536390fffe83c6268b78974a93727903b515c4e7","impliedFormat":1}],"root":[222,223,[240,247]],"options":{"composite":true,"declaration":true,"declarationMap":true,"esModuleInterop":true,"experimentalDecorators":true,"module":99,"outDir":"./dist","rootDir":"./src","skipLibCheck":true,"target":7},"referencedMap":[[250,1],[248,2],[212,3],[213,4],[184,5],[207,6],[203,7],[185,2],[208,8],[209,9],[183,2],[196,2],[187,10],[195,11],[188,10],[189,10],[190,10],[191,10],[194,10],[192,10],[193,10],[205,12],[201,13],[199,14],[197,2],[198,2],[206,15],[186,2],[279,16],[294,2],[297,17],[296,2],[253,18],[249,1],[251,19],[252,1],[255,20],[273,21],[258,22],[254,23],[274,2],[256,2],[282,24],[278,25],[277,26],[275,2],[286,27],[289,28],[290,29],[287,2],[291,2],[292,30],[293,31],[302,32],[276,2],[303,2],[272,33],[260,34],[261,35],[259,36],[262,37],[263,38],[264,39],[265,40],[266,41],[267,42],[268,43],[269,44],[270,45],[271,46],[304,2],[305,2],[131,47],[132,47],[133,48],[87,49],[134,50],[135,51],[136,52],[82,2],[85,53],[83,2],[84,2],[137,54],[138,55],[139,56],[140,57],[141,58],[142,59],[143,59],[144,60],[145,61],[146,62],[147,63],[88,2],[86,2],[148,64],[149,65],[150,66],[182,67],[151,68],[152,69],[153,70],[154,71],[155,72],[156,73],[157,74],[158,75],[159,76],[160,77],[161,77],[162,78],[163,2],[164,79],[166,80],[165,81],[167,82],[168,83],[169,84],[170,85],[171,86],[172,87],[173,88],[174,89],[175,90],[176,91],[177,92],[178,93],[179,94],[89,2],[90,2],[91,2],[130,95],[180,96],[181,97],[284,2],[285,2],[309,98],[306,2],[308,99],[310,2],[283,100],[288,101],[311,2],[320,102],[312,2],[315,103],[318,104],[319,105],[313,106],[316,107],[314,108],[324,109],[322,110],[323,111],[321,112],[334,113],[325,2],[326,2],[327,2],[328,2],[329,2],[330,2],[331,2],[332,2],[333,2],[335,2],[336,114],[257,2],[200,115],[204,116],[210,115],[211,117],[92,2],[295,2],[307,2],[281,118],[280,119],[301,120],[317,121],[299,122],[300,123],[298,124],[80,2],[81,2],[13,2],[15,2],[14,2],[2,2],[16,2],[17,2],[18,2],[19,2],[20,2],[21,2],[22,2],[23,2],[3,2],[24,2],[25,2],[4,2],[26,2],[30,2],[27,2],[28,2],[29,2],[31,2],[32,2],[33,2],[5,2],[34,2],[35,2],[36,2],[37,2],[6,2],[41,2],[38,2],[39,2],[40,2],[42,2],[7,2],[43,2],[48,2],[49,2],[44,2],[45,2],[46,2],[47,2],[8,2],[53,2],[50,2],[51,2],[52,2],[54,2],[9,2],[55,2],[56,2],[57,2],[59,2],[58,2],[60,2],[61,2],[10,2],[62,2],[63,2],[64,2],[11,2],[65,2],[66,2],[67,2],[68,2],[69,2],[1,2],[70,2],[71,2],[12,2],[75,2],[73,2],[78,2],[77,2],[72,2],[76,2],[74,2],[79,2],[108,125],[118,126],[107,125],[128,127],[99,128],[98,129],[127,115],[121,130],[126,131],[101,132],[115,133],[100,134],[124,135],[96,136],[95,115],[125,137],[97,138],[102,139],[103,2],[106,139],[93,2],[129,140],[119,141],[110,142],[111,143],[113,144],[109,145],[112,146],[122,115],[104,147],[105,148],[114,149],[94,150],[117,141],[116,139],[120,2],[123,151],[202,115],[228,152],[235,153],[238,154],[232,155],[237,152],[231,156],[236,157],[233,158],[234,159],[239,160],[229,161],[230,156],[227,161],[226,161],[225,161],[224,161],[244,162],[243,162],[246,163],[245,162],[242,162],[241,162],[240,162],[222,164],[223,165],[247,166],[219,2],[221,167],[214,2],[218,168],[217,2],[215,2],[216,2],[220,2]],"latestChangedDtsFile":"./dist/clients/teacherClient.d.ts","version":"5.9.3"}
 ```
 
 # packages\shared\package.json

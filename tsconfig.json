@@ -5,8 +5,15 @@
     "resolveJsonModule": true,
     "moduleResolution": "node",
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
     "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": [],
+    "paths": {
+      "@bitcoin-computer/lib": ["./node_modules/@bitcoin-computer/lib"],
+      "@bitcoin-computer/lib/*": ["./node_modules/@bitcoin-computer/lib/*"]
+    },
     "lib": [
       "esnext",
       "DOM"

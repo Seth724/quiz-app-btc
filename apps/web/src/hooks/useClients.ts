@@ -2,57 +2,55 @@
 
 import { useMemo } from 'react'
 import { useWalletStore } from '@/stores'
-import { getComputer, getAllClients } from '@/services'
+import { createComputerFromStorage } from '@/services'
+import { createBrowserSDK, BrowserQuizClient, BrowserTeacherClient, BrowserAttemptClient, BrowserAccessClient } from '@/services/bc'
 
 /**
  * Hook to access Computer instance
  */
 export function useComputer() {
-  const { chain, network, url, path } = useWalletStore()
-  
   return useMemo(() => {
-    return getComputer({ chain, network, url, path: path || undefined })
-  }, [chain, network, url, path])
+    return createComputerFromStorage()
+  }, [])
 }
 
 /**
- * Hook to access all SDK clients
+ * Hook to access browser-safe SDK clients
  */
-export function useClients() {
+export function useBrowserSDK() {
   const computer = useComputer()
   
-  return useMemo(() => getAllClients(computer), [computer])
+  return useMemo(() => createBrowserSDK(computer), [computer])
 }
 
 /**
- * Hook to access specific client
+ * Hook to access specific browser-safe clients
  */
-export function useTeacherClient() {
-  const { teacher } = useClients()
-  return teacher
+export function useTeacherClient(): BrowserTeacherClient {
+  const sdk = useBrowserSDK()
+  return useMemo(() => sdk.createTeacherClient(), [sdk])
 }
 
-export function useStudentClient() {
-  const { student } = useClients()
-  return student
+export function useQuizClient(): BrowserQuizClient {
+  const sdk = useBrowserSDK()
+  return useMemo(() => sdk.createQuizClient(), [sdk])
 }
 
-export function useQuizClient() {
-  const { quiz } = useClients()
-  return quiz
+export function useAttemptClient(): BrowserAttemptClient {
+  const sdk = useBrowserSDK()
+  return useMemo(() => sdk.createAttemptClient(), [sdk])
 }
 
-export function useAccessClient() {
-  const { access } = useClients()
-  return access
+export function useAccessClient(): BrowserAccessClient {
+  const sdk = useBrowserSDK()
+  return useMemo(() => sdk.createAccessClient(), [sdk])
 }
 
-export function usePaymentClient() {
-  const { payment } = useClients()
-  return payment
-}
-
-export function useAttemptClient() {
-  const { attempt } = useClients()
-  return attempt
+/**
+ * Create quiz client instance outside of React components
+ */
+export function createQuizClient(): BrowserQuizClient {
+  const computer = createComputerFromStorage()
+  const sdk = createBrowserSDK(computer)
+  return sdk.createQuizClient()
 }

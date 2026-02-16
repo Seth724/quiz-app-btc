@@ -11,8 +11,9 @@
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "module": "esnext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",  // Changed from bundler to node for better compatibility
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
@@ -26,6 +27,11 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@bitcoin-computer/lib": ["../../node_modules/@bitcoin-computer/lib"],
+      "@bitcoin-computer/lib/*": ["../../node_modules/@bitcoin-computer/lib/*"],
+      "@/common-components/*": [
+        "./src/common-components/*"
       ],
       "@/components/*": [
         "./src/components/*"

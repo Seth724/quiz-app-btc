@@ -1,6 +1,6 @@
 import { Computer } from '@bitcoin-computer/lib'
 import { useContext, useEffect, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import Link from 'next/link'
 import { initFlowbite } from 'flowbite'
 import { jsonMap, strip, toObject } from './common/utils'
 import { useUtilsComponents } from './UtilsContext'
@@ -85,7 +85,7 @@ function FromRevs({ revs, computer }: { revs: string[]; computer: any }) {
       {revs.map((rev) => (
         <div key={rev}>
           <Link
-            to={`/objects/${rev}`}
+            href={`/objects/${rev}`}
             className="block font-medium text-blue-600 dark:text-blue-500"
           >
             <ValueComponent rev={rev} computer={computer} />
@@ -162,8 +162,7 @@ export function GalleryWithPagination<T extends Class>(q: UserQuery<T>) {
   const [isPrevAvailable, setIsPrevAvailable] = useState(pageNum > 0)
   const [showNoAsset, setShowNoAsset] = useState(false)
   const [revs, setRevs] = useState<string[]>([])
-  const location = useLocation()
-  const params = Object.fromEntries(new URLSearchParams(location.search))
+  const params = {}
 
   useEffect(() => {
     initFlowbite()

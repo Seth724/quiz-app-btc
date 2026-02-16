@@ -4,38 +4,38 @@ import { IsString, IsArray, IsNumber, Min, ArrayMinSize, ArrayMaxSize } from 'cl
 export class CreateQuizDto {
   @ApiProperty({ description: 'Quiz blockchain transaction ID' })
   @IsString()
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: 'Quiz title' })
   @IsString()
-  title: string;
+  title!: string;
 
   @ApiProperty({ description: 'Question text' })
   @IsString()
-  questionText: string;
+  questionText!: string;
 
   @ApiProperty({ description: 'Array of answer options', type: [String] })
   @IsArray()
   @ArrayMinSize(2)
   @ArrayMaxSize(10)
   @IsString({ each: true })
-  options: string[];
+  options!: string[];
 
   @ApiProperty({ description: 'Reward amount in satoshis' })
   @IsNumber()
   @Min(0)
-  rewardAmount: number;
+  rewardAmount!: number;
 
   @ApiProperty({ description: 'Entry fee in satoshis' })
   @IsNumber()
   @Min(0)
-  entryFee: number;
+  entryFee!: number;
 
   @ApiProperty({ description: 'Payment transaction ID' })
   @IsString()
-  paymentTxId: string;
+  paymentTxId!: string;
 
   @ApiProperty({ description: 'Teacher public key' })
   @IsString()
-  teacherPubKey: string;
+  teacherPubKey!: string;
 }

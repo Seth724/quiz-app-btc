@@ -4,23 +4,23 @@ import { IsString, IsNumber, IsBoolean, IsOptional } from 'class-validator';
 export class CreateAttemptDto {
   @ApiProperty({ description: 'Quiz ID' })
   @IsString()
-  quizId: string;
+  quizId!: string;
 
   @ApiProperty({ description: 'Student public key' })
   @IsString()
-  studentPubKey: string;
+  studentPubKey!: string;
 
   @ApiProperty({ description: 'Selected answer index' })
   @IsNumber()
-  selectedAnswer: number;
+  selectedAnswer!: number;
 
   @ApiProperty({ description: 'Is answer correct' })
   @IsBoolean()
-  isCorrect: boolean;
+  isCorrect!: boolean;
 
   @ApiProperty({ description: 'Reward earned in satoshis' })
   @IsNumber()
-  rewardEarned: number;
+  rewardEarned!: number;
 
   @ApiPropertyOptional({ description: 'Blockchain transaction ID' })
   @IsOptional()
