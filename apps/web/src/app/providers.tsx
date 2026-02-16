@@ -1,7 +1,7 @@
 'use client'
 
 import { ReactNode } from 'react'
-import { UtilsProvider } from '@/components/bc'
+import { ClientProviders } from '@/common-components/ClientProvider'
 
 /**
  * Client-side providers wrapper
@@ -9,8 +9,8 @@ import { UtilsProvider } from '@/components/bc'
  */
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <UtilsProvider>
+    <ClientProviders>
       {children}
-    </UtilsProvider>
+    </ClientProviders>
   )
 }

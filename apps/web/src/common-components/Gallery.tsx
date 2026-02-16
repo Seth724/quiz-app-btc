@@ -197,6 +197,8 @@ export default function WithPagination<T extends Class>(q: UserQuery<T>) {
         query.offset = contractsPerPage * pageNum;
         query.limit = contractsPerPage + 1;
         query.order = "DESC";
+        
+        // Use getOUTXOs to get output transaction objects
         const result = await computer.getOUTXOs(query);
         setIsNextAvailable(result.length > contractsPerPage);
         setRevs(result.slice(0, contractsPerPage));
@@ -235,7 +237,7 @@ export default function WithPagination<T extends Class>(q: UserQuery<T>) {
       )}
       {pageNum === 0 && revs && revs.length === 0 && showNoAsset && (
         <h1 className="w-full mb-4 text-2xl font-extrabold leading-none tracking-tight text-gray-900 dark:text-white text-center mx-auto">
-          No Assets
+          No Objects Found
         </h1>
       )}
     </div>

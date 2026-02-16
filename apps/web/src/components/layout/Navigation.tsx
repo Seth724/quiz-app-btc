@@ -19,6 +19,7 @@ export function Navigation() {
     { href: '/teacher', label: 'Teacher', show: role === 'teacher' || !role },
     { href: '/student', label: 'Student', show: role === 'student' || !role },
     { href: '/leaderboard', label: 'Leaderboard', show: true },
+    { href: '/gallery', label: 'Gallery', show: true },
     { href: '/wallet', label: 'Wallet', show: true },
   ]
 

@@ -16,13 +16,13 @@ export const WS_ENDPOINT = BASE_URL.replace('http', 'ws')
 
 // Module specifications (deployed contract modules)
 export const MODULE_SPECS = {
-  teacherMod: process.env.NEXT_PUBLIC_TEACHER_MOD || '',
-  studentMod: process.env.NEXT_PUBLIC_STUDENT_MOD || '',
-  quizMod: process.env.NEXT_PUBLIC_QUIZ_MOD || '',
-  attemptMod: process.env.NEXT_PUBLIC_ATTEMPT_MOD || '',
-  paymentMod: process.env.NEXT_PUBLIC_PAYMENT_MOD || '',
-  quizAccessMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD || '',
-  quizAccessSaleMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD || ''
+  teacherMod: process.env.NEXT_PUBLIC_TEACHER_MOD_SPEC || process.env.NEXT_PUBLIC_TEACHER_MOD || '',
+  studentMod: process.env.NEXT_PUBLIC_STUDENT_MOD_SPEC || process.env.NEXT_PUBLIC_STUDENT_MOD || '',
+  quizMod: process.env.NEXT_PUBLIC_QUIZ_MOD_SPEC || process.env.NEXT_PUBLIC_QUIZ_MOD || '',
+  attemptMod: process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC || process.env.NEXT_PUBLIC_ATTEMPT_MOD || '',
+  paymentMod: process.env.NEXT_PUBLIC_PAYMENT_MOD_SPEC || process.env.NEXT_PUBLIC_PAYMENT_MOD || '',
+  quizAccessMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC || process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD || '',
+  quizAccessSaleMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC || process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD || ''
 }
 
 // Force log all environment variables for debugging

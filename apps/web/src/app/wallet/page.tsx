@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useWallet } from '@/hooks'
 import { WalletConnect, WalletDisplay } from '@/features/wallet'
-import { Wallet as BCWallet } from '@/components/bc/src'
+import { Wallet } from '@/common-components'
 import { useComputer } from '@/hooks'
 
 export default function WalletPage() {
@@ -27,7 +27,7 @@ export default function WalletPage() {
           <>
             <WalletDisplay />
             <div className="mt-8">
-              <BCWallet modSpecs={[
+              <Wallet modSpecs={[
                 process.env.NEXT_PUBLIC_TEACHER_MOD || '',
                 process.env.NEXT_PUBLIC_STUDENT_MOD || '',
                 process.env.NEXT_PUBLIC_QUIZ_MOD || '',

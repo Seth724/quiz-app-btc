@@ -1,22 +1,11 @@
 /**
- * Browser-Safe Quiz Client - Uses mod specs instead of contract imports
- * Fallback to direct imports for development when mods are not deployed
+ * Browser-Safe Quiz Client - Uses deployed mod specs following test flow
+ * NO MOCK DATA - Uses real blockchain contracts only
  */
 
 import { Computer } from '@bitcoin-computer/lib'
 import type { QuizData } from '@quiz-app/shared'
 import { MODULE_SPECS, hasModuleSpecs } from '@/config/env'
-
-// Temporary fallback imports for development
-let Payment: any, Quiz: any
-try {
-  // Only import if running in development and mods are empty
-  if (typeof window !== 'undefined' && !MODULE_SPECS.paymentMod) {
-    console.warn('Module specs not available, using direct imports for development')
-  }
-} catch (e) {
-  // Ignore import errors in production
-}
 
 export interface QuizDTO {
   _id: string
@@ -35,141 +24,95 @@ export interface QuizDTO {
   paymentTxId: string
   isClaimed: boolean
   claimedBy: string
+  attemptedStudents: string[]
   attemptCount: number
   createdAt: number
 }
 
 /**
- * Browser-safe QuizClient using mod specs
+ * Browser-safe QuizClient using deployed module specs
+ * Follows the exact test flow: create payment first, then quiz
  */
 export class BrowserQuizClient {
   constructor(private computer: Computer) {
-    // Check if we're in development mode
-    hasModuleSpecs()
+    const hasSpecs = hasModuleSpecs()
+    if (!hasSpecs) {
+      throw new Error('Module specs not deployed. Please run deployment script first.')
+    }
   }
 
   /**
-   * Create a new quiz - browser safe implementation
+   * Create a new quiz following the test flow:
+   * 1. Create Payment object with reward amount
+   * 2. Create Quiz referencing the paymentTxId
    */
   async createQuiz(quizData: QuizData): Promise<QuizDTO> {
     console.log('🎯 Creating quiz with data:', quizData)
-    console.log('🎯 MODULE_SPECS:', MODULE_SPECS)
-    console.log('🎯 hasModuleSpecs():', hasModuleSpecs())
-    
-    // Check if module specs are available
-    if (!MODULE_SPECS.paymentMod || !MODULE_SPECS.quizMod) {
-      console.warn('⚠️  Module specs not deployed, creating mock quiz for development')
-      return this.createMockQuiz(quizData)
-    }
-
-    console.log('✅ Using real blockchain contracts for quiz creation')
 
     try {
-      // First create the payment object using correct constructor
-      const paymentExp = `new Payment(${quizData.rewardAmount}n)`
-      
-      console.log('📤 Creating payment with expression:', paymentExp)
+      // STEP 1: Create the payment object with reward amount
+      console.log('📤 Creating payment...')
       const paymentEncoded = await this.computer.encode({
-        exp: paymentExp,
+        exp: `new Payment(${quizData.rewardAmount}n)`,
         mod: MODULE_SPECS.paymentMod,
       })
-      
+
       await this.computer.broadcast(paymentEncoded.tx)
       const payment = paymentEncoded.effect.res
-      console.log('✅ Payment object created:', payment._id)
-      
-      // Then create the quiz using object constructor syntax
-      const quizExp = `new Quiz({
-        title: ${JSON.stringify(quizData.title)},
-        questionText: ${JSON.stringify(quizData.questionText)},
-        options: ${JSON.stringify(quizData.options)},
-        correctAnswer: ${quizData.correctAnswer},
-        rewardAmount: ${quizData.rewardAmount}n,
-        entryFee: ${quizData.entryFee}n,
-        teacherPublicKey: "${this.computer.getPublicKey()}",
-        paymentTxId: "${payment._id}"
-      })`
-      
-      console.log('📤 Creating quiz with expression:', quizExp)
+      const paymentTxId = payment._id
+      console.log('✅ Payment created:', paymentTxId)
+
+      // STEP 2: Create the quiz referencing the payment
+      // Using the exact syntax from the test file
+      console.log('📤 Creating quiz...')
       const quizEncoded = await this.computer.encode({
-        exp: quizExp,
+        exp: `new Quiz({
+          title: "${quizData.title}",
+          questionText: "${quizData.questionText}",
+          options: ${JSON.stringify(quizData.options)},
+          correctAnswer: ${quizData.correctAnswer},
+          rewardAmount: ${quizData.rewardAmount}n,
+          entryFee: ${quizData.entryFee}n,
+          teacherPublicKey: "${this.computer.getPublicKey()}",
+          paymentTxId: "${paymentTxId}"
+        })`,
         mod: MODULE_SPECS.quizMod,
       })
-      
+
       await this.computer.broadcast(quizEncoded.tx)
-      console.log('✅ Quiz object created on blockchain:', quizEncoded.effect.res._id)
-      
+      const quiz = quizEncoded.effect.res
+      const quizId = quiz._id
+      console.log('✅ Quiz created:', quizId)
+
+      // Sync to get latest state
+      const syncedQuiz = await this.computer.sync(quizId)
+
       return {
-        ...quizEncoded.effect.res,
-        paymentTxId: payment._id,
+        ...syncedQuiz,
+        paymentTxId,
+        attemptedStudents: syncedQuiz.attemptedStudents || [],
+        attemptCount: 0,
         createdAt: Date.now()
-      } as unknown as QuizDTO
-      
-    } catch (error) {
-      console.error('❌ Error creating blockchain objects:', error)
-      console.log('🔄 Falling back to mock quiz creation...')
-      return this.createMockQuiz(quizData)
+      } as QuizDTO
+    } catch (error: any) {
+      console.error('❌ Quiz creation error:', error)
+      console.error('Error message:', error.message)
+      console.error('Error stack:', error.stack)
+      throw new Error(`Failed to create quiz: ${error.message}`)
     }
   }
 
   /**
-   * Create mock quiz for development when contracts aren't deployed
-   */
-  private createMockQuiz(quizData?: QuizData): QuizDTO {
-    const mockId = 'mock-quiz-' + Date.now()
-    return {
-      _id: mockId,
-      _rev: mockId + ':0',
-      _root: mockId,
-      _owners: [this.computer.getPublicKey()],
-      _satoshis: BigInt(1000),
-      title: quizData?.title || 'Sample Quiz',
-      questionText: quizData?.questionText || 'What is 2+2?',
-      options: quizData?.options || ['3', '4', '5', '6'],
-      correctAnswer: quizData?.correctAnswer ?? 1,
-      rewardAmount: BigInt(quizData?.rewardAmount || 10000),
-      entryFee: BigInt(quizData?.entryFee || 1000),
-      teacherPublicKey: this.computer.getPublicKey(),
-      isActive: true,
-      paymentTxId: 'mock-payment-' + Date.now(),
-      isClaimed: false,
-      claimedBy: '',
-      attemptCount: 0,
-      createdAt: Date.now()
-    }
-  }
-
-  /**
-   * Get quiz by ID
+   * Get quiz by ID - sync from blockchain
    */
   async getQuiz(quizId: string): Promise<QuizDTO | null> {
     try {
-      // If mock ID, return mock data
-      if (quizId.startsWith('mock-quiz-')) {
-        return {
-          _id: quizId,
-          _rev: quizId + ':0',
-          _root: quizId,
-          _owners: [this.computer.getPublicKey()],
-          _satoshis: BigInt(1000),
-          title: 'Mock Quiz',
-          questionText: 'What is 2 + 2?',
-          options: ['3', '4', '5', '6'],
-          correctAnswer: 1,
-          rewardAmount: BigInt(10000),
-          entryFee: BigInt(1000),
-          teacherPublicKey: this.computer.getPublicKey(),
-          isActive: true,
-          paymentTxId: 'mock-payment-' + Date.now(),
-          isClaimed: false,
-          claimedBy: '',
-          attemptCount: 0,
-          createdAt: Date.now()
-        } 
-      }
-      
       const quiz = await this.computer.sync(quizId)
-      return quiz as unknown as QuizDTO
+      return {
+        ...quiz,
+        attemptedStudents: quiz.attemptedStudents || [],
+        attemptCount: (quiz.attemptedStudents || []).length,
+      } as QuizDTO
     } catch (error) {
       console.error('Failed to get quiz:', error)
       return null
@@ -180,20 +123,16 @@ export class BrowserQuizClient {
    * Check if student can attempt quiz
    */
   async canStudentAttempt(quizId: string, studentPublicKey: string): Promise<boolean> {
-    try {
-      const quiz = await this.getQuiz(quizId)
-      if (!quiz) return false
-      
-      // Quiz must be active and not claimed
-      if (!quiz.isActive || quiz.isClaimed) return false
-      
-      // Student must not have attempted already (check via computer queries)
-      // This is a simplified check - in production you'd query attempts
-      return true
-    } catch (error) {
-      console.error('Failed to check attempt eligibility:', error)
-      return false
-    }
+    const quiz = await this.getQuiz(quizId)
+    if (!quiz) return false
+    
+    // Quiz must be active and not claimed
+    if (!quiz.isActive || quiz.isClaimed) return false
+    
+    // Student must not have attempted already
+    if (quiz.attemptedStudents?.includes(studentPublicKey)) return false
+    
+    return true
   }
 
   /**
@@ -201,19 +140,17 @@ export class BrowserQuizClient {
    */
   async deactivateQuiz(quizId: string): Promise<QuizDTO | null> {
     try {
-      // Get current quiz state
       const quiz = await this.getQuiz(quizId)
       if (!quiz) return null
-      
-      // Call setActive method on quiz
+
       const encoded = await this.computer.encode({
-        exp: `quiz.setActive(false)`,
+        exp: `quiz.deactivate()`,
         env: { quiz: quiz._rev },
         mod: MODULE_SPECS.quizMod,
       })
-      
+
       await this.computer.broadcast(encoded.tx)
-      return encoded.effect.res as unknown as QuizDTO
+      return await this.getQuiz(quizId)
     } catch (error) {
       console.error('Failed to deactivate quiz:', error)
       return null
@@ -221,37 +158,57 @@ export class BrowserQuizClient {
   }
 
   /**
-   * Get all active quizzes
+   * Get all active quizzes from blockchain
    */
   async getAllQuizzes(): Promise<QuizDTO[]> {
-    try {
-      console.log('🔍 Getting all quizzes')
-      console.log('🔍 hasModuleSpecs():', hasModuleSpecs())
-      
-      if (!hasModuleSpecs()) {
-        // Development mode - return mock quizzes
-        console.warn('⚠️  Module specs not deployed, returning mock quizzes')
-        const mockQuizzes = []
-        for (let i = 1; i <= 3; i++) {
-          const mockQuiz = this.createMockQuiz()
-          mockQuiz._id = `mock-quiz-${Date.now()}-${i}`
-          mockQuiz.title = `Sample Quiz ${i}`
-          mockQuiz.questionText = `What is the answer to question ${i}?`
-          mockQuizzes.push(mockQuiz)
-        }
-        return mockQuizzes
-      }
+    console.log('🔍 Getting all quizzes from blockchain')
 
-      console.log('✅ Using blockchain to fetch all quizzes')
-      
-      // Get all objects of Quiz type from blockchain
-      // For now, this is a placeholder - implement blockchain query logic
-      // You would use Computer's query capabilities to find all Quiz objects
-      console.warn('⚠️  getAllQuizzes blockchain query not yet implemented - implement computer.query() logic')
-      return []
-    } catch (error) {
-      console.error('Failed to get all quizzes:', error)
-      return []
+    // Query all Quiz objects from blockchain
+    const quizIds = await this.computer.query({ mod: MODULE_SPECS.quizMod })
+    
+    const quizzes: QuizDTO[] = []
+    for (const id of quizIds) {
+      try {
+        const quiz = await this.computer.sync(id)
+        if (quiz && quiz.isActive) {
+          quizzes.push({
+            ...quiz,
+            attemptedStudents: quiz.attemptedStudents || [],
+            attemptCount: (quiz.attemptedStudents || []).length,
+          } as QuizDTO)
+        }
+      } catch (quizError) {
+        console.error(`Failed to sync quiz ${id}:`, quizError)
+      }
     }
+    
+    console.log(`✅ Found ${quizzes.length} active quizzes`)
+    return quizzes
+  }
+
+  /**
+   * Get quizzes by teacher public key
+   */
+  async getQuizzesByTeacher(teacherPublicKey: string): Promise<QuizDTO[]> {
+    const quizIds = await this.computer.query({ 
+      mod: MODULE_SPECS.quizMod,
+      publicKey: teacherPublicKey 
+    })
+    
+    const quizzes: QuizDTO[] = []
+    for (const id of quizIds) {
+      try {
+        const quiz = await this.computer.sync(id)
+        quizzes.push({
+          ...quiz,
+          attemptedStudents: quiz.attemptedStudents || [],
+          attemptCount: (quiz.attemptedStudents || []).length,
+        } as QuizDTO)
+      } catch (quizError) {
+        console.error(`Failed to sync quiz ${id}:`, quizError)
+      }
+    }
+    
+    return quizzes
   }
 }

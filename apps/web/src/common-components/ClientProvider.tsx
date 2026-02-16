@@ -24,9 +24,31 @@ const LoginModal = dynamic(
 
 export function ClientProviders({ children }: { children: React.ReactNode }) {
   const [computer, setComputer] = useState<Computer | null>(null);
+  
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setComputer(getComputer());
+      // Initialize SES lockdown before creating Computer instance
+      // This is required for deployed contracts to work properly
+      try {
+        Computer.lockdown({
+          consoleTaming: 'unsafe',
+          errorTaming: 'unsafe',
+          mathTaming: 'unsafe',
+          dateTaming: 'unsafe',
+          overrideTaming: 'severe',
+        });
+        console.log('✅ SES lockdown initialized');
+      } catch (error: any) {
+        // Lockdown might already be called, which is fine
+        if (!error.message?.includes('already called')) {
+          console.warn('⚠️ SES lockdown warning:', error.message);
+        }
+      }
+      
+      // Create Computer instance after lockdown
+      const comp = getComputer();
+      setComputer(comp);
+      console.log('✅ Computer instance created');
     }
   }, []);
 

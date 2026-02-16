@@ -28,11 +28,11 @@ export const STORAGE_KEYS = {
 
 
 export const MODULE_SPECS = {
-  teacherMod: process.env.NEXT_PUBLIC_TEACHER_MOD || '',
-  studentMod: process.env.NEXT_PUBLIC_STUDENT_MOD || '',
-  quizMod: process.env.NEXT_PUBLIC_QUIZ_MOD || '',
-  quizAttemptMod: process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD || '',
-  paymentMod: process.env.NEXT_PUBLIC_PAYMENT_MOD || '',
-  quizAccessMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD || '',
-  quizAccessSaleMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD || '',
+  teacherMod: process.env.NEXT_PUBLIC_TEACHER_MOD_SPEC || process.env.NEXT_PUBLIC_TEACHER_MOD || '',
+  studentMod: process.env.NEXT_PUBLIC_STUDENT_MOD_SPEC || process.env.NEXT_PUBLIC_STUDENT_MOD || '',
+  quizMod: process.env.NEXT_PUBLIC_QUIZ_MOD_SPEC || process.env.NEXT_PUBLIC_QUIZ_MOD || '',
+  quizAttemptMod: process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC || process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD || '',
+  paymentMod: process.env.NEXT_PUBLIC_PAYMENT_MOD_SPEC || process.env.NEXT_PUBLIC_PAYMENT_MOD || '',
+  quizAccessMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC || process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD || '',
+  quizAccessSaleMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC || process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD || '',
 }
