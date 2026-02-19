@@ -20,6 +20,14 @@ export interface AttemptDTO {
   submittedAt: number
 }
 
+// Safe timestamp function that works in SES secure mode
+const nowMs = () => {
+  if (typeof performance !== 'undefined' && performance.timeOrigin !== undefined) {
+    return Math.floor(performance.timeOrigin + performance.now())
+  }
+  return Date.now()
+}
+
 /**
  * Browser-safe AttemptClient using deployed module specs
  * Follows the exact test flow from the test file
@@ -108,7 +116,7 @@ export class BrowserAttemptClient {
 
     return {
       ...updatedAttempt,
-      submittedAt: Date.now()
+      submittedAt: nowMs()
     } as AttemptDTO
   }
 
@@ -144,7 +152,7 @@ export class BrowserAttemptClient {
         if (!quizId || attempt.quizId === quizId) {
           attempts.push({
             ...attempt,
-            submittedAt: attempt.attemptedAt || Date.now()
+            submittedAt: attempt.attemptedAt || nowMs()
           } as AttemptDTO)
         }
       } catch (attemptError) {

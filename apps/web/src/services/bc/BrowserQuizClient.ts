@@ -6,7 +6,13 @@
 import { Computer } from '@bitcoin-computer/lib'
 import type { QuizData } from '@quiz-app/shared'
 import { MODULE_SPECS, hasModuleSpecs } from '@/config/env'
+import { encodeBroadcastWithRetry, withComputerLock } from './txUtils'
+import { MineBlocks } from '../utils/mineblock'
 
+
+const url='http://localhost:9112'
+const chain = process.env.NEXT_PUBLIC_BCN_CHAIN || 'regtest'
+const network = process.env.NEXT_PUBLIC_BCN_NETWORK || 'regtest'
 export interface QuizDTO {
   _id: string
   _rev: string
@@ -29,89 +35,95 @@ export interface QuizDTO {
   createdAt: number
 }
 
-/**
- * Browser-safe QuizClient using deployed module specs
- * Follows the exact test flow: create payment first, then quiz
- */
+const nowMs = () => {
+  if (typeof performance !== 'undefined' && (performance as any).timeOrigin !== undefined) {
+    return Math.floor((performance as any).timeOrigin + performance.now())
+  }
+  return Date.now()
+}
+
 export class BrowserQuizClient {
   constructor(private computer: Computer) {
-    const hasSpecs = hasModuleSpecs()
-    if (!hasSpecs) {
+    if (!hasModuleSpecs()) {
       throw new Error('Module specs not deployed. Please run deployment script first.')
     }
   }
 
-  /**
-   * Create a new quiz following the test flow:
-   * 1. Create Payment object with reward amount
-   * 2. Create Quiz referencing the paymentTxId
-   */
   async createQuiz(quizData: QuizData): Promise<QuizDTO> {
-    console.log('🎯 Creating quiz with data:', quizData)
+    return withComputerLock(this.computer, async () => {
+      console.log('🎯 Creating quiz with data:', quizData)
 
-    try {
-      // STEP 1: Create the payment object with reward amount
+      // STEP 1: Payment
       console.log('📤 Creating payment...')
-      const paymentEncoded = await this.computer.encode({
-        exp: `new Payment(${quizData.rewardAmount}n)`,
-        mod: MODULE_SPECS.paymentMod,
-      })
+      const paymentEncoded = await encodeBroadcastWithRetry(
+        this.computer,
+        {
+          exp: `new Payment(${quizData.rewardAmount}n)`,
+          mod: MODULE_SPECS.paymentMod,
+        },
+        { label: 'createPayment', postBroadcastDelayMs: 2500 }
+      )
 
-      await this.computer.broadcast(paymentEncoded.tx)
       const payment = paymentEncoded.effect.res
-      const paymentTxId = payment._id
+      const paymentTxId = payment._id as string
       console.log('✅ Payment created:', paymentTxId)
 
-      // STEP 2: Create the quiz referencing the payment
-      // Using the exact syntax from the test file
-      console.log('📤 Creating quiz...')
-      const quizEncoded = await this.computer.encode({
-        exp: `new Quiz({
-          title: "${quizData.title}",
-          questionText: "${quizData.questionText}",
-          options: ${JSON.stringify(quizData.options)},
-          correctAnswer: ${quizData.correctAnswer},
-          rewardAmount: ${quizData.rewardAmount}n,
-          entryFee: ${quizData.entryFee}n,
-          teacherPublicKey: "${this.computer.getPublicKey()}",
-          paymentTxId: "${paymentTxId}"
-        })`,
-        mod: MODULE_SPECS.quizMod,
-      })
+      // NEW: wait until BCN can sync the payment object reliably
+      await this.computer.sync(paymentTxId)
 
-      await this.computer.broadcast(quizEncoded.tx)
+      // NEW: add extra settle time (regtest indexers often lag)
+      await new Promise((r) => setTimeout(r, 2500))
+
+      const mine = async (blocks: number = 1) => {
+        if (network === 'regtest') await MineBlocks.mine(url, chain, network, blocks)
+      }
+
+      //await mine(2) // ensure payment is well-confirmed in regtest before creating quiz
+
+      // STEP 2: Quiz (after payment is visible to BCN’s UTXO view)
+      console.log('📤 Creating quiz...')
+      const quizExp = `new Quiz({
+        title: ${JSON.stringify(quizData.title)},
+        questionText: ${JSON.stringify(quizData.questionText)},
+        options: ${JSON.stringify(quizData.options)},
+        correctAnswer: ${quizData.correctAnswer},
+        rewardAmount: ${quizData.rewardAmount}n,
+        entryFee: ${quizData.entryFee}n,
+        teacherPublicKey: ${JSON.stringify(this.computer.getPublicKey())},
+        paymentTxId: ${JSON.stringify(paymentTxId)}
+      })`
+
+      const quizEncoded = await encodeBroadcastWithRetry(
+        this.computer,
+        { exp: quizExp, mod: MODULE_SPECS.quizMod },
+        { label: 'createQuiz', postBroadcastDelayMs: 2500 }
+      )
+
       const quiz = quizEncoded.effect.res
-      const quizId = quiz._id
+      const quizId = quiz._id as string
       console.log('✅ Quiz created:', quizId)
 
-      // Sync to get latest state
       const syncedQuiz = await this.computer.sync(quizId)
 
+      const attemptedStudents = (syncedQuiz as any).attemptedStudents || []
       return {
-        ...syncedQuiz,
+        ...(syncedQuiz as any),
         paymentTxId,
-        attemptedStudents: syncedQuiz.attemptedStudents || [],
-        attemptCount: 0,
-        createdAt: Date.now()
+        attemptedStudents,
+        attemptCount: attemptedStudents.length,
+        createdAt: (syncedQuiz as any).createdAt || nowMs(),
       } as QuizDTO
-    } catch (error: any) {
-      console.error('❌ Quiz creation error:', error)
-      console.error('Error message:', error.message)
-      console.error('Error stack:', error.stack)
-      throw new Error(`Failed to create quiz: ${error.message}`)
-    }
+    })
   }
 
-  /**
-   * Get quiz by ID - sync from blockchain
-   */
   async getQuiz(quizId: string): Promise<QuizDTO | null> {
     try {
       const quiz = await this.computer.sync(quizId)
+      const attemptedStudents = (quiz as any).attemptedStudents || []
       return {
-        ...quiz,
-        attemptedStudents: quiz.attemptedStudents || [],
-        attemptCount: (quiz.attemptedStudents || []).length,
+        ...(quiz as any),
+        attemptedStudents,
+        attemptCount: attemptedStudents.length,
       } as QuizDTO
     } catch (error) {
       console.error('Failed to get quiz:', error)
@@ -119,37 +131,25 @@ export class BrowserQuizClient {
     }
   }
 
-  /**
-   * Check if student can attempt quiz
-   */
   async canStudentAttempt(quizId: string, studentPublicKey: string): Promise<boolean> {
     const quiz = await this.getQuiz(quizId)
     if (!quiz) return false
-    
-    // Quiz must be active and not claimed
     if (!quiz.isActive || quiz.isClaimed) return false
-    
-    // Student must not have attempted already
     if (quiz.attemptedStudents?.includes(studentPublicKey)) return false
-    
     return true
   }
 
-  /**
-   * Deactivate quiz
-   */
   async deactivateQuiz(quizId: string): Promise<QuizDTO | null> {
     try {
       const quiz = await this.getQuiz(quizId)
       if (!quiz) return null
 
-      const encoded = await this.computer.encode({
-        exp: `quiz.deactivate()`,
-        env: { quiz: quiz._rev },
-        mod: MODULE_SPECS.quizMod,
-      })
+      await encodeBroadcastWithRetry(
+        this.computer,
+        { exp: `quiz.deactivate()`, env: { quiz: quiz._rev }, mod: MODULE_SPECS.quizMod },
+        { label: 'deactivateQuiz' }
+      )
 
-      await this.computer.broadcast(encoded.tx)
       return await this.getQuiz(quizId)
     } catch (error) {
       console.error('Failed to deactivate quiz:', error)
@@ -157,58 +157,50 @@ export class BrowserQuizClient {
     }
   }
 
-  /**
-   * Get all active quizzes from blockchain
-   */
   async getAllQuizzes(): Promise<QuizDTO[]> {
-    console.log('🔍 Getting all quizzes from blockchain')
-
-    // Query all Quiz objects from blockchain
     const quizIds = await this.computer.query({ mod: MODULE_SPECS.quizMod })
-    
+
     const quizzes: QuizDTO[] = []
     for (const id of quizIds) {
       try {
         const quiz = await this.computer.sync(id)
-        if (quiz && quiz.isActive) {
+        if (quiz && (quiz as any).isActive) {
+          const attemptedStudents = (quiz as any).attemptedStudents || []
           quizzes.push({
-            ...quiz,
-            attemptedStudents: quiz.attemptedStudents || [],
-            attemptCount: (quiz.attemptedStudents || []).length,
+            ...(quiz as any),
+            attemptedStudents,
+            attemptCount: attemptedStudents.length,
           } as QuizDTO)
         }
       } catch (quizError) {
         console.error(`Failed to sync quiz ${id}:`, quizError)
       }
     }
-    
-    console.log(`✅ Found ${quizzes.length} active quizzes`)
+
     return quizzes
   }
 
-  /**
-   * Get quizzes by teacher public key
-   */
   async getQuizzesByTeacher(teacherPublicKey: string): Promise<QuizDTO[]> {
-    const quizIds = await this.computer.query({ 
+    const quizIds = await this.computer.query({
       mod: MODULE_SPECS.quizMod,
-      publicKey: teacherPublicKey 
+      publicKey: teacherPublicKey,
     })
-    
+
     const quizzes: QuizDTO[] = []
     for (const id of quizIds) {
       try {
         const quiz = await this.computer.sync(id)
+        const attemptedStudents = (quiz as any).attemptedStudents || []
         quizzes.push({
-          ...quiz,
-          attemptedStudents: quiz.attemptedStudents || [],
-          attemptCount: (quiz.attemptedStudents || []).length,
+          ...(quiz as any),
+          attemptedStudents,
+          attemptCount: attemptedStudents.length,
         } as QuizDTO)
       } catch (quizError) {
         console.error(`Failed to sync quiz ${id}:`, quizError)
       }
     }
-    
+
     return quizzes
   }
 }

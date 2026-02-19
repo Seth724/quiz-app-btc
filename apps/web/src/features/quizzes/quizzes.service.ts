@@ -67,7 +67,7 @@ export async function createQuiz(
 
   const quiz = await teacherClient.createQuiz(quizData)
 
-  // Sync with backend
+  // Sync with backend (optional - don't fail if backend is unavailable)
   try {
     await apiClient.syncQuiz({
       id: quiz._id,
@@ -76,7 +76,7 @@ export async function createQuiz(
       teacherId: quiz.teacherPublicKey,
     })
   } catch (error) {
-    console.error('Failed to sync quiz with backend:', error)
+    console.warn('⚠️ Backend sync failed (ignoring - blockchain operation succeeded):', error)
   }
 
   return quiz as Quiz

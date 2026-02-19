@@ -8,21 +8,39 @@ import { useQuizClient } from '@/hooks/useClients'
 import { Card, Loader } from '@/components'
 
 export default function TeacherQuizDetailPage() {
-  const params = useParams()
-  const quizId = params.id as string
+  const params = useParams<{ id: string }>()
+  const quizId = params?.id as string
   const quizClient = useQuizClient()
   const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Validate quiz ID format
+  const isValidQuizId = (id: string) => {
+    if (!id) return false
+    // Check for transaction ID format (64 hex chars : number)
+    const txPattern = /^[0-9a-f]{64}:\d+$/i
+    return txPattern.test(id)
+  }
 
   useEffect(() => {
     const fetchQuiz = async () => {
       try {
         setLoading(true)
         setError(null)
-        
-        if (!quizClient || !quizId) {
-          setError('Quiz client not available or quiz ID missing')
+
+        if (!quizClient) {
+          setError('Quiz client not available')
+          return
+        }
+
+        if (!quizId) {
+          setError('Quiz ID missing')
+          return
+        }
+
+        if (!isValidQuizId(quizId)) {
+          setError(`Invalid quiz ID format: ${quizId}. Expected format: 64hex:number`)
           return
         }
 
@@ -34,7 +52,7 @@ export default function TeacherQuizDetailPage() {
         }
       } catch (err) {
         console.error('Failed to fetch quiz:', err)
-        setError('Failed to load quiz details')
+        setError(err instanceof Error ? err.message : 'Failed to load quiz details')
       } finally {
         setLoading(false)
       }
