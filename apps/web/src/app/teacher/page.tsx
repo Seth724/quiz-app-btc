@@ -5,16 +5,28 @@ import Link from 'next/link'
 import { useSessionStore, useWalletStore } from '@/stores'
 import { useTeacherQuizzes } from '@/features/quizzes'
 import { QuizGrid } from '@/features/quizzes'
+import { listQuizzesByTeacher } from '@/features/quizzes/quizzes.service'
+import { useQuizClient } from '@/hooks/useClients'
 
 export default function TeacherPage() {
   const { userId, setRole } = useSessionStore()
   const { isConnected } = useWalletStore()
   const { quizzes, loading } = useTeacherQuizzes(userId || '')
+  const quizClient = useQuizClient()
 
   useEffect(() => {
-    setRole('teacher')
-  }, [setRole])
+    async function fetchData() {
+      setRole('teacher')
+      // If you need to fetch data asynchronously, do it here
+      // Example:
+      console.log('👍👍Fetching quizzes for teacher with userId:', userId)
+      const data = await listQuizzesByTeacher(quizClient, userId || '')
+      console.log('Fetched quizzes:', data)
+    }
+    fetchData()
+  }, [setRole, quizClient, userId])
 
+  console.log('Teacher Dashboard - Quizzes:', quizzes)
   if (!isConnected) {
     return (
       <div className="min-h-screen p-8">

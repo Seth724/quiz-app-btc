@@ -118,6 +118,7 @@ export class BrowserQuizClient {
 
   async getQuiz(quizId: string): Promise<QuizDTO | null> {
     try {
+      console.log('🔍 Fetching quiz with ID:', quizId)
       const quiz = await this.computer.sync(quizId)
       const attemptedStudents = (quiz as any).attemptedStudents || []
       return {
@@ -180,27 +181,53 @@ export class BrowserQuizClient {
     return quizzes
   }
 
-  async getQuizzesByTeacher(teacherPublicKey: string): Promise<QuizDTO[]> {
-    const quizIds = await this.computer.query({
-      mod: MODULE_SPECS.quizMod,
-      publicKey: teacherPublicKey,
-    })
+  // async getQuizzesByTeacher(teacherPublicKey: string): Promise<QuizDTO[]> {
+  //   const quizIds = await this.computer.query({
+  //     mod: MODULE_SPECS.quizMod,
+  //     publicKey: teacherPublicKey,
+  //   })
 
+  //   const quizzes: QuizDTO[] = []
+  //   for (const id of quizIds) {
+  //     try {
+  //       const quiz = await this.computer.sync(id)
+  //       const attemptedStudents = (quiz as any).attemptedStudents || []
+  //       quizzes.push({
+  //         ...(quiz as any),
+  //         attemptedStudents,
+  //         attemptCount: attemptedStudents.length,
+  //       } as QuizDTO)
+  //     } catch (quizError) {
+  //       console.error(`Failed to sync quiz ${id}:`, quizError)
+  //     }
+  //   }
+
+  //   return quizzes
+  // }
+  async getQuizzesByTeacher(teacherPublicKey: string): Promise<QuizDTO[]> {
+    console.log(`🔍 Fetching quizzes for teacherPublicKey: ${teacherPublicKey}`)
+    const quizIds = await this.computer.query({ mod: MODULE_SPECS.quizMod }) // no publicKey filter
+    console.log(`❤️❤️❤️Queried quiz IDs: ${quizIds.join(', ')}`)
     const quizzes: QuizDTO[] = []
     for (const id of quizIds) {
       try {
-        const quiz = await this.computer.sync(id)
+      const quiz = await this.computer.sync(id)
+      console.log(`💕💕Queried quiz ${id} with teacherPublicKey: ${(quiz as any).teacherPublicKey}`)
+      console.log("😊😊😊teacherPublicKey:", teacherPublicKey, "quiz teacherPublicKey:", (quiz as any).teacherPublicKey)
+      console.log(`👍👍👍Comparing with requested teacherPublicKey : ${(quiz as any).teacherPublicKey === teacherPublicKey} `)
+      if ((quiz as any).teacherPublicKey === teacherPublicKey) {
         const attemptedStudents = (quiz as any).attemptedStudents || []
         quizzes.push({
           ...(quiz as any),
           attemptedStudents,
           attemptCount: attemptedStudents.length,
         } as QuizDTO)
-      } catch (quizError) {
-        console.error(`Failed to sync quiz ${id}:`, quizError)
       }
+    } catch (e) {
+      console.error(`Failed to sync quiz ${id}:`, e)
     }
-
-    return quizzes
+    console.log("🙌🙌🙌Fetched quizzes for teacher:", quizzes )
   }
+  return quizzes
+}
 }

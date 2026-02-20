@@ -32,45 +32,76 @@ export class BrowserTeacherClient {
     this.quizClient = new BrowserQuizClient(computer)
   }
 
+  // async createTeacher(name: string, publicKey: string): Promise<TeacherDTO> {
+  //   return withComputerLock(this.computer, async () => {
+  //     const exp = `new Teacher(${JSON.stringify(name)}, ${JSON.stringify(publicKey)})`
+
+  //     const encoded = await encodeBroadcastWithRetry(
+  //       this.computer,
+  //       { exp, mod: MODULE_SPECS.teacherMod },
+  //       { label: 'createTeacher' }
+  //     )
+
+  //     return {
+  //       ...encoded.effect.res, // ✅ MUST spread
+  //       createdAt: Date.now(),
+  //     } as TeacherDTO
+  //   })
+  // }
+
+  // async getOrCreateTeacher(name: string, publicKey: string): Promise<TeacherDTO> {
+  //   try {
+  //     const teacherIds = await this.computer.query({
+  //       mod: MODULE_SPECS.teacherMod,
+  //       publicKey,
+  //     })
+
+  //     if (teacherIds.length > 0) {
+  //       const teacher = await this.computer.sync(teacherIds[0])
+  //       return {
+  //         ...teacher,
+  //         createdAt: (teacher as any).createdAt || Date.now(),
+  //       } as TeacherDTO
+  //     }
+
+  //     return await this.createTeacher(name, publicKey)
+  //   } catch (error) {
+  //     console.error('Failed to get/create teacher:', error)
+  //     throw error
+  //   }
+  // }
   async createTeacher(name: string, publicKey: string): Promise<TeacherDTO> {
-    return withComputerLock(this.computer, async () => {
-      const exp = `new Teacher(${JSON.stringify(name)}, ${JSON.stringify(publicKey)})`
+  return withComputerLock(this.computer, async () => {
+    const exp = `new Teacher(${JSON.stringify(name)}, ${JSON.stringify(publicKey)})`
 
-      const encoded = await encodeBroadcastWithRetry(
-        this.computer,
-        { exp, mod: MODULE_SPECS.teacherMod },
-        { label: 'createTeacher' }
-      )
+    const encoded = await encodeBroadcastWithRetry(
+      this.computer,
+      { exp, mod: MODULE_SPECS.teacherMod },
+      { label: 'createTeacher' }
+    )
 
-      return {
-        ...encoded.effect.res, // ✅ MUST spread
-        createdAt: Date.now(),
-      } as TeacherDTO
-    })
+    const res = encoded.effect.res as Record<string, any>
+
+    return {
+      ...res,
+      createdAt: Date.now(),
+    } as TeacherDTO
+  })
+}
+
+async getOrCreateTeacher(name: string, publicKey: string): Promise<TeacherDTO> {
+  const teacherIds = await this.computer.query({ mod: MODULE_SPECS.teacherMod, publicKey })
+
+  if (teacherIds.length > 0) {
+    const teacher = (await this.computer.sync(teacherIds[0])) as Record<string, any>
+    return {
+      ...teacher,
+      createdAt: teacher.createdAt ?? Date.now(),
+    } as TeacherDTO
   }
 
-  async getOrCreateTeacher(name: string, publicKey: string): Promise<TeacherDTO> {
-    try {
-      const teacherIds = await this.computer.query({
-        mod: MODULE_SPECS.teacherMod,
-        publicKey,
-      })
-
-      if (teacherIds.length > 0) {
-        const teacher = await this.computer.sync(teacherIds[0])
-        return {
-          ...teacher,
-          createdAt: (teacher as any).createdAt || Date.now(),
-        } as TeacherDTO
-      }
-
-      return await this.createTeacher(name, publicKey)
-    } catch (error) {
-      console.error('Failed to get/create teacher:', error)
-      throw error
-    }
-  }
-
+  return this.createTeacher(name, publicKey)
+}
   async createQuiz(quizData: QuizData): Promise<any> {
     return await this.quizClient.createQuiz(quizData)
   }

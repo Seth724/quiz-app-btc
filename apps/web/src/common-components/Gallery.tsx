@@ -1,13 +1,13 @@
 "use client";
+
 import { Computer } from "@bitcoin-computer/lib";
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { initFlowbite } from "flowbite";
 import { jsonMap, strip, toObject } from "./common/utils";
 import { useUtilsComponents } from "./UtilsContext";
 import { ComputerContext } from "./ComputerContext";
-import { useMemo } from "react";
 
 export type Class = new (...args: any) => any;
 
@@ -22,79 +22,91 @@ export type UserQuery<T extends Class> = Partial<{
     class: T;
     args?: ConstructorParameters<T>;
   };
+
+  // These are valid getOUTXOs filters in bc ecosystem (keep if your backend supports them)
+  isObject: boolean;
+  isSpent: boolean;
+  verbosity: number;
 }>;
 
-function HomePageCard({ content }: any) {
+type SourceMode = "contracts" | "utxos";
+
+function HomePageCard({ children }: { children: React.ReactNode }) {
   return (
     <div className="block w-72 p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700">
-      <pre className="font-normal overflow-auto text-gray-700 dark:text-gray-400 text-xs">
-        {content()}
+      <pre className="font-normal overflow-auto text-gray-700 dark:text-gray-400 text-xs whitespace-pre-wrap break-words">
+        {children}
       </pre>
     </div>
   );
 }
 
-function ValueComponent({
-  rev,
-  computer,
-}: {
-  rev: string;
-  computer: Computer;
-}) {
-  const [value, setValue] = useState<any>("loading...");
-  const [errorMsg, setMsgError] = useState("");
-  const [loading, setLoading] = useState<boolean>(true);
+function safeToPretty(value: any) {
+  try {
+    // BigInt-safe stringify
+    return JSON.stringify(
+      value,
+      (_k, v) => (typeof v === "bigint" ? v.toString() : v),
+      2
+    );
+  } catch {
+    return String(value);
+  }
+}
+
+function ValueComponent({ rev, computer }: { rev: string; computer: Computer }) {
+  const [value, setValue] = useState<any>(null);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetch = async () => {
       try {
         const synced: any = await computer.sync(rev);
-        setValue(toObject(jsonMap(strip)(synced)));
-      } catch (err) {
-        if (err instanceof Error) setMsgError(`Error: ${err.message}`);
+
+        // Try to map/strip to readable object
+        const mapped = toObject(jsonMap(strip)(synced));
+
+        // If mapping results in {}, fall back to raw synced
+        const isEmptyObj =
+          mapped &&
+          typeof mapped === "object" &&
+          !Array.isArray(mapped) &&
+          Object.keys(mapped).length === 0;
+
+        if (!cancelled) {
+          setValue(isEmptyObj ? synced : mapped);
+          setErrorMsg("");
+        }
+      } catch (err: any) {
+        if (!cancelled) setErrorMsg(`Error: ${err?.message ?? String(err)}`);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
     };
+
     fetch();
+    return () => {
+      cancelled = true;
+    };
   }, [computer, rev]);
 
-  const loadingContent = () => (
-    <>
-      <svg
-        aria-hidden="true"
-        role="status"
-        className="inline w-4 h-4 me-3 text-gray-200 animate-spin dark:text-gray-600"
-        viewBox="0 0 100 101"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
-          fill="currentColor"
-        />
-        <path
-          d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
-          fill="#1C64F2"
-        />
-      </svg>
-      <span className="loading-smart-contract-span">&nbsp;Loading...</span>
-    </>
-  );
-
-  return loading ? (
-    <HomePageCard content={loadingContent} />
-  ) : (
-    <HomePageCard content={() => errorMsg || value} />
-  );
+  if (loading) return <HomePageCard>Loading…</HomePageCard>;
+  if (errorMsg) return <HomePageCard>{errorMsg}</HomePageCard>;
+  return <HomePageCard>{safeToPretty(value)}</HomePageCard>;
 }
 
-function FromRevs({ revs, computer }: { revs: string[]; computer: any }) {
+function FromRevs({ revs, computer }: { revs: string[]; computer: Computer | null }) {
+  if (!computer) return null;
+
   return (
     <div className="flex flex-wrap flex-col max-h-[75vh] gap-4 mb-4 mt-4">
       {revs.map((rev) => (
         <div key={rev}>
           <Link
-            href={`/objects/${rev}`}
+            href={`/objects/${encodeURIComponent(rev)}`}
             className="block font-medium text-blue-600 dark:text-blue-500"
           >
             <ValueComponent rev={rev} computer={computer} />
@@ -112,10 +124,7 @@ function Pagination({
   handleNext,
 }: any) {
   return (
-    <nav
-      className="flex items-center justify-between"
-      aria-label="Table navigation"
-    >
+    <nav className="flex items-center justify-between" aria-label="Table navigation">
       <ul className="inline-flex items-center -space-x-px">
         <li>
           <button
@@ -123,22 +132,7 @@ function Pagination({
             onClick={handlePrev}
             className="flex items-center justify-center px-3 h-8 ml-0 leading-tight text-gray-500 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
           >
-            <span className="sr-only">Previous</span>
-            <svg
-              className="w-2.5 h-2.5"
-              aria-hidden="true"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 6 10"
-            >
-              <path
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M5 1 1 5l4 4"
-              />
-            </svg>
+            Previous
           </button>
         </li>
         <li>
@@ -147,22 +141,7 @@ function Pagination({
             onClick={handleNext}
             className="flex items-center justify-center px-3 h-8 leading-tight text-gray-500 bg-white border border-gray-300 rounded-r-lg hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
           >
-            <span className="sr-only">Next</span>
-            <svg
-              className="w-2.5 h-2.5"
-              aria-hidden="true"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 6 10"
-            >
-              <path
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="m1 9 4-4-4-4"
-              />
-            </svg>
+            Next
           </button>
         </li>
       </ul>
@@ -170,20 +149,27 @@ function Pagination({
   );
 }
 
-export default function WithPagination<T extends Class>(q: UserQuery<T>) {
+/**
+ * Usage:
+ * <Gallery.WithPagination mod={MODULE_SPECS.quizMod} source="contracts" />
+ * <Gallery.WithPagination mod={MODULE_SPECS.paymentMod} source="contracts" />
+ * <Gallery.WithPagination source="utxos" isObject={true} isSpent={false} verbosity={0} />
+ */
+export function WithPagination<T extends Class>(
+  props: UserQuery<T> & { source?: SourceMode }
+) {
   const contractsPerPage = 12;
   const computer = useContext(ComputerContext);
   const { showLoader } = useUtilsComponents();
+
   const [pageNum, setPageNum] = useState(0);
   const [isNextAvailable, setIsNextAvailable] = useState(true);
-  const [isPrevAvailable, setIsPrevAvailable] = useState(pageNum > 0);
+  const [isPrevAvailable, setIsPrevAvailable] = useState(false);
   const [showNoAsset, setShowNoAsset] = useState(false);
   const [revs, setRevs] = useState<string[]>([]);
+
   const searchParams = useSearchParams();
-  const params = useMemo(
-    () => Object.fromEntries(searchParams.entries()),
-    [searchParams]
-  );
+  const urlParams = useMemo(() => Object.fromEntries(searchParams.entries()), [searchParams]);
 
   useEffect(() => {
     initFlowbite();
@@ -192,50 +178,108 @@ export default function WithPagination<T extends Class>(q: UserQuery<T>) {
   useEffect(() => {
     const fetch = async () => {
       showLoader(true);
-      if (computer) {
-        const query = { ...q, ...params };
-        query.offset = contractsPerPage * pageNum;
-        query.limit = contractsPerPage + 1;
-        query.order = "DESC";
-        
-        // Use getOUTXOs to get output transaction objects
-        const result = await computer.getOUTXOs(query);
-        setIsNextAvailable(result.length > contractsPerPage);
-        setRevs(result.slice(0, contractsPerPage));
-        if (pageNum === 0 && result?.length === 0) {
-          setShowNoAsset(true);
+      setShowNoAsset(false);
+
+      try {
+        if (!computer) return;
+
+        const source: SourceMode = props.source ?? "contracts";
+
+        // ---- A) contracts mode: list object ids from indexer ----
+        if (source === "contracts") {
+          if (!props.mod) {
+            setRevs([]);
+            setIsNextAvailable(false);
+            setIsPrevAvailable(pageNum > 0);
+            setShowNoAsset(true);
+            return;
+          }
+
+          const ids = await computer.query({
+            mod: props.mod,
+            ...(props.publicKey ? { publicKey: props.publicKey } : {}),
+          });
+
+          // make newest first
+          const ordered = [...ids].reverse();
+
+          const start = pageNum * contractsPerPage;
+          const end = start + contractsPerPage + 1;
+          const page = ordered.slice(start, end);
+
+          setIsNextAvailable(page.length > contractsPerPage);
+          setIsPrevAvailable(pageNum > 0);
+          setRevs(page.slice(0, contractsPerPage));
+
+          if (pageNum === 0 && ordered.length === 0) setShowNoAsset(true);
+          return;
         }
+
+        // ---- B) utxos mode: get recent outputs (DO NOT pass `source`) ----
+        // Only include params getOUTXOs understands.
+        const query: any = {
+          offset: contractsPerPage * pageNum,
+          limit: contractsPerPage + 1,
+          order: "DESC",
+
+          // optional filters (only set if defined)
+          ...(props.mod ? { mod: props.mod } : {}),
+          ...(props.publicKey ? { publicKey: props.publicKey } : {}),
+          ...(props.isObject !== undefined ? { isObject: props.isObject } : {}),
+          ...(props.isSpent !== undefined ? { isSpent: props.isSpent } : {}),
+          ...(props.verbosity !== undefined ? { verbosity: props.verbosity } : {}),
+        };
+
+        // If you want to allow URL params, only keep safe ones:
+        // (prevent passing random params that break the API)
+        const safeKeys = new Set(["mod", "publicKey", "isObject", "isSpent", "verbosity"]);
+        for (const [k, v] of Object.entries(urlParams)) {
+          if (safeKeys.has(k)) query[k] = v;
+        }
+
+        const result = await computer.getOUTXOs(query);
+
+        setIsNextAvailable(result.length > contractsPerPage);
+        setIsPrevAvailable(pageNum > 0);
+        setRevs(result.slice(0, contractsPerPage));
+
+        if (pageNum === 0 && result.length === 0) setShowNoAsset(true);
+      } finally {
+        showLoader(false);
       }
-
-      showLoader(false);
     };
+
     fetch();
-  }, [computer, pageNum]);
+  }, [
+    computer,
+    pageNum,
+    props.source,
+    props.mod,
+    props.publicKey,
+    props.isObject,
+    props.isSpent,
+    props.verbosity,
+    urlParams,
+    showLoader,
+  ]);
 
-  const handleNext = async () => {
-    setIsPrevAvailable(true);
-    setPageNum(pageNum + 1);
-  };
-
-  const handlePrev = async () => {
-    setIsNextAvailable(true);
-    if (pageNum - 1 === 0) setIsPrevAvailable(false);
-    setPageNum(pageNum - 1);
-  };
+  const handleNext = () => setPageNum((p) => p + 1);
+  const handlePrev = () => setPageNum((p) => Math.max(0, p - 1));
 
   return (
     <div className="relative sm:rounded-lg pt-4 w-full">
       <FromRevs revs={revs} computer={computer} />
-      {!(pageNum === 0 && revs && revs.length === 0) && (
+
+      {!(pageNum === 0 && revs.length === 0) && (
         <Pagination
-          revs={revs}
           isPrevAvailable={isPrevAvailable}
           handlePrev={handlePrev}
           isNextAvailable={isNextAvailable}
           handleNext={handleNext}
         />
       )}
-      {pageNum === 0 && revs && revs.length === 0 && showNoAsset && (
+
+      {pageNum === 0 && revs.length === 0 && showNoAsset && (
         <h1 className="w-full mb-4 text-2xl font-extrabold leading-none tracking-tight text-gray-900 dark:text-white text-center mx-auto">
           No Objects Found
         </h1>

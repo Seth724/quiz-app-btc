@@ -1,5 +1,5 @@
 'use client'
-
+import { UtilsProvider } from '@/common-components/UtilsContext'
 import { ReactNode } from 'react'
 import { ClientProviders } from '@/common-components/ClientProvider'
 
@@ -9,8 +9,12 @@ import { ClientProviders } from '@/common-components/ClientProvider'
  */
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <ClientProviders>
+    <UtilsProvider>
+      <ClientProviders>
       {children}
     </ClientProviders>
+    </UtilsProvider>
+    
+    
   )
 }

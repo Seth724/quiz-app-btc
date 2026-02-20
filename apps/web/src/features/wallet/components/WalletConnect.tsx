@@ -10,6 +10,7 @@ import { useWalletStore } from '@/stores'
 import { connectWallet, generateMnemonic, getWalletInfo } from '../wallet.service'
 import { createComputerFromStorage } from '@/services'
 import type { Chain, Network } from '@quiz-app/shared'
+import { useSessionStore } from '@/stores'
 
 interface WalletConnectProps {
   onConnect?: () => void
@@ -18,6 +19,7 @@ interface WalletConnectProps {
 
 export function WalletConnect({ onConnect, redirectTo }: WalletConnectProps) {
   const router = useRouter()
+  const {setUser} = useSessionStore()
   const { connect: storeConnect, updateConfig } = useWalletStore()
   const [mnemonic, setMnemonic] = useState('')
   const [chain, setChain] = useState<Chain>('LTC')
@@ -45,6 +47,7 @@ export function WalletConnect({ onConnect, redirectTo }: WalletConnectProps) {
       const computer = createComputerFromStorage()
       const info = await getWalletInfo(computer)
 
+      setUser(computer.getPublicKey(), computer.getAddress())
       // Update wallet store
       storeConnect({
         publicKey: info.publicKey,

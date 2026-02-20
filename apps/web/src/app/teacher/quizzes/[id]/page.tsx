@@ -9,7 +9,8 @@ import { Card, Loader } from '@/components'
 
 export default function TeacherQuizDetailPage() {
   const params = useParams<{ id: string }>()
-  const quizId = params?.id as string
+  const raw = params?.id as string
+  const quizId = decodeURIComponent(raw)
   const quizClient = useQuizClient()
   const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [loading, setLoading] = useState(true)

@@ -47,6 +47,7 @@ export function useTeacherQuizzes(teacherId: string) {
       setLoading(true)
       setError(null)
       const data = await listQuizzesByTeacher(quizClient, teacherId)
+      console.log('👍👍👍Fetched quizzes for teacher', teacherId, data)
       setQuizzes(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch quizzes')
@@ -54,7 +55,7 @@ export function useTeacherQuizzes(teacherId: string) {
       setLoading(false)
     }
   }
-
+ console.log('👌👌👌useTeacherQuizzes - teacherId:', teacherId)
   useEffect(() => {
     if (teacherId) {
       refresh()

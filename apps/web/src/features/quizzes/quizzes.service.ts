@@ -101,19 +101,36 @@ export async function getQuiz(
 /**
  * List quizzes by teacher
  */
+// export async function listQuizzesByTeacher(
+//   teacherClient: BrowserTeacherClient, // TeacherClient instance
+//   teacherId: string
+// ): Promise<Quiz[]> {
+//   try {
+//     const quizzes = await teacherClient.getTeacherQuizzes(teacherId)
+//     return quizzes
+//   } catch (error) {
+//     console.error('Failed to list quizzes:', error)
+//     return []
+//   }
+// }
+
+
+
 export async function listQuizzesByTeacher(
-  teacherClient: any, // TeacherClient instance
-  teacherId: string
+  quizClient: BrowserQuizClient,
+  teacherPublicKey: string
 ): Promise<Quiz[]> {
   try {
-    const quizzes = await teacherClient.getQuizzesByTeacher(teacherId)
-    return quizzes
+    console.log('🙌🙌listQuizzesByTeacher - fetching quizzes for teacherPublicKey:', teacherPublicKey)
+    const quizzes = await quizClient.getQuizzesByTeacher(teacherPublicKey)
+
+    console.log('❤️❤️❤️listQuizzesByTeacher - raw quizzes from client:', quizzes)
+    return quizzes as unknown as Quiz[]
   } catch (error) {
     console.error('Failed to list quizzes:', error)
     return []
   }
 }
-
 /**
  * Deactivate quiz (prevent further attempts)
  */
