@@ -208,7 +208,7 @@ function Component({ title }: { title?: string }) {
   const pathname = usePathname()
   const router = useRouter()
   const params = useParams()
-  const [rev] = useState(params.rev || '')
+  const [rev] = useState<string>(Array.isArray(params.rev) ? params.rev[0] : params.rev || '')
   const computer = useContext(ComputerContext)
   const [smartObject, setSmartObject] = useState<any | null>(null)
   const [next, setNext] = useState<string | undefined>(undefined)

@@ -92,27 +92,21 @@ export default function QuizDetailPage() {
         <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900 dark:to-purple-900 rounded-lg shadow-lg p-8 mb-6">
           <h1 className="text-4xl font-bold mb-4">{quiz.title}</h1>
           <p className="text-lg text-gray-700 dark:text-gray-200 mb-6">
-            {quiz.description}
+            Answer this question correctly to win the reward!
           </p>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 text-center">
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Questions</p>
-              <p className="text-2xl font-bold">{quiz.questions.length}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Entry Fee</p>
+              <p className="text-2xl font-bold text-blue-600">{formatSatoshis(quiz.entryFee)}</p>
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 text-center">
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Price</p>
-              <p className="text-2xl font-bold text-blue-600">{formatSatoshis(quiz.price)}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Reward</p>
+              <p className="text-2xl font-bold text-green-600">{formatSatoshis(quiz.rewardAmount)}</p>
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 text-center">
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Reward/Q</p>
-              <p className="text-2xl font-bold text-green-600">{formatSatoshis(quiz.rewardPerQuestion)}</p>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 text-center">
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Max Reward</p>
-              <p className="text-2xl font-bold text-purple-600">
-                {formatSatoshis(quiz.rewardPerQuestion * quiz.questions.length)}
-              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Attempts</p>
+              <p className="text-2xl font-bold text-purple-600">{quiz.attemptCount}</p>
             </div>
           </div>
 
@@ -142,21 +136,25 @@ export default function QuizDetailPage() {
           </div>
         </div>
 
-        {/* Questions Preview */}
+        {/* Question Preview */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-2xl font-bold mb-4">Quiz Preview</h2>
+          <h2 className="text-2xl font-bold mb-4">Question Preview</h2>
           <div className="space-y-4">
-            {quiz.questions.map((_, index) => (
-              <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded">
-                <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
-                  {index + 1}
-                </div>
-                <div>
-                  <p className="font-medium">Question {index + 1}</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Multiple choice</p>
+            <div className="flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded">
+              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold flex-shrink-0">
+                1
+              </div>
+              <div className="flex-1">
+                <p className="font-medium mb-2">{quiz.questionText}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {quiz.options.map((option, idx) => (
+                    <div key={idx} className="text-sm text-gray-600 dark:text-gray-300">
+                      {String.fromCharCode(65 + idx)}. {option}
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
+            </div>
           </div>
         </div>
 

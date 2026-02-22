@@ -7,9 +7,11 @@ import { Payment, Withdraw } from '../src/payment.js'
 import { QuizAccess } from '../src/quiz-access.js'
 import { QuizAccessSale } from '../src/quiz-access-sale.js'
 
-// Polyfill for __name helper that some bundlers inject
-// This prevents "__name is not a function" errors in the browser SES sandbox
-const BC_PRELUDE = `const __name = (target, value) => target;
+// Stronger polyfill for __name helper that survives different scopes and SES sandbox
+// This prevents "__name is not a function" errors in the browser
+const BC_PRELUDE = `
+const __name = globalThis.__name || ((target, value) => target);
+globalThis.__name = __name;
 `
 
 export async function deployQuizContracts(computer: Computer): Promise<{

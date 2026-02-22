@@ -4,7 +4,7 @@
 
 'use client'
 
-import type { AccessClient } from '@quiz-app/sdk'
+import type { HelperAccessClient } from '@/services/bc'
 
 export interface QuizAccess {
   _id: string
@@ -18,9 +18,9 @@ export interface QuizAccess {
  * Purchase quiz access
  */
 export async function purchaseAccess(
-  accessClient: AccessClient,
+  accessClient: HelperAccessClient,
   quizId: string,
-  price: number
+  price: bigint
 ): Promise<QuizAccess> {
   const access = await accessClient.purchase(quizId, price)
   return access
@@ -30,13 +30,12 @@ export async function purchaseAccess(
  * Check if student has access to quiz
  */
 export async function hasAccess(
-  accessClient: AccessClient,
+  accessClient: HelperAccessClient,
   studentId: string,
   quizId: string
 ): Promise<boolean> {
   try {
-    const access = await accessClient.checkAccess(studentId, quizId)
-    return !!access
+    return await accessClient.checkAccess(studentId, quizId)
   } catch (error) {
     return false
   }
@@ -46,7 +45,7 @@ export async function hasAccess(
  * Get all access for a student
  */
 export async function getStudentAccess(
-  accessClient: AccessClient,
+  accessClient: HelperAccessClient,
   studentId: string
 ): Promise<QuizAccess[]> {
   try {

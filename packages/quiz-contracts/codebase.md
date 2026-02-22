@@ -405,6 +405,11 @@ import { Payment, Withdraw } from '../src/payment.js'
 import { QuizAccess } from '../src/quiz-access.js'
 import { QuizAccessSale } from '../src/quiz-access-sale.js'
 
+// Polyfill for __name helper that some bundlers inject
+// This prevents "__name is not a function" errors in the browser SES sandbox
+const BC_PRELUDE = `const __name = (target, value) => target;
+`
+
 export async function deployQuizContracts(computer: Computer): Promise<{
   teacherMod: string
   studentMod: string
@@ -414,14 +419,14 @@ export async function deployQuizContracts(computer: Computer): Promise<{
   quizAccessMod: string
   quizAccessSaleMod: string
 }> {
-  // Deploy all contracts at once
-  const teacherMod = await computer.deploy(`export ${Teacher}`)
-  const studentMod = await computer.deploy(`export ${Student}`)
-  const quizMod = await computer.deploy(`export ${Quiz}`)
-  const attemptMod = await computer.deploy(`export ${QuizAttempt}`)
-  const paymentMod = await computer.deploy(`export ${Payment}; export ${Withdraw}`)
-  const quizAccessMod = await computer.deploy(`export ${QuizAccess}`)
-  const quizAccessSaleMod = await computer.deploy(`export ${QuizAccessSale}`)
+  // Deploy all contracts with __name polyfill to prevent SES errors
+  const teacherMod = await computer.deploy(`${BC_PRELUDE}export ${Teacher}`)
+  const studentMod = await computer.deploy(`${BC_PRELUDE}export ${Student}`)
+  const quizMod = await computer.deploy(`${BC_PRELUDE}export ${Quiz}`)
+  const attemptMod = await computer.deploy(`${BC_PRELUDE}export ${QuizAttempt}`)
+  const paymentMod = await computer.deploy(`${BC_PRELUDE}export ${Payment}; export ${Withdraw}`)
+  const quizAccessMod = await computer.deploy(`${BC_PRELUDE}export ${QuizAccess}`)
+  const quizAccessSaleMod = await computer.deploy(`${BC_PRELUDE}export ${QuizAccessSale}`)
 
   return {
     teacherMod,
@@ -516,12 +521,15 @@ import { QuizAccess } from '../quiz-access.js'
 
 export class AttemptHelper {
   computer: Computer
-  constructor(computer: Computer) {
+  quizAttemptMod?: string
+
+  constructor(computer: Computer, quizAttemptMod?: string) {
     this.computer = computer
+    this.quizAttemptMod = quizAttemptMod
   }
 
   async createAttempt(quizId: string, studentPublicKey: string): Promise<QuizAttempt> {
-    return await this.computer.new(QuizAttempt, [quizId, studentPublicKey]) as QuizAttempt
+    return await this.computer.new(QuizAttempt, [quizId, studentPublicKey], this.quizAttemptMod) as QuizAttempt
   }
 
   async getAttempt(attemptId: string): Promise<QuizAttempt> {
@@ -1083,7 +1091,7 @@ import { Computer } from '@bitcoin-computer/lib'
 
 /**
  * QuizHelper - Utility class for Quiz contract operations
- * 
+ *
  * Current Architecture:
  * - 1 Quiz = 1 Question with exactly 4 options
  * - 1 Quiz = 1 Payment object (created by TeacherHelper)
@@ -1093,9 +1101,11 @@ import { Computer } from '@bitcoin-computer/lib'
  */
 export class QuizHelper {
   computer: Computer
+  quizMod?: string
 
-  constructor(computer: Computer) {
+  constructor(computer: Computer, quizMod?: string) {
     this.computer = computer
+    this.quizMod = quizMod
   }
 
   /**
@@ -1216,16 +1226,16 @@ export class QuizHelper {
     // Query for Quiz objects owned by the teacher using the deployed module spec
     const revs = await this.computer.query({
       publicKey: teacherPublicKey,
-      mod: process.env.NEXT_PUBLIC_QUIZ_MOD
+      mod: this.quizMod || process.env.NEXT_PUBLIC_QUIZ_MOD
     })
-    
+
     const quizzes = await Promise.all(
       revs.map(async (rev: string) => {
         const quiz = await this.computer.sync(rev)
         return quiz
       })
     )
-    
+
     return quizzes
   }
 }
@@ -1240,19 +1250,24 @@ import { Quiz } from '../quiz.js'
 import { QuizAttempt } from '../attempt.js'
 import { PaymentHelper } from './payment-helper.js'
 import { QuizAccess } from '../quiz-access.js'
+
 export class StudentHelper {
   computer: Computer
   paymentHelper: PaymentHelper
   funderComputer?: Computer // Optional reward pool funder
+  studentMod?: string
+  quizAttemptMod?: string
 
-  constructor(computer: Computer, funderComputer?: Computer) {
+  constructor(computer: Computer, funderComputer?: Computer, studentMod?: string, quizAttemptMod?: string) {
     this.computer = computer
     this.paymentHelper = new PaymentHelper(computer)
     this.funderComputer = funderComputer
+    this.studentMod = studentMod
+    this.quizAttemptMod = quizAttemptMod
   }
 
   async createStudent(name: string, publicKey: string): Promise<Student> {
-    const student = await this.computer.new(Student, [name, publicKey])
+    const student = await this.computer.new(Student, [name, publicKey], this.studentMod)
     // Add longer delay to avoid mempool conflicts
     await new Promise(resolve => setTimeout(resolve, 2500))
     return student
@@ -1429,13 +1444,19 @@ import { Quiz } from '../quiz.js'
 import { Payment } from '../payment.js'
 import { PaymentHelper } from './payment-helper.js'
 
+
+
 export class TeacherHelper {
   computer: Computer
   paymentHelper: PaymentHelper
+  teacherMod?: string
+  quizMod?: string
 
-  constructor(computer: Computer) {
+  constructor(computer: Computer, teacherMod?: string, quizMod?: string) {
     this.computer = computer
     this.paymentHelper = new PaymentHelper(computer)
+    this.teacherMod = teacherMod 
+    this.quizMod = quizMod
   }
 
   async createTeacher(name: string, publicKey: string): Promise<Teacher> {
@@ -1478,7 +1499,7 @@ export class TeacherHelper {
         teacherPublicKey: teacherPubKey,
         paymentTxId: params.paymentTxId,
       },
-    ], process.env.NEXT_PUBLIC_QUIZ_MOD)
+    ], this.quizMod || process.env.NEXT_PUBLIC_QUIZ_MOD)
 
     await new Promise((r) => setTimeout(r, 3000))
 
@@ -1513,7 +1534,7 @@ export class TeacherHelper {
       entryFee: params.entryFee,
       teacherPublicKey: await params.teacher.publicKey,
       paymentTxId
-    }], process.env.NEXT_PUBLIC_QUIZ_MOD)
+    }], this.quizMod || process.env.NEXT_PUBLIC_QUIZ_MOD)
 
     return { quiz, paymentTxId }
   }
@@ -1528,20 +1549,20 @@ export class TeacherHelper {
   async getQuizzesByTeacher(teacherId: string): Promise<any[]> {
     const teacher = await this.getTeacher(teacherId)
     const teacherPubKey = await teacher.publicKey
-    
+
     // Get all Quiz objects owned by this teacher using the deployed module spec
     const revs = await this.computer.query({
       publicKey: teacherPubKey,
-      mod: process.env.NEXT_PUBLIC_QUIZ_MOD
+      mod: this.quizMod || process.env.NEXT_PUBLIC_QUIZ_MOD
     })
-    
+
     const quizzes = await Promise.all(
       revs.map(async (rev: string) => {
         const quiz = await this.computer.sync(rev)
         return quiz
       })
     )
-    
+
     return quizzes
   }
 }
@@ -1572,6 +1593,9 @@ export { AttemptHelper } from './helpers/attempt-helper.js'
 export { QuizHelper } from './helpers/quiz-helper.js'
 export { QuizAccessHelper } from './helpers/quiz-access-helper.js'
 export { LeaderboardHelper } from './helpers/leaderboard-helper.js'
+
+// utils
+export { BlockchainUtils, createBlockchainUtils } from './utils/blockchain-utils.js'
 ```
 
 # src\modSpecs.ts
@@ -2173,6 +2197,166 @@ export class Teacher extends Contract {
     return this.createdQuizzes.length
   }
 }
+```
+
+# src\utils\blockchain-utils.ts
+
+```ts
+import { Computer } from '@bitcoin-computer/lib'
+
+/**
+ * Utility class for common blockchain operations
+ * Provides sync, mining, and waiting utilities used across tests and helpers
+ */
+export class BlockchainUtils {
+  private computer: Computer
+  private url: string
+  private chain: string
+  private network: string
+
+  constructor(computer: Computer) {
+    this.computer = computer
+    // Extract connection details from computer config
+    this.url = (computer as any).config?.url || process.env.BCN_URL || 'http://localhost:1031'
+    this.chain = (computer as any).config?.chain || process.env.BCN_CHAIN || 'LTC'
+    this.network = (computer as any).config?.network || process.env.BCN_NETWORK || 'regtest'
+  }
+
+  /**
+   * Sleep for specified milliseconds
+   */
+  static async sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
+  /**
+   * Mine blocks on regtest network
+   */
+  async mineBlocks(blocks: number = 1): Promise<void> {
+    if (this.network !== 'regtest') {
+      console.warn('mineBlocks only works on regtest network')
+      return
+    }
+
+    try {
+      const response = await fetch(`${this.url}/v1/${this.chain}/${this.network}/mine`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blocks }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to mine blocks: ${response.statusText}`)
+      }
+
+      // Wait for blocks to be processed
+      await BlockchainUtils.sleep(1000)
+    } catch (error) {
+      console.error('Error mining blocks:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Sync with latest state, mining if necessary
+   * Tries to sync, and if it fails, mines a block and retries
+   */
+  async syncOrMine<T>(id: string, maxRetries: number = 3): Promise<T> {
+    let lastError: Error | undefined
+
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        return (await this.computer.sync(id)) as unknown as T
+      } catch (error) {
+        lastError = error as Error
+
+        // If sync fails and we're on regtest, mine a block and retry
+        if (this.network === 'regtest' && i < maxRetries - 1) {
+          await this.mineBlocks(1)
+          await BlockchainUtils.sleep(500)
+        }
+      }
+    }
+
+    throw lastError || new Error(`Failed to sync ${id} after ${maxRetries} retries`)
+  }
+
+  /**
+   * Wait for transaction to be confirmed
+   */
+  async waitForConfirmation(txId: string, timeoutMs: number = 30000): Promise<void> {
+    const startTime = Date.now()
+
+    while (Date.now() - startTime < timeoutMs) {
+      try {
+        const tx = await this.computer.sync(txId)
+        if (tx) return
+      } catch {
+        // Transaction not yet available
+      }
+
+      await BlockchainUtils.sleep(1000)
+    }
+
+    throw new Error(`Transaction ${txId} not confirmed within ${timeoutMs}ms`)
+  }
+
+  /**
+   * Get latest revision for an ID
+   */
+  async getLatestRev(id: string): Promise<string> {
+    try {
+      return await this.computer.getLatestRev(id)
+    } catch {
+      // If getLatestRev fails, return the ID itself
+      return id
+    }
+  }
+
+  /**
+   * Sync to latest revision
+   */
+  async syncLatest<T>(id: string): Promise<T> {
+    const rev = await this.getLatestRev(id)
+    return (await this.computer.sync(rev)) as unknown as T
+  }
+
+  /**
+   * Fund wallet on regtest
+   */
+  async fundWallet(amount: number): Promise<{ txId: string; vout: number }> {
+    if (this.network !== 'regtest') {
+      throw new Error('faucet only works on regtest network')
+    }
+
+    return await this.computer.faucet(amount)
+  }
+
+  /**
+   * Get balance with retry logic
+   */
+  async getBalance(address?: string): Promise<{ balance: bigint; confirmed: bigint; unconfirmed: bigint }> {
+    try {
+      return await this.computer.getBalance(address)
+    } catch (error) {
+      // If balance query fails, try mining a block and retrying
+      if (this.network === 'regtest') {
+        await this.mineBlocks(1)
+        await BlockchainUtils.sleep(500)
+        return await this.computer.getBalance(address)
+      }
+      throw error
+    }
+  }
+}
+
+/**
+ * Helper function to create BlockchainUtils instance
+ */
+export function createBlockchainUtils(computer: Computer): BlockchainUtils {
+  return new BlockchainUtils(computer)
+}
+
 ```
 
 # src\utils\index.ts

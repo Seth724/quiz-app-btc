@@ -20,7 +20,7 @@ export default function StudentPage() {
     const fetchQuizzes = async () => {
       try {
         setLoading(true)
-        const data = await getAllQuizzes(10)
+        const data = await getAllQuizzes()
         setQuizzes(data as Quiz[])
       } catch (error) {
         console.error('Failed to fetch quizzes:', error)

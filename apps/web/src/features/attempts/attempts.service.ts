@@ -5,7 +5,7 @@
 
 'use client'
 
-import type { AttemptClient } from '@quiz-app/sdk'
+import type { HelperAttemptClient } from '@/services/bc'
 import { apiClient } from '@/services'
 
 export interface Attempt {
@@ -34,10 +34,10 @@ export interface SubmitAttemptParams {
  * 3. If correct → Payment transferred to student
  */
 export async function submitAttempt(
-  attemptClient: AttemptClient,
+  attemptClient: HelperAttemptClient,
   params: SubmitAttemptParams
 ): Promise<Attempt> {
-  const attempt = await attemptClient.submit(
+  const attempt = await attemptClient.submitAttempt(
     params.quizId,
     params.selectedAnswer,
     params.accessTokenId
@@ -53,25 +53,25 @@ export async function submitAttempt(
       selectedAnswer: attempt.selectedAnswer,
       isCorrect: attempt.isCorrect,
       rewardEarned: attempt.rewardEarned.toString(),
-      attemptedAt: attempt.attemptedAt,
+      attemptedAt: attempt.submittedAt,
     })
   } catch (error) {
     console.error('Failed to sync attempt with backend:', error)
   }
 
-  return attempt as Attempt
+  return attempt as unknown as Attempt
 }
 
 /**
  * Get attempt by ID
  */
 export async function getAttempt(
-  attemptClient: AttemptClient,
+  attemptClient: HelperAttemptClient,
   attemptId: string
 ): Promise<Attempt | null> {
   try {
-    const attempt = await attemptClient.get(attemptId)
-    return attempt
+    const attempt = await attemptClient.getAttempt(attemptId)
+    return attempt as unknown as Attempt
   } catch (error) {
     console.error('Failed to get attempt:', error)
     return null
@@ -82,13 +82,13 @@ export async function getAttempt(
  * Get all attempts by student
  */
 export async function getStudentAttempts(
-  attemptClient: AttemptClient,
+  attemptClient: HelperAttemptClient,
   studentPublicKey: string,
   quizId?: string
 ): Promise<Attempt[]> {
   try {
-    const attempts = await attemptClient.listByStudent(studentPublicKey, quizId)
-    return attempts as Attempt[]
+    const attempts = await attemptClient.getStudentAttempts(studentPublicKey, quizId)
+    return attempts.map((a: any) => a as unknown as Attempt)
   } catch (error) {
     console.error('Failed to get attempts:', error)
     return []
@@ -99,7 +99,7 @@ export async function getStudentAttempts(
  * Check if student has attempted quiz
  */
 export async function hasAttempted(
-  attemptClient: AttemptClient,
+  attemptClient: HelperAttemptClient,
   studentPublicKey: string,
   quizId: string
 ): Promise<boolean> {

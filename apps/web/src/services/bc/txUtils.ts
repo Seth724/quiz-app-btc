@@ -115,7 +115,8 @@ export async function encodeBroadcastWithRetry(
 
       // give BCN a moment to update UTXO view / mempool index
       if (waitForEffectSync) {
-        const id = encoded?.effect?.res?._id
+        const res = encoded?.effect?.res
+        const id = res && typeof res === 'object' && '_id' in res ? (res as any)._id : undefined
         if (typeof id === 'string' && id.length > 10) {
           try {
             await waitForSync(computer, id, { timeoutMs: 12_000, intervalMs: 250 })

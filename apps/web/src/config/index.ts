@@ -1,2 +1,13 @@
 export * from './env'
-export * from './constants'
+export {
+  DEFAULT_WALLET_PATH,
+  TRUNCATE_PUBLIC_KEY_CHARS,
+  TRUNCATE_TX_ID_CHARS,
+  MIN_QUIZ_OPTIONS,
+  MAX_QUIZ_OPTIONS,
+  QUIZ_TITLE_MAX_LENGTH,
+  QUIZ_QUESTION_MAX_LENGTH,
+  SYNC_DELAY_MS,
+  POLL_INTERVAL_MS,
+  STORAGE_KEYS
+} from './constants'

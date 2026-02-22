@@ -1,8 +1,8 @@
-import { Computer } from '@bitcoin-computer/lib'
+import type { Computer } from '@bitcoin-computer/lib'
 
 /**
  * QuizHelper - Utility class for Quiz contract operations
- * 
+ *
  * Current Architecture:
  * - 1 Quiz = 1 Question with exactly 4 options
  * - 1 Quiz = 1 Payment object (created by TeacherHelper)
@@ -12,9 +12,11 @@ import { Computer } from '@bitcoin-computer/lib'
  */
 export class QuizHelper {
   computer: Computer
+  quizMod: string
 
-  constructor(computer: Computer) {
+  constructor(computer: Computer, quizMod: string) {
     this.computer = computer
+    this.quizMod = quizMod
   }
 
   /**
@@ -105,7 +107,7 @@ export class QuizHelper {
       claimedBy: quiz.claimedBy,
       attemptCount: (quiz.attemptedStudents || []).length,
       attemptedStudents: quiz.attemptedStudents || [],
-      paymentTxId: quiz.paymentTxId
+      paymentTxId: quiz.paymentTxId,
     }
   }
 
@@ -117,8 +119,7 @@ export class QuizHelper {
     if (quiz.deactivate) {
       await quiz.deactivate()
     }
-    // Add delay to avoid mempool conflicts
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    await new Promise((resolve) => setTimeout(resolve, 2000))
   }
 
   /**
@@ -132,19 +133,16 @@ export class QuizHelper {
    * Get quizzes by teacher public key
    */
   async getQuizzesByTeacher(teacherPublicKey: string): Promise<any[]> {
-    // Query for Quiz objects owned by the teacher using the deployed module spec
     const revs = await this.computer.query({
       publicKey: teacherPublicKey,
-      mod: process.env.NEXT_PUBLIC_QUIZ_MOD
+      mod: this.quizMod,
     })
-    
-    const quizzes = await Promise.all(
-      revs.map(async (rev: string) => {
-        const quiz = await this.computer.sync(rev)
-        return quiz
-      })
-    )
-    
+
+    const quizzes = await Promise.all(revs.map(async (rev) => {
+      const quiz = await this.computer.sync(rev)
+      return quiz
+    }))
+
     return quizzes
   }
 }

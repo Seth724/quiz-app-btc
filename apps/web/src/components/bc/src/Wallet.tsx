@@ -145,7 +145,7 @@ const Balance = ({
   modSpecs: string[]
   isOpen: boolean
 }) => {
-  const [balance, setBalance] = useState<bigint>(0n)
+  const [balance, setBalance] = useState<bigint>(BigInt(0))
   const [paymentsWrapper, setPaymentsWrapper] = useState<any[]>([])
   const { showSnackBar } = UtilsContext.useUtilsComponents()
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -164,11 +164,11 @@ const Balance = ({
           allPayments.push(...payments)
           const minDust = BigInt(computer.db.wallet.getDustThreshold(false, Buffer.from('')))
           return payments && payments.length
-            ? payments.reduce((total, pay) => total + (pay._satoshis - minDust), 0n)
-            : 0n
+            ? payments.reduce((total, pay) => total + (pay._satoshis - minDust), BigInt(0))
+            : BigInt(0)
         }),
       )
-      const amountsInPayments: bigint = balances.reduce((acc, curr) => acc + curr, 0n)
+      const amountsInPayments: bigint = balances.reduce((acc, curr) => acc + curr, BigInt(0))
       const walletBalance = await computer.getBalance()
 
       setBalance(walletBalance.balance + amountsInPayments)

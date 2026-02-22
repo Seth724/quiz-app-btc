@@ -78,7 +78,7 @@
 // src/app/common-components/ClientProvider.tsx
 "use client";
 
-import React, { useEffect, useRef, useState, startTransition } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Computer } from "@bitcoin-computer/lib";
 import { ComputerContext } from "./ComputerContext";
 import { getComputer } from "./Auth";
@@ -86,17 +86,26 @@ import { getComputer } from "./Auth";
 export function ClientProviders({ children }: { children: React.ReactNode }) {
   const [computer, setComputer] = useState<Computer | null>(null);
   const computerRef = useRef<Computer | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     // Avoid double init during dev / fast refresh
-    if (computerRef.current) return;
+    if (computerRef.current || isInitialized) return;
 
+    // SES lockdown already initialized in layout.tsx
+    // Create Computer instance
     const c = getComputer();
     computerRef.current = c;
-
-    // Avoid "setState synchronously within an effect" warning in newer React/Next overlays
-    startTransition(() => setComputer(c));
-  }, []);
+    
+    // Mark as initialized before setting state
+    setIsInitialized(true);
+    setComputer(c);
+    
+    // Cleanup function to prevent state updates on unmounted component
+    return () => {
+      computerRef.current = null;
+    };
+  }, [isInitialized]);
 
   if (!computer) return null;
 

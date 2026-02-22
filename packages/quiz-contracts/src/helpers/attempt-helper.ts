@@ -1,30 +1,32 @@
-import { Computer } from '@bitcoin-computer/lib'
-import { QuizAttempt } from '../attempt.js'
-import { Quiz } from '../quiz.js'
-import { QuizAccess } from '../quiz-access.js'
+import type { Computer } from '@bitcoin-computer/lib'
+import { loadExportedClass } from './contract-loader.js'
 
 export class AttemptHelper {
   computer: Computer
-  constructor(computer: Computer) {
+  quizAttemptMod: string
+
+  constructor(computer: Computer, quizAttemptMod: string) {
     this.computer = computer
+    this.quizAttemptMod = quizAttemptMod
   }
 
-  async createAttempt(quizId: string, studentPublicKey: string): Promise<QuizAttempt> {
-    return await this.computer.new(QuizAttempt, [quizId, studentPublicKey]) as QuizAttempt
+  async createAttempt(quizId: string, studentPublicKey: string): Promise<any> {
+    const QuizAttempt = await loadExportedClass<any>(this.computer, this.quizAttemptMod, 'QuizAttempt')
+    return await this.computer.new(QuizAttempt, [quizId, studentPublicKey])
   }
 
-  async getAttempt(attemptId: string): Promise<QuizAttempt> {
-    return (await this.computer.sync(attemptId)) as QuizAttempt
+  async getAttempt(attemptId: string): Promise<any> {
+    return await this.computer.sync(attemptId)
   }
 
   /**
    * New: Submit answer with access token enforcement.
    */
   async submitAnswerWithAccess(
-    attempt: QuizAttempt,
-    access: QuizAccess,
+    attempt: any,
+    access: any,
     selectedAnswer: number,
-    quiz: Quiz,
+    quiz: any
   ): Promise<{ isCorrect: boolean; rewardEarned: bigint; selectedAnswer: number }> {
     await attempt.submitAnswer(access, selectedAnswer, await quiz.correctAnswer, await quiz.rewardAmount)
 

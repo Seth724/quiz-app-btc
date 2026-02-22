@@ -1,18 +1,17 @@
 /**
- * Contracts Service - Manages Computer instance and SDK clients
+ * Contracts Service - Manages Computer instance and Helper clients
  */
 
 import { Computer } from '@bitcoin-computer/lib'
-import {
-  TeacherClient,
-  StudentClient,
-  QuizClient,
-  AccessClient,
-  PaymentClient,
-  AttemptClient
-} from '@quiz-app/sdk'
 import { MODULE_SPECS } from '@/config'
 import { createComputerFromStorage } from '../sdk.factory'
+import {
+  HelperTeacherClient,
+  HelperStudentClient,
+  HelperQuizClient,
+  HelperAccessClient,
+  HelperAttemptClient,
+} from '@/services/bc'
 
 /**
  * Get Computer instance from storage (same as wallet)
@@ -36,32 +35,26 @@ export function resetComputer(): void {
 }
 
 /**
- * Get SDK clients
+ * Get Helper clients
  */
-export function getTeacherClient(computer?: Computer): TeacherClient {
-  return new TeacherClient(computer || getComputer())
+export function getTeacherClient(computer?: Computer): HelperTeacherClient {
+  return new HelperTeacherClient(computer || getComputer())
 }
 
-export function getStudentClient(computer?: Computer): StudentClient {
-  return new StudentClient(computer || getComputer())
+export function getStudentClient(computer?: Computer): HelperStudentClient {
+  return new HelperStudentClient(computer || getComputer())
 }
 
-export function getQuizClient(computer?: Computer): QuizClient {
-  return new QuizClient(computer || getComputer())
+export function getQuizClient(computer?: Computer): HelperQuizClient {
+  return new HelperQuizClient(computer || getComputer())
 }
 
-export function getAccessClient(computer?: Computer): AccessClient {
-  const comp = computer || getComputer()
-  return new AccessClient(comp, MODULE_SPECS.quizAccessMod, MODULE_SPECS.quizAccessSaleMod)
+export function getAccessClient(computer?: Computer): HelperAccessClient {
+  return new HelperAccessClient(computer || getComputer())
 }
 
-export function getPaymentClient(computer?: Computer): PaymentClient {
-  const comp = computer || getComputer()
-  return new PaymentClient(comp, MODULE_SPECS.paymentMod)
-}
-
-export function getAttemptClient(computer?: Computer): AttemptClient {
-  return new AttemptClient(computer || getComputer())
+export function getAttemptClient(computer?: Computer): HelperAttemptClient {
+  return new HelperAttemptClient(computer || getComputer())
 }
 
 /**
@@ -74,7 +67,6 @@ export function getAllClients(computer?: Computer) {
     student: getStudentClient(comp),
     quiz: getQuizClient(comp),
     access: getAccessClient(comp),
-    payment: getPaymentClient(comp),
     attempt: getAttemptClient(comp)
   }
 }

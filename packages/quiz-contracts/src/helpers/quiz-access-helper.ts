@@ -1,9 +1,9 @@
-import { Computer } from '@bitcoin-computer/lib'
-import { QuizAccess } from '../quiz-access.js'
+import type { Computer } from '@bitcoin-computer/lib'
+import { loadExportedClass } from './contract-loader.js'
 
 export interface IQuizAccess {
   deploy(): Promise<string>
-  mint(publicKey: string, quizId: string, amount: bigint, symbol: string): Promise<QuizAccess>
+  mint(publicKey: string, quizId: string, amount: bigint, symbol: string): Promise<any>
   balanceOf(publicKey: string, quizId: string): Promise<bigint>
   transfer(to: string, amount: bigint, quizId: string): Promise<void>
 }
@@ -16,37 +16,36 @@ type MaybeQuizAccess = {
 
 export class QuizAccessHelper implements IQuizAccess {
   computer: Computer
-  mod?: string
+  quizAccessMod: string
 
-  constructor(computer: Computer, mod?: string) {
+  constructor(computer: Computer, quizAccessMod: string) {
     this.computer = computer
-    this.mod = mod
+    this.quizAccessMod = quizAccessMod
   }
 
   async deploy(): Promise<string> {
-    this.mod = await this.computer.deploy(`export ${QuizAccess}`)
-    return this.mod
+    const QuizAccess = await loadExportedClass<any>(this.computer, this.quizAccessMod, 'QuizAccess')
+    const mod = await this.computer.deploy(`export ${QuizAccess}`)
+    return mod
   }
 
-  async mint(publicKey: string, quizId: string, amount: bigint = 1n, symbol: string = 'QACC'): Promise<QuizAccess> {
-    if (!this.mod) throw new Error('QuizAccessHelper not deployed')
-    const token = await this.computer.new(QuizAccess, [publicKey, quizId, amount, symbol], this.mod)
-    return token as unknown as QuizAccess
+  async mint(publicKey: string, quizId: string, amount: bigint = 1n, symbol: string = 'QACC'): Promise<any> {
+    const QuizAccess = await loadExportedClass<any>(this.computer, this.quizAccessMod, 'QuizAccess')
+    const token = await this.computer.new(QuizAccess, [publicKey, quizId, amount, symbol])
+    return token
   }
 
-  async createQuizAccess(quizId: string, amount: bigint = 1n): Promise<QuizAccess> {
+  async createQuizAccess(quizId: string, amount: bigint = 1n): Promise<any> {
     return this.mint(this.computer.getPublicKey(), quizId, amount, 'QACC')
   }
 
-  private isQuizAccess(x: unknown): x is QuizAccess {
+  private isQuizAccess(x: unknown): x is any {
     if (!x || typeof x !== 'object') return false
     const o = x as MaybeQuizAccess
     return typeof o.quizId === 'string' && typeof o.amount === 'bigint' && Array.isArray(o._owners)
   }
 
-  private async getBags(publicKey: string, quizId: string): Promise<QuizAccess[]> {
-    // With getUtxos() we can only see this Computer's wallet UTXOs.
-    // So enforce that caller matches this wallet.
+  private async getBags(publicKey: string, quizId: string): Promise<any[]> {
     if (publicKey !== this.computer.getPublicKey()) {
       throw new Error('balanceOf/transfer require a QuizAccessHelper created with the same wallet as publicKey')
     }
@@ -54,13 +53,13 @@ export class QuizAccessHelper implements IQuizAccess {
     const revs: string[] = await this.computer.getUtxos()
     const objs: unknown[] = await Promise.all(revs.map(async (rev: string) => this.computer.sync(rev)))
 
-    const bags = objs.filter((obj: unknown) => this.isQuizAccess(obj) && obj.quizId === quizId) as QuizAccess[]
+    const bags = objs.filter((obj: unknown) => this.isQuizAccess(obj) && (obj as any).quizId === quizId) as any[]
     return bags
   }
 
   async balanceOf(publicKey: string, quizId: string): Promise<bigint> {
     const bags = await this.getBags(publicKey, quizId)
-    return bags.reduce((sum: bigint, bag: QuizAccess) => sum + bag.amount, 0n)
+    return bags.reduce((sum: bigint, bag: any) => sum + bag.amount, 0n)
   }
 
   async transfer(to: string, amount: bigint, quizId: string): Promise<void> {

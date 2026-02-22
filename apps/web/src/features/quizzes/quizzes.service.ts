@@ -7,7 +7,7 @@
 
 import type { QuizData } from '@quiz-app/shared'
 import { apiClient } from '@/services'
-import { BrowserTeacherClient, BrowserQuizClient } from '@/services/bc'
+import { HelperTeacherClient, HelperQuizClient } from '@/services/bc'
 
 export interface Quiz {
   _id: string
@@ -44,7 +44,7 @@ export interface CreateQuizParams {
  * 2. Create Quiz with payment reference
  */
 export async function createQuiz(
-  teacherClient: BrowserTeacherClient,
+  teacherClient: HelperTeacherClient,
   params: CreateQuizParams
 ): Promise<Quiz> {
   // Validate
@@ -86,7 +86,7 @@ export async function createQuiz(
  * Get quiz by ID
  */
 export async function getQuiz(
-  quizClient: BrowserQuizClient,
+  quizClient: HelperQuizClient,
   quizId: string
 ): Promise<Quiz | null> {
   try {
@@ -102,7 +102,7 @@ export async function getQuiz(
  * List quizzes by teacher
  */
 // export async function listQuizzesByTeacher(
-//   teacherClient: BrowserTeacherClient, // TeacherClient instance
+//   teacherClient: HelperTeacherClient, // TeacherClient instance
 //   teacherId: string
 // ): Promise<Quiz[]> {
 //   try {
@@ -117,7 +117,7 @@ export async function getQuiz(
 
 
 export async function listQuizzesByTeacher(
-  quizClient: BrowserQuizClient,
+  quizClient: HelperQuizClient,
   teacherPublicKey: string
 ): Promise<Quiz[]> {
   try {
@@ -135,7 +135,7 @@ export async function listQuizzesByTeacher(
  * Deactivate quiz (prevent further attempts)
  */
 export async function deactivateQuiz(
-  quizClient: BrowserQuizClient,
+  quizClient: HelperQuizClient,
   quizId: string
 ): Promise<void> {
   try {
@@ -150,7 +150,7 @@ export async function deactivateQuiz(
  * Check if student can attempt quiz
  */
 export async function canAttemptQuiz(
-  quizClient: BrowserQuizClient,
+  quizClient: HelperQuizClient,
   quizId: string,
   studentPublicKey: string
 ): Promise<boolean> {
@@ -167,11 +167,10 @@ export async function canAttemptQuiz(
  */
 export async function getAllQuizzes(): Promise<Quiz[]> {
   try {
-    // For now use the BrowserQuizClient directly
-    // In the future, this could also query API/database for cached results
+    // Use the helper-based quiz client
     const { createQuizClient } = await import('@/hooks/useClients')
     const quizClient = createQuizClient()
-    
+
     if (!quizClient) {
       console.error('Quiz client not available')
       return []

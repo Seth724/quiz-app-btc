@@ -1,34 +1,46 @@
-import { Computer } from '@bitcoin-computer/lib'
-import { Teacher } from '../teacher.js'
-import { Quiz } from '../quiz.js'
-import { Payment } from '../payment.js'
+import type { Computer } from '@bitcoin-computer/lib'
 import { PaymentHelper } from './payment-helper.js'
+import { loadExportedClass } from './contract-loader.js'
 
 export class TeacherHelper {
   computer: Computer
   paymentHelper: PaymentHelper
+  teacherMod: string
+  quizMod: string
+  paymentMod: string
 
-  constructor(computer: Computer) {
+  constructor(computer: Computer, teacherMod: string, quizMod: string, paymentMod: string) {
     this.computer = computer
-    this.paymentHelper = new PaymentHelper(computer)
+    this.teacherMod = teacherMod
+    this.quizMod = quizMod
+    this.paymentMod = paymentMod
+    this.paymentHelper = new PaymentHelper(computer, paymentMod)
   }
 
-  async createTeacher(name: string, publicKey: string): Promise<Teacher> {
-    const teacher = (await this.computer.new(Teacher, [name, publicKey])) as unknown as Teacher
+  /**
+   * ✅ IMPORTANT: Get teacher by public key using query
+   */
+  async getTeacherByPublicKey(publicKey: string): Promise<any | null> {
+    const ids = await this.computer.query({ mod: this.teacherMod, publicKey })
+    if (!ids.length) return null
+    return await this.computer.sync(ids[0])
+  }
+
+  async createTeacher(name: string, publicKey: string): Promise<any> {
+    const Teacher = await loadExportedClass<any>(this.computer, this.teacherMod, 'Teacher')
+    const teacher = await this.computer.new(Teacher, [name, publicKey])
     await new Promise((r) => setTimeout(r, 3000))
     return teacher
   }
 
-  async getTeacher(teacherId: string): Promise<Teacher> {
-    return (await this.computer.sync(teacherId)) as unknown as Teacher
+  async getTeacher(teacherId: string): Promise<any> {
+    return await this.computer.sync(teacherId)
   }
 
-  // 1) create reward payment only
-  async createRewardPayment(rewardAmount: bigint): Promise<Payment> {
+  async createRewardPayment(rewardAmount: bigint): Promise<any> {
     return await this.paymentHelper.createPayment(rewardAmount)
   }
 
-  // 2) create quiz only (must pass paymentTxId you created above)
   async createQuizOnly(params: {
     title: string
     questionText: string
@@ -36,10 +48,15 @@ export class TeacherHelper {
     correctAnswer: number
     rewardAmount: bigint
     entryFee: bigint
-    teacher: Teacher
+    teacher: any
     paymentTxId: string
   }): Promise<any> {
-    Teacher.validateQuizParams(params.questionText, params.options, params.correctAnswer, params.rewardAmount)
+    const Teacher = await loadExportedClass<any>(this.computer, this.teacherMod, 'Teacher')
+    const Quiz = await loadExportedClass<any>(this.computer, this.quizMod, 'Quiz')
+
+    if (typeof Teacher?.validateQuizParams === 'function') {
+      Teacher.validateQuizParams(params.questionText, params.options, params.correctAnswer, params.rewardAmount)
+    }
 
     const teacherPubKey = await params.teacher.publicKey
     const quiz = await this.computer.new(Quiz, [
@@ -53,18 +70,19 @@ export class TeacherHelper {
         teacherPublicKey: teacherPubKey,
         paymentTxId: params.paymentTxId,
       },
-    ], process.env.NEXT_PUBLIC_QUIZ_MOD)
+    ])
 
     await new Promise((r) => setTimeout(r, 3000))
 
     const updatedTeacher = await this.getTeacher(await params.teacher._id)
-    await updatedTeacher.addQuiz(await quiz._id)
+    if (typeof updatedTeacher.addQuiz === 'function') {
+      await updatedTeacher.addQuiz(await quiz._id)
+    }
 
     await new Promise((r) => setTimeout(r, 3000))
     return quiz
   }
 
-  // NEW: Combined method to create quiz with payment
   async createQuiz(params: {
     title: string
     questionText: string
@@ -72,23 +90,24 @@ export class TeacherHelper {
     correctAnswer: number
     rewardAmount: bigint
     entryFee: bigint
-    teacher: Teacher
-  }): Promise<{ quiz: Quiz, paymentTxId: string }> {
-    // First create the reward payment
+    teacher: any
+  }): Promise<{ quiz: any; paymentTxId: string }> {
+    const Quiz = await loadExportedClass<any>(this.computer, this.quizMod, 'Quiz')
     const payment = await this.createRewardPayment(params.rewardAmount)
     const paymentTxId = await payment._id
 
-    // Then create the quiz with the payment ID using the deployed module spec
-    const quiz = await this.computer.new(Quiz, [{
-      title: params.title,
-      questionText: params.questionText,
-      options: params.options,
-      correctAnswer: params.correctAnswer,
-      rewardAmount: params.rewardAmount,
-      entryFee: params.entryFee,
-      teacherPublicKey: await params.teacher.publicKey,
-      paymentTxId
-    }], process.env.NEXT_PUBLIC_QUIZ_MOD)
+    const quiz = await this.computer.new(Quiz, [
+      {
+        title: params.title,
+        questionText: params.questionText,
+        options: params.options,
+        correctAnswer: params.correctAnswer,
+        rewardAmount: params.rewardAmount,
+        entryFee: params.entryFee,
+        teacherPublicKey: await params.teacher.publicKey,
+        paymentTxId,
+      },
+    ])
 
     return { quiz, paymentTxId }
   }
@@ -98,25 +117,21 @@ export class TeacherHelper {
   }
 
   /**
-   * Get quizzes created by this teacher
+   * Get quizzes created by teacher public key
    */
+  async getQuizzesByTeacherPublicKey(teacherPublicKey: string): Promise<any[]> {
+    const revs = await this.computer.query({
+      publicKey: teacherPublicKey,
+      mod: this.quizMod,
+    })
+
+    const quizzes = await Promise.all(revs.map((rev) => this.computer.sync(rev)))
+    return quizzes
+  }
+
   async getQuizzesByTeacher(teacherId: string): Promise<any[]> {
     const teacher = await this.getTeacher(teacherId)
     const teacherPubKey = await teacher.publicKey
-    
-    // Get all Quiz objects owned by this teacher using the deployed module spec
-    const revs = await this.computer.query({
-      publicKey: teacherPubKey,
-      mod: process.env.NEXT_PUBLIC_QUIZ_MOD
-    })
-    
-    const quizzes = await Promise.all(
-      revs.map(async (rev: string) => {
-        const quiz = await this.computer.sync(rev)
-        return quiz
-      })
-    )
-    
-    return quizzes
+    return this.getQuizzesByTeacherPublicKey(teacherPubKey)
   }
 }

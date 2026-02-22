@@ -1,6 +1,6 @@
 "use client";
 
-import { SmartObject } from "@/app/common-components";
+import { SmartObject } from "@/common-components";
 
 export default function SmartObjectComponent() {
   return <SmartObject.Component />;

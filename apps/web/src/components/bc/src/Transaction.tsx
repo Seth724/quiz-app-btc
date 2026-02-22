@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useParams } from 'next/navigation'
+import { useLocation } from 'react-router-dom'
 import reactStringReplace from 'react-string-replace'
 import { Transaction as BCTransaction } from '@bitcoin-computer/lib'
 import { Card } from './Card'
@@ -16,7 +17,7 @@ function ExpressionCard({ content, env }: { content: string; env: { [s: string]:
     const replacer = (n: string, ind: number) => (
       <Link
         key={`${rev}|${ind}`}
-        to={`/objects/${rev}`}
+        href={`/objects/${rev}`}
         className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
       >
         {n}
@@ -82,7 +83,7 @@ export function TransactionComponent() {
             <td className="px-6 py-4 break-all">{name}</td>
             <td className="px-6 py-4">
               <Link
-                to={`/objects/${output}`}
+                href={`/objects/${output}`}
                 className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
               >
                 {output}
@@ -137,7 +138,7 @@ export function TransactionComponent() {
             >
               <td className="px-6 py-4 break-all">
                 <Link
-                  to={`/transactions/${input.txid}`}
+                  href={`/transactions/${input.txid}`}
                   className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
                 >
                   {input.txid}
@@ -146,7 +147,7 @@ export function TransactionComponent() {
 
               <td className="px-6 py-4">
                 <Link
-                  to={`/objects/${input.txid}:${input.vout}`}
+                  href={`/objects/${input.txid}:${input.vout}`}
                   className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
                 >
                   #{input.vout}
@@ -188,7 +189,7 @@ export function TransactionComponent() {
             <tr key={output.n} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
               <td className="px-6 py-4 break-all">
                 <Link
-                  to={`/objects/${txn}:${output.n}`}
+                  href={`/objects/${txn}:${output.n}`}
                   className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
                 >
                   #{output.n}

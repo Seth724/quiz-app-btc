@@ -3,7 +3,7 @@
  */
 
 import { Computer } from '@bitcoin-computer/lib'
-import { createComputer } from '@quiz-app/sdk'
+import { createComputer } from '@quiz-app/shared'
 import type { ComputerConfig, Chain, Network } from '@quiz-app/shared'
 
 export interface SDKFactoryConfig {

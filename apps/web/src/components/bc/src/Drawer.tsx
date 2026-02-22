@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type ReactElement } from 'react'
 
 export function ShowDrawer({ text, id }: { text: string; id: string }) {
   return (
@@ -17,7 +17,7 @@ export function DrawerComponent({
   Content,
   id,
 }: {
-  Content: (props: { isOpen: boolean }) => JSX.Element
+  Content: (props: { isOpen: boolean }) => ReactElement
   id: string
 }) {
   const [isOpen, setIsOpen] = useState(false)

@@ -1,12 +1,13 @@
 /**
- * Browser-Safe SDK Factory - Creates clients using mod specs
+ * Browser-Safe SDK Factory - Creates clients using helpers from quiz-contracts
  */
 
 import { Computer } from '@bitcoin-computer/lib'
-import { BrowserQuizClient } from './BrowserQuizClient'
-import { BrowserTeacherClient } from './BrowserTeacherClient'
-import { BrowserAttemptClient } from './BrowserAttemptClient'
-import { BrowserAccessClient } from './BrowserAccessClient'
+import { HelperQuizClient } from './HelperQuizClient'
+import { HelperTeacherClient } from './HelperTeacherClient'
+import { HelperAttemptClient } from './HelperAttemptClient'
+import { HelperAccessClient } from './HelperAccessClient'
+import { HelperStudentClient } from './HelperStudentClient'
 import type { ComputerConfig } from '@quiz-app/shared'
 
 /**
@@ -17,39 +18,50 @@ export function createBrowserComputer(config: ComputerConfig): Computer {
 }
 
 /**
- * Browser-safe client factory
+ * Browser-safe client factory - Helper-based (RECOMMENDED)
+ * Uses helpers from @quiz-app/contracts package
  */
-export class BrowserSDKFactory {
+export class HelperSDKFactory {
   constructor(private computer: Computer) {}
 
-  createQuizClient(): BrowserQuizClient {
-    return new BrowserQuizClient(this.computer)
+  createQuizClient(): HelperQuizClient {
+    return new HelperQuizClient(this.computer)
   }
 
-  createTeacherClient(): BrowserTeacherClient {
-    return new BrowserTeacherClient(this.computer)
+  createTeacherClient(): HelperTeacherClient {
+    return new HelperTeacherClient(this.computer)
   }
 
-  createAttemptClient(): BrowserAttemptClient {
-    return new BrowserAttemptClient(this.computer)
+  createAttemptClient(): HelperAttemptClient {
+    return new HelperAttemptClient(this.computer)
   }
 
-  createAccessClient(): BrowserAccessClient {
-    return new BrowserAccessClient(this.computer)
+  createAccessClient(): HelperAccessClient {
+    return new HelperAccessClient(this.computer)
   }
 
-  // Add other clients as needed
-  // createPaymentClient() ...
+  createStudentClient(): HelperStudentClient {
+    return new HelperStudentClient(this.computer)
+  }
+}
+
+
+
+/**
+ * Create helper-based factory (RECOMMENDED)
+ */
+export function createHelperSDK(computer: Computer): HelperSDKFactory {
+  return new HelperSDKFactory(computer)
 }
 
 /**
- * Create factory from computer instance
+ * Create browser-based factory (DEPRECATED)
  */
-export function createBrowserSDK(computer: Computer): BrowserSDKFactory {
-  return new BrowserSDKFactory(computer)
-}
 
-export * from './BrowserQuizClient'
-export * from './BrowserTeacherClient'
-export * from './BrowserAttemptClient'
-export * from './BrowserAccessClient'
+// Re-export helper-based clients (preferred)
+export * from './HelperQuizClient'
+export * from './HelperTeacherClient'
+export * from './HelperAttemptClient'
+export * from './HelperAccessClient'
+export * from './HelperStudentClient'
+

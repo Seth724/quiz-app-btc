@@ -28,9 +28,9 @@ export class LeaderboardHelper {
   private studentRewards: Map<string, StudentReward> = new Map()
   private quizResults: QuizResult[] = []
 
-  constructor(computer: any) {
+  constructor(computer: any, paymentMod: string) {
     this.computer = computer
-    this.paymentHelper = new PaymentHelper(computer)
+    this.paymentHelper = new PaymentHelper(computer, paymentMod)
   }
 
   // Record a quiz result for leaderboard tracking

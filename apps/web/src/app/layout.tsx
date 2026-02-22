@@ -1,3 +1,6 @@
+// IMPORTANT: Initialize SES lockdown BEFORE any other imports
+import '@/lib/init-lockdown';
+
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "./providers";
 import { Navigation } from "@/components/layout";

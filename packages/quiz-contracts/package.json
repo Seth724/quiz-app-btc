@@ -9,6 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "compile:test": "npm run build && tsc -p tsconfig.test.json",
     "deploy": "tsx ./scripts/deploy.ts",
+    "deploy:sequential": "tsx ./scripts/deploy-sequential.ts",
     "lint": "npx eslint .",
     "setup": "npm install && npm run compile:test",
     "test": "npm run compile:test && npm run test:run",

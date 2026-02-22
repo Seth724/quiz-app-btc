@@ -15,7 +15,7 @@ const Balance = ({
   computer: Computer;
   modSpecs: string[];
 }) => {
-  const [balance, setBalance] = useState<bigint>(0n);
+  const [balance, setBalance] = useState<bigint>(BigInt(0));
   const [, setChain] = useState<string>(localStorage.getItem("CHAIN") || "LTC");
   const { showSnackBar, showLoader } = useUtilsComponents();
 
@@ -36,14 +36,14 @@ const Balance = ({
             return payments && payments.length
               ? payments.reduce(
                   (total, pay) => total + (pay._satoshis - BigInt(dust)),
-                  0n
+                  BigInt(0)
                 )
               : 0;
           })
         );
         const amountsInPayments: bigint = balances.reduce(
           (acc, curr) => acc + BigInt(curr),
-          0n
+          BigInt(0)
         );
         const walletBalance = await computer.getBalance();
         setBalance(walletBalance.balance + amountsInPayments);

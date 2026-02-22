@@ -4,58 +4,53 @@
 
 'use client'
 
-import type { PaymentClient } from '@quiz-app/sdk'
+// Note: Payment operations are now handled by PaymentHelper from @quiz-app/contracts
+// This service file is kept for backward compatibility but can be removed
 
 export interface Payment {
   _id: string
   _rev: string
-  amount: number
+  amount: bigint
   recipient: string
   sender: string
   createdAt: number
 }
 
 /**
- * Create payment
+ * Create payment - Use PaymentHelper from @quiz-app/contracts instead
  */
 export async function createPayment(
-  paymentClient: PaymentClient,
+  // paymentClient: PaymentClient,  // Deprecated - use PaymentHelper
   recipient: string,
-  amount: number
+  amount: bigint
 ): Promise<Payment> {
-  const payment = await paymentClient.create(recipient, amount)
-  return payment
+  throw new Error('Use PaymentHelper from @quiz-app/contracts instead')
 }
 
 /**
- * Withdraw payments (batch delete)
+ * Withdraw payments - Use PaymentHelper from @quiz-app/contracts instead
  */
 export async function withdrawPayments(
-  paymentClient: PaymentClient,
+  // paymentClient: PaymentClient,  // Deprecated - use PaymentHelper
   paymentRevs: string[]
 ): Promise<void> {
-  await paymentClient.withdraw(paymentRevs)
+  throw new Error('Use PaymentHelper from @quiz-app/contracts instead')
 }
 
 /**
- * Get user payments
+ * Get user payments - Query blockchain directly instead
  */
 export async function getUserPayments(
-  paymentClient: PaymentClient,
+  // paymentClient: PaymentClient,  // Deprecated - use PaymentHelper
   userId: string
 ): Promise<Payment[]> {
-  try {
-    const payments = await paymentClient.listByUser(userId)
-    return payments
-  } catch (error) {
-    console.error('Failed to get payments:', error)
-    return []
-  }
+  console.warn('Use PaymentHelper from @quiz-app/contracts instead')
+  return []
 }
 
 /**
  * Calculate total available balance
  */
-export function calculateAvailableBalance(payments: Payment[]): number {
-  return payments.reduce((sum, payment) => sum + payment.amount, 0)
+export function calculateAvailableBalance(payments: Payment[]): bigint {
+  return payments.reduce((sum, payment) => sum + payment.amount, BigInt(0))
 }

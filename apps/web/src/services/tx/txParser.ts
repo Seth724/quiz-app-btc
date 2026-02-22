@@ -34,26 +34,26 @@ export async function parseTransaction(
   txId: string
 ): Promise<ParsedTransaction | null> {
   try {
-    // This is a simplified parser. Extend based on your needs
-    const tx = await computer.provider.blockchain.tx.fetch(txId)
+    // Use RPC call to fetch transaction data
+    const { result } = await computer.rpcCall('getrawtransaction', `${txId} 2`)
     
-    if (!tx) return null
+    if (!result) return null
 
     return {
       txId,
-      inputs: tx.vin?.map((input: any) => ({
+      inputs: result.vin?.map((input: any) => ({
         address: input.addr || 'Unknown',
         value: input.value || 0,
         prevTxId: input.txid,
         prevIndex: input.vout,
       })) || [],
-      outputs: tx.vout?.map((output: any, index: number) => ({
-        address: output.scriptPubKey?.addresses?.[0] || 'Unknown',
-        value: output.value || 0,
+      outputs: result.vout?.map((output: any, index: number) => ({
+        address: output.scriptPubKey?.address || 'Unknown',
+        value: Number(output.value) * 1e8, // Convert BTC to satoshis
         index,
       })) || [],
       fee: 0, // Calculate from inputs/outputs if needed
-      timestamp: tx.time,
+      timestamp: result.time ? result.time * 1000 : undefined,
     }
   } catch (error) {
     console.error('Failed to parse transaction:', error)

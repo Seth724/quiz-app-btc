@@ -3,6 +3,8 @@ import webpack from 'webpack';
 
 const nextConfig: NextConfig = {
   transpilePackages: ['@quiz-app/sdk', '@quiz-app/contracts', '@quiz-app/shared', '@bitcoin-computer/lib'],
+  // Add empty turbopack config to silence warning
+  turbopack: {},
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {

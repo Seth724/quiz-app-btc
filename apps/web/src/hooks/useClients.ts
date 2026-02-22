@@ -3,7 +3,14 @@
 import { useMemo } from 'react'
 import { useWalletStore } from '@/stores'
 import { createComputerFromStorage } from '@/services'
-import { createBrowserSDK, BrowserQuizClient, BrowserTeacherClient, BrowserAttemptClient, BrowserAccessClient } from '@/services/bc'
+import {
+  createHelperSDK,
+  HelperQuizClient,
+  HelperTeacherClient,
+  HelperAttemptClient,
+  HelperAccessClient,
+  HelperStudentClient,
+} from '@/services/bc'
 
 /**
  * Hook to access Computer instance
@@ -15,42 +22,47 @@ export function useComputer() {
 }
 
 /**
- * Hook to access browser-safe SDK clients
+ * Hook to access browser-safe SDK clients (Helper-based - RECOMMENDED)
+ * Uses helpers from @quiz-app/contracts package
  */
-export function useBrowserSDK() {
+export function useHelperSDK() {
   const computer = useComputer()
-  
-  return useMemo(() => createBrowserSDK(computer), [computer])
+  return useMemo(() => createHelperSDK(computer), [computer])
 }
 
 /**
- * Hook to access specific browser-safe clients
+ * Hook to access specific helper-based clients (RECOMMENDED)
  */
-export function useTeacherClient(): BrowserTeacherClient {
-  const sdk = useBrowserSDK()
+export function useTeacherClient(): HelperTeacherClient {
+  const sdk = useHelperSDK()
   return useMemo(() => sdk.createTeacherClient(), [sdk])
 }
 
-export function useQuizClient(): BrowserQuizClient {
-  const sdk = useBrowserSDK()
+export function useQuizClient(): HelperQuizClient {
+  const sdk = useHelperSDK()
   return useMemo(() => sdk.createQuizClient(), [sdk])
 }
 
-export function useAttemptClient(): BrowserAttemptClient {
-  const sdk = useBrowserSDK()
+export function useAttemptClient(): HelperAttemptClient {
+  const sdk = useHelperSDK()
   return useMemo(() => sdk.createAttemptClient(), [sdk])
 }
 
-export function useAccessClient(): BrowserAccessClient {
-  const sdk = useBrowserSDK()
+export function useAccessClient(): HelperAccessClient {
+  const sdk = useHelperSDK()
   return useMemo(() => sdk.createAccessClient(), [sdk])
 }
 
+export function useStudentClient(): HelperStudentClient {
+  const sdk = useHelperSDK()
+  return useMemo(() => sdk.createStudentClient(), [sdk])
+}
+
 /**
- * Create quiz client instance outside of React components
+ * Create quiz client instance outside of React components (RECOMMENDED)
  */
-export function createQuizClient(): BrowserQuizClient {
+export function createQuizClient(): HelperQuizClient {
   const computer = createComputerFromStorage()
-  const sdk = createBrowserSDK(computer)
+  const sdk = createHelperSDK(computer)
   return sdk.createQuizClient()
 }
