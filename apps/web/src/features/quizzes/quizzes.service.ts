@@ -90,10 +90,16 @@ export async function getQuiz(
   quizId: string
 ): Promise<Quiz | null> {
   try {
+    console.log('📋 quizzes.service.getQuiz - START, quizId:', quizId)
+    console.log('📋 quizzes.service.getQuiz - quizClient exists:', !!quizClient)
     const quiz = await quizClient.getQuiz(quizId)
+    console.log('📋 quizzes.service.getQuiz - result:', quiz ? 'GOT QUIZ' : 'NULL')
+    if (quiz) {
+      console.log('📋 quizzes.service.getQuiz - quiz title:', quiz.title, 'isActive:', quiz.isActive)
+    }
     return quiz ? (quiz as unknown as Quiz) : null
   } catch (error) {
-    console.error('Failed to get quiz:', error)
+    console.error('❌ quizzes.service.getQuiz - FAILED:', error)
     return null
   }
 }

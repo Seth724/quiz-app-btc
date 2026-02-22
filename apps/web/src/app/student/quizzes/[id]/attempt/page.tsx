@@ -1,13 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { useQuiz } from '@/features/quizzes'
 import { AttemptForm } from '@/features/attempts'
 
 export default function AttemptQuizPage() {
   const params = useParams()
-  const quizId = params?.id as string
+  const searchParams = useSearchParams()
+  const quizId = decodeURIComponent(params?.id as string)
+  const accessTokenId = searchParams?.get('accessTokenId') || ''
   const { quiz, loading } = useQuiz(quizId)
 
   if (loading) {
@@ -36,6 +38,22 @@ export default function AttemptQuizPage() {
     )
   }
 
+  if (!accessTokenId) {
+    return (
+      <div className="min-h-screen p-8">
+        <div className="max-w-4xl mx-auto text-center">
+          <h1 className="text-2xl font-bold mb-4">Missing Access Token</h1>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            You need a valid access token to attempt this quiz.
+          </p>
+          <Link href={`/student/quizzes/${quizId}`} className="text-blue-600 hover:underline">
+            ← Back to Quiz Details
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen p-8">
       <div className="max-w-4xl mx-auto">
@@ -46,7 +64,7 @@ export default function AttemptQuizPage() {
           </p>
         </div>
 
-        <AttemptForm quiz={quiz} />
+        <AttemptForm quiz={quiz} accessTokenId={accessTokenId} />
       </div>
     </div>
   )

@@ -1,5 +1,5 @@
 /**
- * Leaderboard Table Component
+ * Leaderboard Table Component — Professional Design
  */
 
 'use client'
@@ -17,10 +17,10 @@ interface LeaderboardTableProps {
 export function LeaderboardTable({ entries, currentStudentId, loading }: LeaderboardTableProps) {
   if (loading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div className="animate-pulse space-y-4 p-6">
+      <div className="rounded-2xl bg-white/70 dark:bg-white/5 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 overflow-hidden">
+        <div className="animate-pulse space-y-1 p-1">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-12 bg-gray-200 dark:bg-gray-700 rounded"></div>
+            <div key={i} className="h-16 bg-gray-100 dark:bg-gray-800 rounded-xl"></div>
           ))}
         </div>
       </div>
@@ -29,87 +29,104 @@ export function LeaderboardTable({ entries, currentStudentId, loading }: Leaderb
 
   if (entries.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
-        <div className="text-6xl mb-4">🏆</div>
-        <p className="text-gray-600 dark:text-gray-400 text-lg">
-          No leaderboard entries yet
+      <div className="rounded-2xl bg-white/70 dark:bg-white/5 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 p-16 text-center">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center">
+          <span className="text-3xl">🏆</span>
+        </div>
+        <p className="text-gray-500 dark:text-gray-400 text-base">
+          No leaderboard entries yet. Be the first!
         </p>
       </div>
     )
   }
 
-  const getMedalEmoji = (rank: number) => {
-    if (rank === 1) return '🥇'
-    if (rank === 2) return '🥈'
-    if (rank === 3) return '🥉'
-    return ''
+  const getRankDisplay = (rank: number) => {
+    if (rank === 1) return { emoji: '🥇', bg: 'bg-gradient-to-r from-amber-100 to-yellow-50 dark:from-amber-500/20 dark:to-yellow-500/10' }
+    if (rank === 2) return { emoji: '🥈', bg: 'bg-gradient-to-r from-gray-100 to-slate-50 dark:from-gray-500/20 dark:to-slate-500/10' }
+    if (rank === 3) return { emoji: '🥉', bg: 'bg-gradient-to-r from-orange-100 to-amber-50 dark:from-orange-500/20 dark:to-amber-500/10' }
+    return { emoji: '', bg: '' }
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+    <div className="rounded-2xl bg-white/70 dark:bg-white/5 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 dark:bg-gray-700">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+          <thead>
+            <tr className="border-b border-gray-100 dark:border-gray-700/50">
+              <th className="px-6 py-4 text-left text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                 Rank
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className="px-6 py-4 text-left text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                 Student
               </th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className="px-6 py-4 text-center text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                 Score
               </th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className="px-6 py-4 text-center text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                 Quizzes
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className="px-6 py-4 text-right text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                 Rewards
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+          <tbody>
             {entries.map((entry) => {
               const isCurrentStudent = entry.studentId === currentStudentId
+              const { emoji, bg } = getRankDisplay(entry.rank)
               
               return (
                 <tr
                   key={entry.studentId}
-                  className={`${
+                  className={`border-b border-gray-50 dark:border-gray-800/50 last:border-0 transition-colors ${
                     isCurrentStudent
-                      ? 'bg-blue-50 dark:bg-blue-900'
-                      : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                      ? 'bg-indigo-50/50 dark:bg-indigo-500/10'
+                      : `hover:bg-gray-50/50 dark:hover:bg-white/[0.02] ${bg}`
                   }`}
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <span className="text-2xl">{getMedalEmoji(entry.rank)}</span>
-                      <span className="text-lg font-bold">{entry.rank}</span>
+                      {emoji ? (
+                        <span className="text-2xl">{emoji}</span>
+                      ) : (
+                        <span className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-sm font-bold text-gray-500 dark:text-gray-400">
+                          {entry.rank}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="font-medium">
-                        {entry.studentName || 'Anonymous'}
-                        {isCurrentStudent && (
-                          <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">
-                            (You)
-                          </span>
-                        )}
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">
+                        {(entry.studentName || 'A')[0].toUpperCase()}
                       </div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400 font-mono">
-                        {truncatePublicKey(entry.studentId)}
+                      <div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                          {entry.studentName || 'Anonymous'}
+                          {isCurrentStudent && (
+                            <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/20">
+                              YOU
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-400 dark:text-gray-500 font-mono">
+                          {truncatePublicKey(entry.studentId)}
+                        </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <span className="text-lg font-semibold">{entry.score}</span>
+                    <span className="text-sm font-bold text-gray-900 dark:text-white">{entry.score}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <span className="text-sm">{entry.quizzesCompleted}</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">{entry.quizzesCompleted}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+                    <span className={`text-sm font-semibold ${
+                      entry.totalRewards > 0
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent'
+                        : 'text-gray-400 dark:text-gray-500'
+                    }`}>
                       {formatSatoshis(entry.totalRewards)} LTC
                     </span>
                   </td>

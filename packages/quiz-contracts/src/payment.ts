@@ -95,6 +95,6 @@ export class PaymentMock {
  */
 export class Withdraw extends Contract {
   static exec(payments: Payment[]) {
-    payments.forEach((payment) => payment.withdraw())
+    payments.forEach((payment) => payment.setSatoshis(0n))
   }
 }

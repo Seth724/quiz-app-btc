@@ -39,8 +39,12 @@ export function AttemptForm({ quiz, accessTokenId, onComplete }: AttemptFormProp
         accessTokenId,
       })
 
-      onComplete?.(attempt._id)
-      router.push(`/student/quizzes/${quiz._id}/result?attemptId=${attempt._id}`)
+      // Use _rev (post-submitAnswer revision) so the result page gets the updated state
+      // with the actual selectedAnswer, isCorrect, and rewardEarned values.
+      // Fallback to _id if _rev is not available.
+      const attemptRef = attempt._rev || attempt._id
+      onComplete?.(attemptRef)
+      router.push(`/student/quizzes/${quiz._id}/result?attemptId=${attemptRef}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit attempt')
     } finally {

@@ -15,9 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Quiz App - Blockchain Learning Platform",
+  title: "QuizChain - Blockchain Learning Platform",
   description: "Learn and earn through blockchain-powered quizzes. Create quizzes as a teacher or take quizzes as a student.",
-  keywords: "quiz, blockchain, learning, education, bitcoin, rewards",
+  keywords: "quiz, blockchain, learning, education, bitcoin, rewards, litecoin",
 };
 
 export default function RootLayout({
@@ -26,7 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 dark:bg-gray-900`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#f8fafc] dark:bg-[#0c0a1d] text-gray-900 dark:text-gray-100`}
       >
         <Providers>
           <div className="min-h-screen flex flex-col">

@@ -27,18 +27,23 @@ export default function LeaderboardPage() {
   }, [])
 
   return (
-    <div className="min-h-screen p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
-          <Link href="/" className="text-blue-600 hover:underline mb-4 inline-block">
-            ← Back to Home
+    <div className="min-h-[calc(100vh-4rem)] p-6 md:p-8">
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Header */}
+        <div>
+          <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors mb-4">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+            Back to Home
           </Link>
-          <div className="flex items-center gap-4">
-            <h1 className="text-4xl font-bold">🏆 Leaderboard</h1>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/25">
+              <span className="text-xl">🏆</span>
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Leaderboard</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Top performers and their achievements</p>
+            </div>
           </div>
-          <p className="text-gray-600 dark:text-gray-300 mt-2">
-            Top performers and their achievements
-          </p>
         </div>
 
         <LeaderboardTable 

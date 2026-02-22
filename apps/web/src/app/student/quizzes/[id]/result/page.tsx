@@ -11,7 +11,7 @@ import { ResultPanel } from '@/features/attempts'
 export default function QuizResultPage() {
   const params = useParams()
   const searchParams = useSearchParams()
-  const quizId = params?.id as string
+  const quizId = decodeURIComponent(params?.id as string)
   const attemptId = searchParams?.get('attemptId')
   
   const { quiz, loading: quizLoading } = useQuiz(quizId)

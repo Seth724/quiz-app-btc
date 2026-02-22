@@ -5,8 +5,7 @@
 
 'use client'
 
-import type { AttemptClient } from '@quiz-app/sdk'
-import { apiClient } from '@/services'
+import type { BrowserAttemptClient } from '@/services/bc/BrowserAttemptClient'
 
 export interface Attempt {
   _id: string
@@ -15,9 +14,9 @@ export interface Attempt {
   studentPublicKey: string
   selectedAnswer: number  // Index 0-3
   isCorrect: boolean      // True if correct
+  isCompleted: boolean     // True after submission
   rewardEarned: bigint    // Full reward if correct, 0 if wrong
-  attemptedAt: number
-  isCompleted: boolean
+  submittedAt: number
 }
 
 export interface SubmitAttemptParams {
@@ -34,30 +33,14 @@ export interface SubmitAttemptParams {
  * 3. If correct → Payment transferred to student
  */
 export async function submitAttempt(
-  attemptClient: AttemptClient,
+  attemptClient: BrowserAttemptClient,
   params: SubmitAttemptParams
 ): Promise<Attempt> {
-  const attempt = await attemptClient.submit(
+  const attempt = await attemptClient.submitAttempt(
     params.quizId,
     params.selectedAnswer,
     params.accessTokenId
   )
-
-  // Sync with backend
-  try {
-    await apiClient.submitAttempt({
-      id: attempt._id,
-      rev: attempt._rev,
-      quizId: attempt.quizId,
-      studentId: attempt.studentPublicKey,
-      selectedAnswer: attempt.selectedAnswer,
-      isCorrect: attempt.isCorrect,
-      rewardEarned: attempt.rewardEarned.toString(),
-      attemptedAt: attempt.attemptedAt,
-    })
-  } catch (error) {
-    console.error('Failed to sync attempt with backend:', error)
-  }
 
   return attempt as Attempt
 }
@@ -66,11 +49,11 @@ export async function submitAttempt(
  * Get attempt by ID
  */
 export async function getAttempt(
-  attemptClient: AttemptClient,
+  attemptClient: BrowserAttemptClient,
   attemptId: string
 ): Promise<Attempt | null> {
   try {
-    const attempt = await attemptClient.get(attemptId)
+    const attempt = await attemptClient.getAttempt(attemptId)
     return attempt
   } catch (error) {
     console.error('Failed to get attempt:', error)
@@ -82,12 +65,12 @@ export async function getAttempt(
  * Get all attempts by student
  */
 export async function getStudentAttempts(
-  attemptClient: AttemptClient,
+  attemptClient: BrowserAttemptClient,
   studentPublicKey: string,
   quizId?: string
 ): Promise<Attempt[]> {
   try {
-    const attempts = await attemptClient.listByStudent(studentPublicKey, quizId)
+    const attempts = await attemptClient.getStudentAttempts(studentPublicKey, quizId)
     return attempts as Attempt[]
   } catch (error) {
     console.error('Failed to get attempts:', error)
@@ -99,7 +82,7 @@ export async function getStudentAttempts(
  * Check if student has attempted quiz
  */
 export async function hasAttempted(
-  attemptClient: AttemptClient,
+  attemptClient: BrowserAttemptClient,
   studentPublicKey: string,
   quizId: string
 ): Promise<boolean> {

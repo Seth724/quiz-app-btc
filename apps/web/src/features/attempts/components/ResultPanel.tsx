@@ -14,9 +14,19 @@ interface ResultPanelProps {
   onWithdraw?: () => void
 }
 
+// Safely convert blockchain BigInt/string values to a number for display
+function safeBigIntToNumber(val: unknown): number {
+  if (typeof val === 'bigint') return Number(val)
+  if (typeof val === 'number') return val
+  if (typeof val === 'string') return Number(val.replace(/n$/, '')) || 0
+  return 0
+}
+
 export function ResultPanel({ attempt, quiz, onWithdraw }: ResultPanelProps) {
-  const isCorrect = attempt.isCorrect
-  const hasReward = attempt.rewardEarned > BigInt(0)
+  const isCorrect = attempt.isCorrect === true
+  const rewardNum = safeBigIntToNumber(attempt.rewardEarned)
+  const hasReward = rewardNum > 0
+  const validAnswer = typeof attempt.selectedAnswer === 'number' && attempt.selectedAnswer >= 0 && attempt.selectedAnswer < quiz.options.length
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -36,7 +46,7 @@ export function ResultPanel({ attempt, quiz, onWithdraw }: ResultPanelProps) {
         
         <p className="text-lg text-gray-700 dark:text-gray-300 mb-6">
           {isCorrect 
-            ? 'Congratulations! You answered correctly and won the reward!'
+            ? 'Congratulations! You answered correctly! The teacher will process your reward shortly.'
             : 'Sorry, that was not the correct answer. Better luck next time!'}
         </p>
 
@@ -50,7 +60,7 @@ export function ResultPanel({ attempt, quiz, onWithdraw }: ResultPanelProps) {
               ? 'text-green-600 dark:text-green-400' 
               : 'text-gray-400 dark:text-gray-600'
           }`}>
-            {formatSatoshis(attempt.rewardEarned)} LTC
+            {formatSatoshis(rewardNum)} LTC
           </p>
         </div>
 
@@ -87,12 +97,12 @@ export function ResultPanel({ attempt, quiz, onWithdraw }: ResultPanelProps) {
               
               <div className="space-y-2">
                 <div className={`p-2 rounded ${
-                  attempt.selectedAnswer === quiz.correctAnswer
+                  validAnswer && attempt.selectedAnswer === quiz.correctAnswer
                     ? 'bg-green-200 dark:bg-green-800'
                     : 'bg-red-200 dark:bg-red-800'
                 }`}>
                   <span className="font-medium">Your answer:</span>{' '}
-                  {quiz.options[attempt.selectedAnswer]}
+                  {validAnswer ? quiz.options[attempt.selectedAnswer] : 'Not answered'}
                 </div>
                 
                 {!isCorrect && (
@@ -125,14 +135,14 @@ export function ResultPanel({ attempt, quiz, onWithdraw }: ResultPanelProps) {
           </div>
           <div>
             <p className="text-gray-600 dark:text-gray-400">Reward Pool</p>
-            <p className="font-semibold">{formatSatoshis(quiz.rewardAmount)} LTC</p>
+            <p className="font-semibold">{formatSatoshis(safeBigIntToNumber(quiz.rewardAmount))} LTC</p>
           </div>
           <div>
             <p className="text-gray-600 dark:text-gray-400">You Earned</p>
             <p className={`font-semibold ${
               hasReward ? 'text-green-600' : 'text-gray-600'
             }`}>
-              {formatSatoshis(attempt.rewardEarned)} LTC
+              {formatSatoshis(rewardNum)} LTC
             </p>
           </div>
         </div>
