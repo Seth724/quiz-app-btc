@@ -9,10 +9,11 @@ import { MODULE_SPECS, hasModuleSpecs } from '@/config/env'
 import { encodeBroadcastWithRetry, withComputerLock } from './txUtils'
 import { MineBlocks } from '../utils/mineblock'
 import { BrowserAttemptClient } from './BrowserAttemptClient'
+import { Console } from 'console'
 
 
-const url='http://localhost:9112'
-const chain = process.env.NEXT_PUBLIC_BCN_CHAIN || 'regtest'
+const url='http://localhost:1031'
+const chain = process.env.NEXT_PUBLIC_BCN_CHAIN || 'LTC'
 const network = process.env.NEXT_PUBLIC_BCN_NETWORK || 'regtest'
 export interface QuizDTO {
   _id: string
@@ -79,8 +80,8 @@ export class BrowserQuizClient {
         if (network === 'regtest') await MineBlocks.mine(url, chain, network, blocks)
       }
 
-      //await mine(2) // ensure payment is well-confirmed in regtest before creating quiz
-
+      await mine(2) // ensure payment is well-confirmed in regtest before creating quiz
+      console.log('⛏️ Mined 2 blocks to confirm payment transaction')
       // STEP 2: Quiz (after payment is visible to BCN’s UTXO view)
       console.log('📤 Creating quiz...')
       const quizExp = `new Quiz({
