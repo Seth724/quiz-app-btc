@@ -1,61 +1,89 @@
 /**
- * Payments Service - Handle payment operations
+ * Payments Service - Handle payment operations via quiz-contracts helpers
  */
 
 'use client'
 
-import type { PaymentClient } from '@quiz-app/sdk'
+import { PaymentHelper } from '@quiz-app/contracts'
+import { Payment as PaymentContract } from '@quiz-app/contracts'
 
-export interface Payment {
+export interface PaymentInfo {
   _id: string
   _rev: string
-  amount: number
-  recipient: string
-  sender: string
-  createdAt: number
+  _satoshis: bigint
+  _owners: string[]
 }
 
 /**
- * Create payment
+ * Create a payment object on-chain
  */
 export async function createPayment(
-  paymentClient: PaymentClient,
-  recipient: string,
-  amount: number
-): Promise<Payment> {
-  const payment = await paymentClient.create(recipient, amount)
-  return payment
+  paymentHelper: PaymentHelper,
+  satoshis: bigint
+): Promise<PaymentContract> {
+  return paymentHelper.createPayment(satoshis)
 }
 
 /**
- * Withdraw payments (batch delete)
+ * Withdraw a single payment (claim satoshis to wallet)
+ */
+export async function withdrawPayment(
+  paymentHelper: PaymentHelper,
+  paymentTxId: string
+): Promise<bigint> {
+  return paymentHelper.withdrawPaymentById(paymentTxId)
+}
+
+/**
+ * Withdraw multiple payments (batch claim)
  */
 export async function withdrawPayments(
-  paymentClient: PaymentClient,
-  paymentRevs: string[]
-): Promise<void> {
-  await paymentClient.withdraw(paymentRevs)
-}
-
-/**
- * Get user payments
- */
-export async function getUserPayments(
-  paymentClient: PaymentClient,
-  userId: string
-): Promise<Payment[]> {
-  try {
-    const payments = await paymentClient.listByUser(userId)
-    return payments
-  } catch (error) {
-    console.error('Failed to get payments:', error)
-    return []
+  paymentHelper: PaymentHelper,
+  paymentTxIds: string[]
+): Promise<bigint> {
+  let totalWithdrawn = BigInt(0)
+  for (const txId of paymentTxIds) {
+    const amount = await paymentHelper.withdrawPaymentById(txId)
+    totalWithdrawn += amount
   }
+  return totalWithdrawn
 }
 
 /**
- * Calculate total available balance
+ * Get payment info by transaction ID
  */
-export function calculateAvailableBalance(payments: Payment[]): number {
-  return payments.reduce((sum, payment) => sum + payment.amount, 0)
+export async function getPayment(
+  paymentHelper: PaymentHelper,
+  paymentTxId: string
+): Promise<PaymentContract> {
+  return paymentHelper.getPayment(paymentTxId)
+}
+
+/**
+ * Transfer payment to another public key
+ */
+export async function transferPayment(
+  paymentHelper: PaymentHelper,
+  paymentTxId: string,
+  toPublicKey: string
+): Promise<void> {
+  return paymentHelper.transferPaymentById(paymentTxId, toPublicKey)
+}
+
+/**
+ * Send reward directly to a student's address
+ */
+export async function sendReward(
+  paymentHelper: PaymentHelper,
+  amount: bigint,
+  recipientAddress: string
+): Promise<string> {
+  return paymentHelper.sendRewardToStudent(amount, recipientAddress)
+}
+
+/**
+ * Calculate total available balance from payment amounts
+ */
+export function calculateAvailableBalance(amounts: bigint[]): bigint {
+  return amounts.reduce((sum, amount) => sum + amount, BigInt(0))
 }

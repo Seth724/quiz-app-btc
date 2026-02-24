@@ -29,6 +29,8 @@ async function bootstrap() {
     .setTitle('Quiz App API')
     .setDescription('REST API for Quiz App blockchain platform')
     .setVersion('1.0')
+    .addBearerAuth()
+    .addTag('auth')
     .addTag('quizzes')
     .addTag('attempts')
     .addTag('leaderboard')

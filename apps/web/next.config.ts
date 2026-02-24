@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 import webpack from 'webpack';
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@quiz-app/sdk', '@quiz-app/contracts', '@quiz-app/shared', '@bitcoin-computer/lib'],
+  transpilePackages: ['@quiz-app/contracts', '@bitcoin-computer/lib'],
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {

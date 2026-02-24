@@ -6,9 +6,7 @@ import { defineConfig, env } from "prisma/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
-  migrations: {
-    path: "prisma/migrations",
-  },
+  // MongoDB does not use file-based migrations — use `prisma db push` instead
   engine: "classic",
   datasource: {
     url: env("DATABASE_URL"),

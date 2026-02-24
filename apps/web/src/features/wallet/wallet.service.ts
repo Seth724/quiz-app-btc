@@ -6,7 +6,7 @@
 
 import { Computer } from '@bitcoin-computer/lib'
 import { createComputerFromStorage } from '@/services'
-import type { Chain, Network } from '@quiz-app/shared'
+import type { Chain, Network } from '@/types'
 
 export interface WalletInfo {
   publicKey: string

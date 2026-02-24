@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { QuizzesModule } from './modules/quizzes/quizzes.module';
 import { AttemptsModule } from './modules/attempts/attempts.module';
 import { LeaderboardModule } from './modules/leaderboard/leaderboard.module';
@@ -13,6 +14,7 @@ import { UsersModule } from './modules/users/users.module';
       envFilePath: '.env',
     }),
     PrismaModule,
+    AuthModule,
     QuizzesModule,
     AttemptsModule,
     LeaderboardModule,

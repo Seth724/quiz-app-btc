@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Chain, Network } from '@quiz-app/shared'
+import type { Chain, Network } from '@/types'
 import { STORAGE_KEYS } from '@/config'
 
 interface WalletState {

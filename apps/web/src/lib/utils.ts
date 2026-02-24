@@ -2,7 +2,7 @@
  * Utility functions for the Quiz App
  */
 
-// Re-export utilities from shared package
+// Re-export utilities from local types
 export {
   formatSatsToBTC,
   formatSats,
@@ -10,7 +10,7 @@ export {
   truncateTxId,
   formatTimestamp,
   isValidAnswerIndex
-} from '@quiz-app/shared'
+} from '@/types'
 
 /**
  * Sleep/delay utility

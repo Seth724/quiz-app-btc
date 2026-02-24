@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation'
 import { useWalletStore } from '@/stores'
 import { connectWallet, generateMnemonic, getWalletInfo } from '../wallet.service'
 import { createComputerFromStorage } from '@/services'
-import type { Chain, Network } from '@quiz-app/shared'
+import type { Chain, Network } from '@/types'
 import { useSessionStore } from '@/stores'
 
 interface WalletConnectProps {

@@ -1,8 +1,9 @@
 /**
  * API Client - Handles communication with NestJS backend
+ * @deprecated Use services from '@/services/backend' instead.
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002/api'
 
 export class APIClient {
   private baseUrl: string

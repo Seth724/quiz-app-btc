@@ -8,15 +8,17 @@ export class StudentHelper {
   computer: Computer
   paymentHelper: PaymentHelper
   funderComputer?: Computer // Optional reward pool funder
+  mod?: string
 
-  constructor(computer: Computer, funderComputer?: Computer) {
+  constructor(computer: Computer, mod?: string, funderComputer?: Computer) {
     this.computer = computer
+    this.mod = mod
     this.paymentHelper = new PaymentHelper(computer)
     this.funderComputer = funderComputer
   }
 
   async createStudent(name: string, publicKey: string): Promise<Student> {
-    const student = await this.computer.new(Student, [name, publicKey])
+    const student = await this.computer.new(Student, [name, publicKey], this.mod)
     // Add longer delay to avoid mempool conflicts
     await new Promise(resolve => setTimeout(resolve, 2500))
     return student

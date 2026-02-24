@@ -3,7 +3,7 @@
  * Only NEXT_PUBLIC_ variables are available here
  */
 
-import type { Chain, Network } from '@quiz-app/shared'
+import type { Chain, Network } from '@/types'
 
 // Blockchain configuration
 export const CHAIN = (process.env.NEXT_PUBLIC_CHAIN || 'LTC') as Chain
@@ -59,9 +59,13 @@ export function hasModuleSpecs(): boolean {
   // Debug: Log what we actually have
   console.log('🔍 Debug MODULE_SPECS:', MODULE_SPECS)
   console.log('🔍 Debug env vars:', {
-    teacherMod: process.env.NEXT_PUBLIC_TEACHER_MOD,
-    paymentMod: process.env.NEXT_PUBLIC_PAYMENT_MOD,
-    quizMod: process.env.NEXT_PUBLIC_QUIZ_MOD
+    teacherMod: process.env.NEXT_PUBLIC_TEACHER_MOD_SPEC,
+    studentMod: process.env.NEXT_PUBLIC_STUDENT_MOD_SPEC,
+    quizMod: process.env.NEXT_PUBLIC_QUIZ_MOD_SPEC,
+    attemptMod: process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC,
+    paymentMod: process.env.NEXT_PUBLIC_PAYMENT_MOD_SPEC,
+    quizAccessMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC,
+    quizAccessSaleMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC
   })
   
   const hasSpecs = Object.values(MODULE_SPECS).every(mod => mod !== '')

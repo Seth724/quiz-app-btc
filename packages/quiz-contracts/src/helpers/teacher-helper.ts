@@ -7,14 +7,16 @@ import { PaymentHelper } from './payment-helper.js'
 export class TeacherHelper {
   computer: Computer
   paymentHelper: PaymentHelper
+  mod?: string
 
-  constructor(computer: Computer) {
+  constructor(computer: Computer, mod?: string, paymentMod?: string) {
     this.computer = computer
-    this.paymentHelper = new PaymentHelper(computer)
+    this.mod = mod
+    this.paymentHelper = new PaymentHelper(computer, paymentMod)
   }
 
   async createTeacher(name: string, publicKey: string): Promise<Teacher> {
-    const teacher = (await this.computer.new(Teacher, [name, publicKey])) as Teacher
+    const teacher = (await this.computer.new(Teacher, [name, publicKey], this.mod)) as Teacher
     await new Promise((resolve) => setTimeout(resolve, 3000))
     return teacher
   }

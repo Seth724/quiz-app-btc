@@ -1,20 +1,21 @@
 /**
- * Browser-Safe Quiz Client - Uses deployed mod specs following test flow
+ * Browser-Safe Quiz Client - Uses quiz-contracts helpers with deployed mod specs
  * NO MOCK DATA - Uses real blockchain contracts only
  */
 
 import { Computer } from '@bitcoin-computer/lib'
-import type { QuizData } from '@quiz-app/shared'
+import type { QuizData } from '@/types'
 import { MODULE_SPECS, hasModuleSpecs } from '@/config/env'
-import { encodeBroadcastWithRetry, withComputerLock } from './txUtils'
+import { PaymentHelper, QuizHelper } from '@quiz-app/contracts'
+import { withComputerLock } from './txUtils'
 import { MineBlocks } from '../utils/mineblock'
 import { BrowserAttemptClient } from './BrowserAttemptClient'
-import { Console } from 'console'
 
 
-const url='http://localhost:1031'
+const url = 'http://localhost:1031'
 const chain = process.env.NEXT_PUBLIC_BCN_CHAIN || 'LTC'
 const network = process.env.NEXT_PUBLIC_BCN_NETWORK || 'regtest'
+
 export interface QuizDTO {
   _id: string
   _rev: string
@@ -45,63 +46,51 @@ const nowMs = () => {
 }
 
 export class BrowserQuizClient {
+  private paymentHelper: PaymentHelper
+  private quizHelper: QuizHelper
+
   constructor(private computer: Computer) {
     if (!hasModuleSpecs()) {
       throw new Error('Module specs not deployed. Please run deployment script first.')
     }
+    this.paymentHelper = new PaymentHelper(computer, MODULE_SPECS.paymentMod)
+    this.quizHelper = new QuizHelper(computer, MODULE_SPECS.quizMod)
   }
 
   async createQuiz(quizData: QuizData): Promise<QuizDTO> {
     return withComputerLock(this.computer, async () => {
       console.log('🎯 Creating quiz with data:', quizData)
 
-      // STEP 1: Payment
+      // STEP 1: Create reward Payment using PaymentHelper
       console.log('📤 Creating payment...')
-      const paymentEncoded = await encodeBroadcastWithRetry(
-        this.computer,
-        {
-          exp: `new Payment(${quizData.rewardAmount}n)`,
-          mod: MODULE_SPECS.paymentMod,
-        },
-        { label: 'createPayment', postBroadcastDelayMs: 2500 }
-      )
-
-      const payment = paymentEncoded.effect.res
+      const payment = await this.paymentHelper.createPayment(quizData.rewardAmount)
       const paymentTxId = payment._id as string
       console.log('✅ Payment created:', paymentTxId)
 
-      // NEW: wait until BCN can sync the payment object reliably
+      // Wait until BCN can sync the payment object reliably
       await this.computer.sync(paymentTxId)
-
-      // NEW: add extra settle time (regtest indexers often lag)
       await new Promise((r) => setTimeout(r, 2500))
 
       const mine = async (blocks: number = 1) => {
         if (network === 'regtest') await MineBlocks.mine(url, chain, network, blocks)
       }
 
-      await mine(2) // ensure payment is well-confirmed in regtest before creating quiz
+      await mine(2)
       console.log('⛏️ Mined 2 blocks to confirm payment transaction')
-      // STEP 2: Quiz (after payment is visible to BCN’s UTXO view)
+
+      // STEP 2: Create Quiz using QuizHelper
       console.log('📤 Creating quiz...')
-      const quizExp = `new Quiz({
-        title: ${JSON.stringify(quizData.title)},
-        questionText: ${JSON.stringify(quizData.questionText)},
-        options: ${JSON.stringify(quizData.options)},
-        correctAnswer: ${quizData.correctAnswer},
-        rewardAmount: ${quizData.rewardAmount}n,
-        entryFee: ${quizData.entryFee}n,
-        teacherPublicKey: ${JSON.stringify(this.computer.getPublicKey())},
-        paymentTxId: ${JSON.stringify(paymentTxId)}
-      })`
+      const quiz = await this.quizHelper.createQuiz({
+        title: quizData.title,
+        questionText: quizData.questionText,
+        options: quizData.options,
+        correctAnswer: quizData.correctAnswer,
+        rewardAmount: quizData.rewardAmount,
+        entryFee: quizData.entryFee,
+        teacherPublicKey: this.computer.getPublicKey(),
+        paymentTxId,
+      })
 
-      const quizEncoded = await encodeBroadcastWithRetry(
-        this.computer,
-        { exp: quizExp, mod: MODULE_SPECS.quizMod },
-        { label: 'createQuiz', postBroadcastDelayMs: 2500 }
-      )
-
-      const quiz = quizEncoded.effect.res
       const quizId = quiz._id as string
       console.log('✅ Quiz created:', quizId)
 
@@ -123,7 +112,7 @@ export class BrowserQuizClient {
       // Resolve to latest revision so we see updated isClaimed/claimedBy/attemptedStudents
       let revToSync = quizId
       try {
-        const latestRev = await this.computer.latest(quizId)
+        const latestRev = await this.computer.getLatestRev(quizId)
         if (latestRev) revToSync = latestRev
       } catch { /* use original quizId */ }
       const quiz = await this.computer.sync(revToSync)
@@ -150,11 +139,8 @@ export class BrowserQuizClient {
     const quiz = await this.getQuiz(quizId)
     if (!quiz) return false
     if (!quiz.isActive) return false
-
-    // Check if reward has been claimed (derived from quiz OR from attempts)
     if (quiz.isClaimed) return false
 
-    // Check QuizAttempt objects on-chain for this student+quiz
     const attemptClient = new BrowserAttemptClient(this.computer)
     const hasAttempted = await attemptClient.hasStudentAttemptedQuiz(quizId, studentPublicKey)
     return !hasAttempted
@@ -162,25 +148,19 @@ export class BrowserQuizClient {
 
   /**
    * TEACHER ONLY: Process rewards for a quiz.
-   * Scans QuizAttempt objects to find correct answers, then:
-   * 1. Adds attempted students to the quiz
-   * 2. Claims reward for the first correct student
-   * 3. Transfers payment to that student
-   *
-   * Returns the publicKey of the student who received the reward, or null.
+   * Uses QuizHelper to add students and claim rewards.
+   * Uses PaymentHelper to transfer payment to winner.
    */
   async processQuizRewards(quizId: string): Promise<string | null> {
     return withComputerLock(this.computer, async () => {
       console.log('🏆 [Teacher] Processing rewards for quiz:', quizId)
 
-      // Get latest quiz state
       const quiz = await this.getQuiz(quizId)
       if (!quiz) {
         console.warn('⚠️ [Teacher] Quiz not found:', quizId)
         return null
       }
 
-      // Skip if already claimed
       if (quiz.isClaimed) {
         console.log('ℹ️ [Teacher] Quiz already claimed by:', quiz.claimedBy)
         return quiz.claimedBy
@@ -198,26 +178,14 @@ export class BrowserQuizClient {
         .filter(a => a.isCorrect === true)
         .sort((a, b) => (a.submittedAt || 0) - (b.submittedAt || 0))[0]
 
-      // Add all attempted students to the quiz
+      // Add all attempted students to the quiz using QuizHelper
       for (const attempt of attempts) {
         const studentPubKey = attempt.studentPublicKey
-        // Check if already in the list
         if (quiz.attemptedStudents?.includes(studentPubKey)) continue
         try {
-          const quizLatestRev = await this.computer.latest(quizId).catch(() => quiz._rev)
-          const addExp = `quiz.addAttemptedStudent("${studentPubKey}")`
-          await encodeBroadcastWithRetry(
-            this.computer,
-            {
-              exp: addExp,
-              env: { quiz: quizLatestRev || quiz._rev },
-              mod: MODULE_SPECS.quizMod,
-            },
-            { label: 'addAttemptedStudent' }
-          )
+          await this.quizHelper.addAttemptedStudent(quizId, studentPubKey)
           console.log('✅ [Teacher] Added student to attempted list:', studentPubKey)
         } catch (err) {
-          // May fail if already added (idempotent)
           console.warn('⚠️ [Teacher] addAttemptedStudent failed (may be duplicate):', (err as any)?.message)
         }
       }
@@ -230,44 +198,18 @@ export class BrowserQuizClient {
       const winnerPubKey = correctAttempt.studentPublicKey
       console.log('🏆 [Teacher] Winner found:', winnerPubKey)
 
-      // Claim reward
+      // Claim reward using QuizHelper
       try {
-        const quizLatestRev = await this.computer.latest(quizId).catch(() => quiz._rev)
-        const claimExp = `quiz.claimReward("${winnerPubKey}")`
-        await encodeBroadcastWithRetry(
-          this.computer,
-          {
-            exp: claimExp,
-            env: { quiz: quizLatestRev || quiz._rev },
-            mod: MODULE_SPECS.quizMod,
-          },
-          { label: 'claimReward' }
-        )
+        await this.quizHelper.claimReward(quizId, winnerPubKey)
         console.log('✅ [Teacher] Reward claimed for:', winnerPubKey)
       } catch (err) {
         console.error('❌ [Teacher] claimReward failed:', (err as any)?.message)
         return null
       }
 
-      // Transfer payment to winner
+      // Transfer payment to winner using PaymentHelper
       try {
-        // Resolve payment to latest revision
-        let paymentRev = quiz.paymentTxId
-        try {
-          const paymentLatest = await this.computer.latest(quiz.paymentTxId)
-          if (paymentLatest) paymentRev = paymentLatest
-        } catch { /* use original */ }
-
-        const transferExp = `payment.transfer("${winnerPubKey}")`
-        await encodeBroadcastWithRetry(
-          this.computer,
-          {
-            exp: transferExp,
-            env: { payment: paymentRev },
-            mod: MODULE_SPECS.paymentMod,
-          },
-          { label: 'transferRewardPayment' }
-        )
+        await this.paymentHelper.transferPaymentById(quiz.paymentTxId, winnerPubKey)
         console.log('✅ [Teacher] Payment transferred to:', winnerPubKey)
       } catch (err) {
         console.error('❌ [Teacher] payment.transfer failed:', (err as any)?.message)
@@ -279,7 +221,6 @@ export class BrowserQuizClient {
 
   /**
    * TEACHER ONLY: Process rewards for ALL teacher's quizzes.
-   * Runs in background — non-blocking.
    */
   async processAllQuizRewards(teacherPublicKey: string): Promise<void> {
     try {
@@ -300,15 +241,7 @@ export class BrowserQuizClient {
 
   async deactivateQuiz(quizId: string): Promise<QuizDTO | null> {
     try {
-      const quiz = await this.getQuiz(quizId)
-      if (!quiz) return null
-
-      await encodeBroadcastWithRetry(
-        this.computer,
-        { exp: `quiz.deactivate()`, env: { quiz: quiz._rev }, mod: MODULE_SPECS.quizMod },
-        { label: 'deactivateQuiz' }
-      )
-
+      await this.quizHelper.deactivateQuiz(quizId)
       return await this.getQuiz(quizId)
     } catch (error) {
       console.error('Failed to deactivate quiz:', error)
@@ -322,10 +255,9 @@ export class BrowserQuizClient {
     const quizzes: QuizDTO[] = []
     for (const id of quizIds) {
       try {
-        // Resolve to latest revision — query() can return stale/spent UTXOs
         let revToSync = id
         try {
-          const latestRev = await this.computer.latest(id)
+          const latestRev = await this.computer.getLatestRev(id)
           if (latestRev) revToSync = latestRev
         } catch { /* use original id */ }
         const quiz = await this.computer.sync(revToSync)
@@ -333,13 +265,12 @@ export class BrowserQuizClient {
           const attemptedStudents = (quiz as any).attemptedStudents || []
           quizzes.push({
             ...(quiz as any),
-            _id: id, // preserve the root _id for routing
+            _id: id,
             attemptedStudents,
             attemptCount: attemptedStudents.length,
           } as QuizDTO)
         }
       } catch (quizError) {
-        // Skip quizzes whose transactions no longer exist (pruned regtest, etc.)
         console.warn(`Skipping quiz ${id}: cannot sync (may be pruned)`, (quizError as any)?.message)
       }
     }
@@ -347,38 +278,14 @@ export class BrowserQuizClient {
     return quizzes
   }
 
-  // async getQuizzesByTeacher(teacherPublicKey: string): Promise<QuizDTO[]> {
-  //   const quizIds = await this.computer.query({
-  //     mod: MODULE_SPECS.quizMod,
-  //     publicKey: teacherPublicKey,
-  //   })
-
-  //   const quizzes: QuizDTO[] = []
-  //   for (const id of quizIds) {
-  //     try {
-  //       const quiz = await this.computer.sync(id)
-  //       const attemptedStudents = (quiz as any).attemptedStudents || []
-  //       quizzes.push({
-  //         ...(quiz as any),
-  //         attemptedStudents,
-  //         attemptCount: attemptedStudents.length,
-  //       } as QuizDTO)
-  //     } catch (quizError) {
-  //       console.error(`Failed to sync quiz ${id}:`, quizError)
-  //     }
-  //   }
-
-  //   return quizzes
-  // }
   async getQuizzesByTeacher(teacherPublicKey: string): Promise<QuizDTO[]> {
     const quizIds = await this.computer.query({ mod: MODULE_SPECS.quizMod })
     const quizzes: QuizDTO[] = []
     for (const id of quizIds) {
       try {
-        // Resolve to latest revision
         let revToSync = id
         try {
-          const latestRev = await this.computer.latest(id)
+          const latestRev = await this.computer.getLatestRev(id)
           if (latestRev) revToSync = latestRev
         } catch { /* use original id */ }
         const quiz = await this.computer.sync(revToSync)
@@ -400,7 +307,6 @@ export class BrowserQuizClient {
 
   /**
    * Get all Payment objects owned by a public key.
-   * Returns payment IDs and their satoshi amounts.
    */
   async getOwnedPayments(ownerPublicKey: string): Promise<{ _id: string; _rev: string; _satoshis: number }[]> {
     try {
@@ -415,7 +321,7 @@ export class BrowserQuizClient {
         try {
           let revToSync = id
           try {
-            const latestRev = await this.computer.latest(id)
+            const latestRev = await this.computer.getLatestRev(id)
             if (latestRev) revToSync = latestRev
           } catch { /* use original */ }
           const payment = await this.computer.sync(revToSync) as any
@@ -440,9 +346,7 @@ export class BrowserQuizClient {
   }
 
   /**
-   * Withdraw all payment objects owned by the current user.
-   * Uses Withdraw.exec() to batch-withdraw all at once.
-   * Returns the total satoshis withdrawn.
+   * Withdraw all payment objects owned by the current user using PaymentHelper.
    */
   async withdrawAllPayments(): Promise<{ totalWithdrawn: number; count: number }> {
     return withComputerLock(this.computer, async () => {
@@ -457,27 +361,10 @@ export class BrowserQuizClient {
       let totalWithdrawn = 0
       let count = 0
 
-      // Withdraw each payment individually (safer than batch for regtest)
       for (const payment of payments) {
         try {
-          // Re-resolve to latest rev before withdraw
-          let currentRev = payment._rev
-          try {
-            const latestRev = await this.computer.latest(payment._id)
-            if (latestRev) currentRev = latestRev
-          } catch { /* use stored rev */ }
-
-          const withdrawExp = `payment.withdraw()`
-          await encodeBroadcastWithRetry(
-            this.computer,
-            {
-              exp: withdrawExp,
-              env: { payment: currentRev },
-              mod: MODULE_SPECS.paymentMod,
-            },
-            { label: 'withdrawPayment' }
-          )
-          const withdrawn = payment._satoshis - 546
+          const withdrawnAmount = await this.paymentHelper.withdrawPaymentById(payment._id)
+          const withdrawn = Number(withdrawnAmount)
           totalWithdrawn += withdrawn
           count += 1
           console.log(`✅ [Withdraw] Withdrawn ${withdrawn} sats from payment ${payment._id.substring(0, 12)}`)

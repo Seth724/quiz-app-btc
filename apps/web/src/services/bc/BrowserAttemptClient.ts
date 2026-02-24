@@ -1,11 +1,11 @@
 /**
- * Browser-Safe Attempt Client - Uses deployed mod specs following test flow
+ * Browser-Safe Attempt Client - Uses quiz-contracts AttemptHelper
  * NO MOCK DATA - Uses real blockchain contracts only
  */
 
 import { Computer } from '@bitcoin-computer/lib'
 import { MODULE_SPECS, hasModuleSpecs } from '@/config/env'
-import { encodeBroadcastWithRetry } from './txUtils'
+import { AttemptHelper } from '@quiz-app/contracts'
 
 export interface AttemptDTO {
   _id: string
@@ -31,24 +31,25 @@ const nowMs = () => {
 }
 
 /**
- * Browser-safe AttemptClient using deployed module specs
- * Follows the exact test flow from the test file
+ * Browser-safe AttemptClient using quiz-contracts AttemptHelper
  */
 export class BrowserAttemptClient {
+  private attemptHelper: AttemptHelper
+
   constructor(private computer: Computer) {
-    const hasSpecs = hasModuleSpecs()
-    if (!hasSpecs) {
+    if (!hasModuleSpecs()) {
       throw new Error('Module specs not deployed. Please run deployment script first.')
     }
+    this.attemptHelper = new AttemptHelper(computer, MODULE_SPECS.attemptMod)
   }
 
   /**
-   * Submit quiz attempt following the test flow:
-   * 1. Create QuizAttempt
-   * 2. Call submitAnswer with access token (burns 1 unit)
-   * 3. Add student to attempted list
-   * 4. Try to claim reward
-   * 5. Transfer payment if claimed
+   * Submit quiz attempt following the flow:
+   * 1. Create QuizAttempt using AttemptHelper
+   * 2. Submit answer with access token (burns 1 unit)
+   *
+   * Steps 3-5 (addAttemptedStudent, claimReward, payment.transfer) are
+   * done by teacher via BrowserQuizClient.processQuizRewards()
    */
   async submitAttempt(
     quizId: string,
@@ -57,13 +58,13 @@ export class BrowserAttemptClient {
   ): Promise<AttemptDTO> {
     const studentPubKey = this.computer.getPublicKey()
 
-    // ── Pre-check: Prevent duplicate attempts ──
+    // Pre-check: Prevent duplicate attempts
     const alreadyAttempted = await this.hasStudentAttemptedQuiz(quizId, studentPubKey)
     if (alreadyAttempted) {
       throw new Error('You have already attempted this quiz. Each quiz can only be attempted once.')
     }
 
-    // ── Step 0: Sync quiz and access token ──
+    // Step 0: Sync quiz and access token
     console.log('🎯 [Attempt] Starting submitAttempt for quiz:', quizId)
     const quiz = await this.computer.sync(quizId) as any
     console.log('🎯 [Attempt] Quiz synced, correctAnswer:', quiz.correctAnswer, 'rewardAmount:', String(quiz.rewardAmount))
@@ -79,93 +80,57 @@ export class BrowserAttemptClient {
     }
     const accessToken = await this.computer.sync(accessTokenRev) as any
     console.log('🔍 [Attempt] Access token _owners:', accessToken?._owners, 'student:', studentPubKey)
-    console.log('🔍 [Attempt] Access token _rev:', accessToken?._rev, 'amount:', String(accessToken?.amount))
 
-    // ── Step 1: Create QuizAttempt ──
+    // Step 1: Create QuizAttempt using AttemptHelper
     console.log('📝 [Attempt] Step 1: Creating QuizAttempt...')
-    const attemptExp = `new QuizAttempt("${quizId}", "${studentPubKey}")`
-    const attemptEncoded = await encodeBroadcastWithRetry(
-      this.computer,
-      { exp: attemptExp, mod: MODULE_SPECS.attemptMod },
-      { label: 'createQuizAttempt' }
-    )
-    const attemptRes = attemptEncoded?.effect?.res as any
-    if (!attemptRes?._id) {
-      throw new Error('Failed to create QuizAttempt: encode result has no _id')
-    }
-    console.log('✅ [Attempt] QuizAttempt created:', attemptRes._id, '_rev:', attemptRes._rev)
+    const attempt = await this.attemptHelper.createAttempt(quizId, studentPubKey)
+    console.log('✅ [Attempt] QuizAttempt created:', attempt._id)
 
-    // Re-sync to get the full object
-    const attempt = await this.computer.sync(attemptRes._id) as any
-
-    // ── Step 2: Submit answer (burns access token) ──
+    // Step 2: Submit answer with access token using AttemptHelper
     console.log('📝 [Attempt] Step 2: Submitting answer...')
-    const rewardAmountStr = String(quiz.rewardAmount).replace(/n$/, '')
-    const correctAnswerStr = String(quiz.correctAnswer).replace(/n$/, '')
-    const submitExp = `attempt.submitAnswer(accessToken, ${selectedAnswer}, ${correctAnswerStr}, ${rewardAmountStr}n)`
-    console.log('📝 [Attempt] Expression:', submitExp)
-    console.log('📝 [Attempt] env: attempt=', attempt._rev, 'accessToken=', accessToken._rev)
-
-    const submitEncoded = await encodeBroadcastWithRetry(
-      this.computer,
-      {
-        exp: submitExp,
-        env: {
-          attempt: attempt._rev,
-          accessToken: accessToken._rev,
-        },
-        mod: MODULE_SPECS.attemptMod,
-      },
-      { label: 'submitAnswer' }
+    const result = await this.attemptHelper.submitAnswerWithAccess(
+      attempt,
+      accessToken,
+      selectedAnswer,
+      quiz
     )
-    console.log('✅ [Attempt] Answer submitted, syncing result...')
-
-    // Get updated attempt — the _id is the same, but _rev changed
-    const submitRes = submitEncoded?.effect?.res as any
-    const updatedAttemptRev = submitRes?._rev || submitRes?._id || attemptRes._id
-    const updatedAttempt = await this.computer.sync(updatedAttemptRev) as any
-    console.log('✅ [Attempt] isCorrect:', updatedAttempt?.isCorrect, 'rewardEarned:', String(updatedAttempt?.rewardEarned))
+    console.log('✅ [Attempt] isCorrect:', result.isCorrect, 'rewardEarned:', String(result.rewardEarned))
 
     // NOTE: Steps 3-5 (addAttemptedStudent, claimReward, payment.transfer) are
-    // SKIPPED here because the Quiz and Payment objects are owned by the TEACHER.
-    // Only the teacher's private key can sign transactions that modify those objects.
-    // The teacher's browser auto-processes rewards when loading the dashboard.
-    // See BrowserQuizClient.processQuizRewards() for the teacher-side flow.
-    console.log('ℹ️ [Attempt] Steps 3-5 skipped (quiz owned by teacher — reward processing happens on teacher side)')
+    // SKIPPED here. Only the teacher's private key can sign those transactions.
+    console.log('ℹ️ [Attempt] Steps 3-5 skipped (reward processing happens on teacher side)')
 
     console.log('✅ [Attempt] submitAttempt complete!')
 
+    // Get updated attempt state
+    const updatedAttempt = attempt as any
+
     return {
-      _id: updatedAttempt._id || attemptRes._id,
-      _rev: updatedAttempt._rev || attemptRes._rev,
-      _root: updatedAttempt._root || attemptRes._root,
+      _id: updatedAttempt._id || '',
+      _rev: updatedAttempt._rev || '',
+      _root: updatedAttempt._root || '',
       _owners: updatedAttempt._owners || [],
       _satoshis: updatedAttempt._satoshis || BigInt(0),
       quizId: updatedAttempt.quizId || quizId,
       studentPublicKey: updatedAttempt.studentPublicKey || studentPubKey,
-      selectedAnswer: updatedAttempt.selectedAnswer ?? selectedAnswer,
-      isCorrect: updatedAttempt.isCorrect ?? false,
-      isCompleted: updatedAttempt.isCompleted ?? true,
-      rewardEarned: updatedAttempt.rewardEarned ?? BigInt(0),
+      selectedAnswer: result.selectedAnswer ?? selectedAnswer,
+      isCorrect: result.isCorrect ?? false,
+      isCompleted: true,
+      rewardEarned: result.rewardEarned ?? BigInt(0),
       submittedAt: nowMs(),
     }
   }
 
   /**
-   * Get attempt by ID — resolves to latest revision so we get post-submitAnswer state
+   * Get attempt by ID - resolves to latest revision
    */
   async getAttempt(attemptId: string): Promise<AttemptDTO | null> {
     try {
-      // Resolve to latest revision: the _id points to creation state (selectedAnswer=-1),
-      // but we need the post-submitAnswer revision with the actual answer data.
       let revToSync = attemptId
       try {
         const latestRev = await this.computer.latest(attemptId)
         if (latestRev) revToSync = latestRev
-        console.log('🔍 [Attempt] getAttempt resolved', attemptId, '→', revToSync)
-      } catch {
-        console.log('🔍 [Attempt] latest() failed for', attemptId, ', using as-is')
-      }
+      } catch { /* use original */ }
       const attempt = await this.computer.sync(revToSync)
       return attempt as unknown as AttemptDTO
     } catch (error) {
@@ -181,15 +146,14 @@ export class BrowserAttemptClient {
     studentPublicKey: string,
     quizId?: string
   ): Promise<AttemptDTO[]> {
-    const attemptIds = await this.computer.query({ 
+    const attemptIds = await this.computer.query({
       mod: MODULE_SPECS.attemptMod,
-      publicKey: studentPublicKey 
+      publicKey: studentPublicKey,
     })
-    
+
     const attempts: AttemptDTO[] = []
     for (const id of attemptIds) {
       try {
-        // Resolve to latest revision to get post-submitAnswer state
         let revToSync = id
         try {
           const latestRev = await this.computer.latest(id)
@@ -199,25 +163,23 @@ export class BrowserAttemptClient {
         if (!quizId || attempt.quizId === quizId) {
           attempts.push({
             ...attempt,
-            submittedAt: attempt.attemptedAt || nowMs()
+            submittedAt: attempt.attemptedAt || nowMs(),
           } as AttemptDTO)
         }
       } catch (attemptError) {
         console.error(`Failed to sync attempt ${id}:`, attemptError)
       }
     }
-    
+
     return attempts
   }
 
   /**
    * Check if a student has already attempted a specific quiz.
-   * Scans QuizAttempt objects on-chain for this student+quiz combination.
    */
   async hasStudentAttemptedQuiz(quizId: string, studentPublicKey: string): Promise<boolean> {
     try {
       const attempts = await this.getStudentAttempts(studentPublicKey, quizId)
-      // Only count completed attempts (selectedAnswer >= 0)
       return attempts.some(a => a.selectedAnswer >= 0 && a.isCompleted !== false)
     } catch {
       return false
@@ -230,7 +192,7 @@ export class BrowserAttemptClient {
    */
   async getQuizAttempts(quizId: string): Promise<AttemptDTO[]> {
     try {
-      console.log('🔍 [Attempt] getQuizAttempts for quiz:', quizId.substring(0, 12), 'using attemptMod:', MODULE_SPECS.attemptMod.substring(0, 12))
+      console.log('🔍 [Attempt] getQuizAttempts for quiz:', quizId.substring(0, 12))
       const attemptIds: string[] = await this.computer.query({
         mod: MODULE_SPECS.attemptMod,
       })
@@ -254,7 +216,6 @@ export class BrowserAttemptClient {
             } as AttemptDTO)
           }
         } catch (e) {
-          // Skip unresolvable - could be 500 error from regtest reset
           console.warn('⚠️ [Attempt] Skipping attempt', id.substring(0, 12), ':', (e as any)?.message)
         }
       }

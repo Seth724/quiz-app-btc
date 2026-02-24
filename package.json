@@ -32,8 +32,6 @@
     "dev:contracts": "npm run dev --workspace=@quiz-app/contracts",
     "build:web": "npm run build --workspace=@quiz-app/web",
     "build:api": "npm run build --workspace=@quiz-app/api",
-    "build:sdk": "npm run build --workspace=@quiz-app/sdk",
-    "build:shared": "npm run build --workspace=@quiz-app/shared",
     "deploy": "npm run deploy --workspace=@quiz-app/contracts",
     "fund:wallet": "npm run fund:wallet --workspace=@quiz-app/contracts",
     "prisma:generate": "npm run prisma:generate --workspace=@quiz-app/api",

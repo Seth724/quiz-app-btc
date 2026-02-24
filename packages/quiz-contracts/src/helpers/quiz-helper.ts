@@ -13,9 +13,11 @@ import { Quiz } from '../quiz.js'
  */
 export class QuizHelper {
   computer: Computer
+  mod?: string
 
-  constructor(computer: Computer) {
+  constructor(computer: Computer, mod?: string) {
     this.computer = computer
+    this.mod = mod
   }
 
   /**
@@ -121,5 +123,74 @@ export class QuizHelper {
    */
   isValidAnswerIndex(answerIndex: number): boolean {
     return answerIndex >= 0 && answerIndex <= 3
+  }
+
+  
+  async createQuiz(params: {
+    title: string
+    questionText: string
+    options: string[]
+    correctAnswer: number
+    rewardAmount: bigint
+    entryFee: bigint
+    teacherPublicKey: string
+    paymentTxId: string
+  }): Promise<Quiz> {
+    if (this.mod) {
+      // Build a JS expression string so we never pass the bundled class reference
+      const exp = `new Quiz({
+  title: ${JSON.stringify(params.title)},
+  questionText: ${JSON.stringify(params.questionText)},
+  options: ${JSON.stringify(params.options)},
+  correctAnswer: ${params.correctAnswer},
+  rewardAmount: ${params.rewardAmount}n,
+  entryFee: ${params.entryFee}n,
+  teacherPublicKey: ${JSON.stringify(params.teacherPublicKey)},
+  paymentTxId: ${JSON.stringify(params.paymentTxId)}
+})`
+      const encoded = await this.computer.encode({ exp, mod: this.mod })
+      await this.computer.broadcast(encoded.tx)
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      // Extract the created object ID from the transaction effect
+      const res = encoded?.effect?.res as any
+      const resId: string | undefined =
+        res?._id ?? (typeof res === 'string' ? res : undefined)
+      if (typeof resId === 'string') {
+        return await this.computer.sync(resId) as Quiz
+      }
+      throw new Error('Failed to create quiz – could not extract result ID from transaction effect')
+    }
+
+    // Fallback: no mod spec (local testing) – deploy class inline
+    const quiz = await this.computer.new(Quiz, [params]) as Quiz
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    return quiz
+  }
+
+  /**
+   * Add a student to a quiz's attempted list (teacher-only)
+   */
+  async addAttemptedStudent(quizId: string, studentPublicKey: string): Promise<void> {
+    const quiz = await this.getQuiz(quizId)
+    await quiz.addAttemptedStudent(studentPublicKey)
+    await new Promise(resolve => setTimeout(resolve, 1500))
+  }
+
+  /**
+   * Claim reward for a student (teacher-only, first correct answer wins)
+   */
+  async claimReward(quizId: string, studentPublicKey: string): Promise<void> {
+    const quiz = await this.getQuiz(quizId)
+    await quiz.claimReward(studentPublicKey)
+    await new Promise(resolve => setTimeout(resolve, 1500))
+  }
+
+  /**
+   * Get latest revision of a quiz (follows chain)
+   */
+  async getLatestQuiz(quizId: string): Promise<Quiz> {
+    const latestRev = await this.computer.getLatestRev(quizId)
+    return await this.computer.sync(latestRev) as Quiz
   }
 }

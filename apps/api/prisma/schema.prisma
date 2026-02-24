@@ -1,8 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// Prisma schema for MongoDB
+// https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
@@ -10,36 +7,30 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id        String   @id @default(uuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   publicKey String   @unique
   name      String?
-  role      UserRole
+  role      String   // "TEACHER" | "STUDENT"
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   quizzesCreated Quiz[]
   attempts       Attempt[]
 
-  @@index([publicKey])
   @@map("users")
 }
 
-enum UserRole {
-  TEACHER
-  STUDENT
-}
-
 model Quiz {
-  id            String   @id // blockchain txId
+  id            String   @id @map("_id") // blockchain txId
   title         String
   questionText  String
   options       String[] // Array of options
+  correctAnswer Int?     // Index of correct answer (hidden from students)
   rewardAmount  BigInt
   entryFee      BigInt
   isActive      Boolean  @default(true)
@@ -60,17 +51,17 @@ model Quiz {
 }
 
 model Attempt {
-  id              String   @id @default(uuid())
-  quizId          String
-  studentPubKey   String
-  selectedAnswer  Int
-  isCorrect       Boolean
-  rewardEarned    BigInt
-  attemptedAt     DateTime @default(now())
-  blockchainTxId  String?  @unique
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  quizId         String
+  studentPubKey  String
+  selectedAnswer Int
+  isCorrect      Boolean
+  rewardEarned   BigInt
+  attemptedAt    DateTime @default(now())
+  blockchainTxId String?  @unique
 
-  quiz    Quiz   @relation(fields: [quizId], references: [id])
-  student User   @relation(fields: [studentPubKey], references: [publicKey])
+  quiz    Quiz @relation(fields: [quizId], references: [id])
+  student User @relation(fields: [studentPubKey], references: [publicKey])
 
   @@index([quizId])
   @@index([studentPubKey])
@@ -80,7 +71,7 @@ model Attempt {
 }
 
 model LeaderboardEntry {
-  id            String   @id @default(uuid())
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
   publicKey     String   @unique
   name          String?
   totalRewards  BigInt   @default(0)

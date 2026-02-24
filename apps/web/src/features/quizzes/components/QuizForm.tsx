@@ -47,6 +47,7 @@ export function QuizForm() {
       if (formData.entryFee < 0) throw new Error('Entry fee cannot be negative')
 
       const quiz = await createQuiz(teacherClient, formData)
+      console.log("❤️ quiz created in QuizForm.tsx:", quiz)
       router.push(`/teacher/quizzes/${quiz._id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create quiz')

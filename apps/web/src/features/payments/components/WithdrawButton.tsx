@@ -1,27 +1,27 @@
 /**
- * Withdraw Button Component - Handle payment withdrawals
+ * Withdraw Button Component - Handle payment withdrawals via blockchain
  */
 
 'use client'
 
 import { useState } from 'react'
-import { usePaymentClient } from '@/hooks'
-import { withdrawPayments, calculateAvailableBalance, type Payment } from '../payments.service'
+import { useQuizClient } from '@/hooks'
 import { formatSatoshis } from '@/services'
+import type { PaymentDisplay } from './PaymentRow'
 
 interface WithdrawButtonProps {
-  payments: Payment[]
+  payments: PaymentDisplay[]
   address: string
   onSuccess?: () => void
 }
 
 export function WithdrawButton({ payments, address, onSuccess }: WithdrawButtonProps) {
-  const paymentClient = usePaymentClient()
+  const quizClient = useQuizClient()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
 
-  const totalBalance = calculateAvailableBalance(payments)
+  const totalBalance = payments.reduce((sum, p) => sum + p._satoshis, 0)
 
   const handleWithdraw = async () => {
     try {
@@ -32,8 +32,8 @@ export function WithdrawButton({ payments, address, onSuccess }: WithdrawButtonP
         throw new Error('No payments to withdraw')
       }
 
-      const paymentRevs = payments.map(p => p._rev)
-      await withdrawPayments(paymentClient, paymentRevs)
+      const result = await quizClient.withdrawAllPayments()
+      console.log(`Withdrawn ${result.totalWithdrawn} sats from ${result.count} payments`)
 
       onSuccess?.()
       setShowModal(false)

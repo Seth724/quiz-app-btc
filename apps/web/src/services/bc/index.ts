@@ -7,7 +7,7 @@ import { BrowserQuizClient } from './BrowserQuizClient'
 import { BrowserTeacherClient } from './BrowserTeacherClient'
 import { BrowserAttemptClient } from './BrowserAttemptClient'
 import { BrowserAccessClient } from './BrowserAccessClient'
-import type { ComputerConfig } from '@quiz-app/shared'
+import type { ComputerConfig } from '@/types'
 
 /**
  * Create Computer instance

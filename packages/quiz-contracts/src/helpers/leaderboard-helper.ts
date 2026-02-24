@@ -1,6 +1,6 @@
 import { Computer } from '@bitcoin-computer/lib'
 import { PaymentHelper } from './payment-helper.js'
-import { PaymentType } from '../types/index.js'
+//import { PaymentType } from '../types/index.js'
 
 export interface StudentReward {
   publicKey: string

@@ -25,6 +25,21 @@ export class PaymentHelper {
   }
 
   async createPayment(satoshis: bigint): Promise<Payment> {
+    if (this.mod) {
+      // Use expression string to avoid bundler serialization issues
+      const exp = `new Payment(${satoshis}n)`
+      console.log(`Creating payment with expression: ${exp}`)
+      const encoded = await this.computer.encode({ exp, mod: this.mod })
+      await this.computer.broadcast(encoded.tx)
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      const res = encoded?.effect?.res as any
+      const resId: string | undefined =
+        res?._id ?? (typeof res === 'string' ? res : undefined)
+      if (typeof resId === 'string') {
+        return await this.computer.sync(resId) as unknown as Payment
+      }
+      throw new Error('Failed to create payment could not extract result ID')
+    }
     const payment = await this.computer.new(Payment, [satoshis]) as unknown as Payment
     // Add delay to avoid mempool conflicts
     await new Promise(resolve => setTimeout(resolve, 1500))

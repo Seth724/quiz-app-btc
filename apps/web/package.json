@@ -12,8 +12,6 @@
   "dependencies": {
     "@bitcoin-computer/lib": "^0.26.0-beta.0",
     "@quiz-app/contracts": "*",
-    "@quiz-app/sdk": "*",
-    "@quiz-app/shared": "*",
     "flowbite": "^4.0.1",
     "next": "^16.0.10",
     "react": "^19.0.0",

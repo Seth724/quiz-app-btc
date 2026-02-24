@@ -5,12 +5,15 @@ import { QuizAccess } from '../quiz-access.js'
 
 export class AttemptHelper {
   computer: Computer
-  constructor(computer: Computer) {
+  mod?: string
+
+  constructor(computer: Computer, mod?: string) {
     this.computer = computer
+    this.mod = mod
   }
 
   async createAttempt(quizId: string, studentPublicKey: string): Promise<QuizAttempt> {
-    return await this.computer.new(QuizAttempt, [quizId, studentPublicKey]) as QuizAttempt
+    return await this.computer.new(QuizAttempt, [quizId, studentPublicKey], this.mod) as QuizAttempt
   }
 
   async getAttempt(attemptId: string): Promise<QuizAttempt> {

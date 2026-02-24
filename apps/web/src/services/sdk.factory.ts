@@ -3,8 +3,7 @@
  */
 
 import { Computer } from '@bitcoin-computer/lib'
-import { createComputer } from '@quiz-app/sdk'
-import type { ComputerConfig, Chain, Network } from '@quiz-app/shared'
+import type { ComputerConfig, Chain, Network } from '@/types'
 
 export interface SDKFactoryConfig {
   chain: Chain
@@ -32,7 +31,7 @@ export function createComputerInstance(config: SDKFactoryConfig): Computer {
     computerConfig.path = config.path
   }
 
-  return createComputer(computerConfig)
+  return new Computer(computerConfig)
 }
 
 /**

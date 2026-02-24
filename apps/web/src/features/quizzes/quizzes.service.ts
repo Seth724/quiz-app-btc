@@ -5,7 +5,7 @@
 
 'use client'
 
-import type { QuizData } from '@quiz-app/shared'
+import type { QuizData } from '@/types'
 import { apiClient } from '@/services'
 import { BrowserTeacherClient, BrowserQuizClient } from '@/services/bc'
 
@@ -66,6 +66,8 @@ export async function createQuiz(
   }
 
   const quiz = await teacherClient.createQuiz(quizData)
+
+  console.log('✅ Quiz created on blockchain with ID:', quiz)
 
   // Sync with backend (optional - don't fail if backend is unavailable)
   try {
