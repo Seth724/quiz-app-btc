@@ -6,6 +6,8 @@ export const NEXT_PUBLIC_STUDENT_MOD_SPEC = process.env.NEXT_PUBLIC_STUDENT_MOD_
 export const NEXT_PUBLIC_QUIZ_MOD_SPEC = process.env.NEXT_PUBLIC_QUIZ_MOD_SPEC || ''
 export const NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC = process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC || ''
 export const NEXT_PUBLIC_PAYMENT_MOD_SPEC = process.env.NEXT_PUBLIC_PAYMENT_MOD_SPEC || ''
+export const NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC = process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC || ''
+export const NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC = process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC || ''
 
 // Validate that all module specifications are set
 export function validateModSpecs(): boolean {
@@ -14,7 +16,9 @@ export function validateModSpecs(): boolean {
     NEXT_PUBLIC_STUDENT_MOD_SPEC &&
     NEXT_PUBLIC_QUIZ_MOD_SPEC &&
     NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC &&
-    NEXT_PUBLIC_PAYMENT_MOD_SPEC
+    NEXT_PUBLIC_PAYMENT_MOD_SPEC &&
+    NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC &&
+    NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC
   )
 }
 
@@ -25,6 +29,8 @@ export function getModSpecs() {
     student: NEXT_PUBLIC_STUDENT_MOD_SPEC,
     quiz: NEXT_PUBLIC_QUIZ_MOD_SPEC,
     attempt: NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC,
-    payment: NEXT_PUBLIC_PAYMENT_MOD_SPEC
+    payment: NEXT_PUBLIC_PAYMENT_MOD_SPEC,
+    quizAccess: NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC,
+    quizAccessSale: NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC
   }
 }

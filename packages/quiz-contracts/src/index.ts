@@ -19,4 +19,7 @@ export { TeacherHelper } from './helpers/teacher-helper.js'
 export { AttemptHelper } from './helpers/attempt-helper.js'
 export { QuizHelper } from './helpers/quiz-helper.js'
 export { QuizAccessHelper } from './helpers/quiz-access-helper.js'
-export { LeaderboardHelper } from './helpers/leaderboard-helper.js'
+export { LeaderboardHelper, type QuizResult, type StudentReward } from './helpers/leaderboard-helper.js'
+
+// types
+export * from './types/index.js'

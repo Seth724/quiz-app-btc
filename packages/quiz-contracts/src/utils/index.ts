@@ -10,10 +10,11 @@ export const RLTC: {
   url: 'http://localhost:1031',
 }
 
+// Type guard functions for contract metadata validation
 export const meta = {
-  _id: (x: any) => typeof x === 'string',
-  _rev: (x: any) => typeof x === 'string',
-  _root: (x: any) => typeof x === 'string',
-  _owners: (x: any) => Array.isArray(x),
-  _satoshis: (x: any) => typeof x === 'bigint',
+  _id: (x: unknown): x is string => typeof x === 'string',
+  _rev: (x: unknown): x is string => typeof x === 'string',
+  _root: (x: unknown): x is string => typeof x === 'string',
+  _owners: (x: unknown): x is string[] => Array.isArray(x),
+  _satoshis: (x: unknown): x is bigint => typeof x === 'bigint',
 }

@@ -1,13 +1,17 @@
 import { Contract } from '@bitcoin-computer/lib'
 
-type Constructor<T> = new (...args: unknown[]) => T
+type Constructor<T> = {
+  new (to: string, quizId: string, amount: bigint, symbol: string): T
+}
 
 /**
  * Fungible Quiz Access Token (UTXO bag model)
  *
  * - quizId: which quiz this access is for
- * - amount: number of attempts allowed (usually 1n)
- * - burn(1n): consumes one attempt
+ * - amount: how many "access units" this bag holds (usually 1n)
+ * - burn(1n): consume one access unit (used when attempting the quiz)
+ *
+ * This replaces the old "NFT-like" access token + used flag.
  */
 export class QuizAccess extends Contract {
   quizId!: string
@@ -15,32 +19,37 @@ export class QuizAccess extends Contract {
   symbol!: string
   _owners!: string[]
 
-  constructor(to: string, quizId: string, amount: bigint = 1n, symbol: string = 'QACC') {
+  constructor(to: string, quizId: string, amount: bigint = 1n, symbol = 'QACC') {
     super({ _owners: [to], quizId, amount, symbol })
   }
 
   /**
-   * Transfer ownership:
-   * - transfer(to): sends whole bag
-   * - transfer(to, amount): splits `amount` into a NEW bag owned by `to`
+   * Transfer ownership.
+   * - If amount is undefined: transfer the whole bag to `to`.
+   * - If amount is provided: split `amount` into a NEW bag owned by `to`.
    */
   transfer(to: string, amount?: bigint): QuizAccess | undefined {
     if (typeof amount === 'undefined') {
+      // Send entire bag
       this._owners = [to]
       return undefined
     }
 
     if (amount <= 0n) throw new Error('Amount must be positive')
-    if (amount > this.amount) throw new Error('Insufficient access balance')
 
-    this.amount -= amount
-    const ctor = this.constructor as unknown as Constructor<this>
-    return new ctor(to, this.quizId, amount, this.symbol) as unknown as QuizAccess
+    if (this.amount >= amount) {
+      // Split into a new bag
+      this.amount -= amount
+      const ctor = this.constructor as Constructor<this>
+      return new ctor(to, this.quizId, amount, this.symbol) as unknown as QuizAccess
+    }
+
+    throw new Error('Insufficient access balance')
   }
 
   /**
-   * Burn access units from this bag.
-   * Default: burn all remaining units.
+   * Burn access units in this bag.
+   * Default: burn everything (amount -> 0).
    */
   burn(amount: bigint = this.amount) {
     if (amount < 0n) throw new Error('Amount must be non-negative')

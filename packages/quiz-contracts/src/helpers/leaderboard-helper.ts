@@ -1,5 +1,6 @@
-//import { Payment } from '../payment.js'
+import { Computer } from '@bitcoin-computer/lib'
 import { PaymentHelper } from './payment-helper.js'
+import { PaymentType } from '../types/index.js'
 
 export interface StudentReward {
   publicKey: string
@@ -20,7 +21,7 @@ export interface QuizResult {
 }
 
 export class LeaderboardHelper {
-  computer: any
+  computer: Computer
   paymentHelper: PaymentHelper
 
   // In-memory storage for tracking student rewards
@@ -28,7 +29,7 @@ export class LeaderboardHelper {
   private studentRewards: Map<string, StudentReward> = new Map()
   private quizResults: QuizResult[] = []
 
-  constructor(computer: any) {
+  constructor(computer: Computer) {
     this.computer = computer
     this.paymentHelper = new PaymentHelper(computer)
   }
@@ -37,15 +38,14 @@ export class LeaderboardHelper {
   async recordQuizResult(result: QuizResult): Promise<void> {
     this.quizResults.push(result)
 
-    // Update student reward if they earned something
+    // Update student reward only if they actually claimed the reward
+    // A claimed reward requires: isCorrect AND rewardEarned > 0 AND paymentTxId provided
     if (result.isCorrect && result.rewardEarned > 0n && result.paymentTxId) {
       await this.addStudentReward(result.studentPublicKey, result.rewardEarned, result.paymentTxId)
-    } else if (result.isCorrect && result.rewardEarned > 0n) {
-      // Even if no paymentTxId (meaning they couldn't claim), still track the potential reward
-      await this.addStudentReward(result.studentPublicKey, result.rewardEarned, "")
-    } else if (result.isCorrect) {
-      // Track students who answered correctly but earned 0 (maybe they were too slow to claim)
-      // Initialize them with 0 reward but still track their participation
+    } else {
+      // Student participated but didn't claim a reward (either wrong answer, 
+      // or correct but didn't claim first, or reward was 0)
+      // Still track them for participation statistics
       await this.ensureStudentExists(result.studentPublicKey)
     }
   }

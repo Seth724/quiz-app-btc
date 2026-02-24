@@ -81,13 +81,13 @@ ACTION REQUIRED
 
 Update the following rows in your .env file.
 
-NEXT_PUBLIC_TEACHER_MOD_SPEC\x1b[2m=${teacherMod}\x1b[0m
-NEXT_PUBLIC_STUDENT_MOD_SPEC\x1b[2m=${studentMod}\x1b[0m
-NEXT_PUBLIC_QUIZ_MOD_SPEC\x1b[2m=${quizMod}\x1b[0m
-NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC\x1b[2m=${attemptMod}\x1b[0m
-NEXT_PUBLIC_PAYMENT_MOD_SPEC\x1b[2m=${paymentMod}\x1b[0m
-NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC\x1b[2m=${quizAccessMod}\x1b[0m
-NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC\x1b[2m=${quizAccessSaleMod}\x1b[0m
+NEXT_PUBLIC_TEACHER_MOD\x1b[2m=${teacherMod}\x1b[0m
+NEXT_PUBLIC_STUDENT_MOD\x1b[2m=${studentMod}\x1b[0m
+NEXT_PUBLIC_QUIZ_MOD\x1b[2m=${quizMod}\x1b[0m
+NEXT_PUBLIC_QUIZ_ATTEMPT_MOD\x1b[2m=${attemptMod}\x1b[0m
+NEXT_PUBLIC_PAYMENT_MOD\x1b[2m=${paymentMod}\x1b[0m
+NEXT_PUBLIC_QUIZ_ACCESS_MOD\x1b[2m=${quizAccessMod}\x1b[0m
+NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD\x1b[2m=${quizAccessSaleMod}\x1b[0m
 `)
 
 console.log("\nRun 'npm run dev' to start the application.\n")

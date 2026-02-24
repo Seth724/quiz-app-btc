@@ -1,20 +1,22 @@
-import { Payment,Withdraw  } from '../payment.js'
+import { Computer } from '@bitcoin-computer/lib'
+import { Payment, Withdraw } from '../payment.js'
+//import { PaymentType } from '../types/index.js'
 
 export class PaymentHelper {
-  computer: any
+  computer: Computer
   mod?: string
 
-  constructor(computer: any, mod?: string) {
+  constructor(computer: Computer, mod?: string) {
     this.computer = computer
     this.mod = mod
   }
 
-  async deploy() {
+  async deploy(): Promise<string> {
     this.mod = await this.computer.deploy(`export ${Payment}; export ${Withdraw}`)
     return this.mod
   }
 
-  async createPaymentTx(satoshis: bigint) {
+  async createPaymentTx(satoshis: bigint): Promise<unknown> {
     const exp = `new Payment(${satoshis}n)`
     return this.computer.encode({
       exp,
@@ -23,7 +25,7 @@ export class PaymentHelper {
   }
 
   async createPayment(satoshis: bigint): Promise<Payment> {
-    const payment = await this.computer.new(Payment, [satoshis])
+    const payment = await this.computer.new(Payment, [satoshis]) as unknown as Payment
     // Add delay to avoid mempool conflicts
     await new Promise(resolve => setTimeout(resolve, 1500))
     return payment
@@ -34,7 +36,7 @@ export class PaymentHelper {
     const id = paymentTxId.includes(':') ? paymentTxId :`${paymentTxId}:0`
     const rev = await this.computer.getLatestRev(id)
 
-    const syncedPayment: Payment = await this.computer.sync(rev)
+    const syncedPayment = await this.computer.sync(rev) as unknown as Payment
     return syncedPayment
   }
 

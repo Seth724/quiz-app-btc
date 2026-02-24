@@ -14,22 +14,37 @@ export class TeacherHelper {
   }
 
   async createTeacher(name: string, publicKey: string): Promise<Teacher> {
-    const teacher = (await this.computer.new(Teacher, [name, publicKey])) as unknown as Teacher
-    await new Promise((r) => setTimeout(r, 3000))
+    const teacher = (await this.computer.new(Teacher, [name, publicKey])) as Teacher
+    await new Promise((resolve) => setTimeout(resolve, 3000))
     return teacher
   }
 
   async getTeacher(teacherId: string): Promise<Teacher> {
-    return (await this.computer.sync(teacherId)) as unknown as Teacher
+    return (await this.computer.sync(teacherId)) as Teacher
   }
 
-  // 1) create reward payment only
-  async createRewardPayment(rewardAmount: bigint): Promise<Payment> {
-    return await this.paymentHelper.createPayment(rewardAmount)
+  async getQuiz(quizId: string): Promise<Quiz> {
+    return (await this.computer.sync(quizId)) as Quiz
   }
 
-  // 2) create quiz only (must pass paymentTxId you created above)
-  async createQuizOnly(params: {
+  /**
+   * Step 1: Create reward Payment only.
+   * Returns both the Payment object and its id (paymentTxId).
+   */
+  async createQuizRewardPayment(rewardAmount: bigint): Promise<{ payment: Payment; paymentTxId: string }> {
+    console.log(`💰 Creating reward payment: ${rewardAmount} sats`)
+    const payment = await this.paymentHelper.createPayment(rewardAmount)
+    const paymentTxId = await payment._id
+    console.log(`✅ Reward payment created: ${paymentTxId}`)
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+    return { payment, paymentTxId }
+  }
+
+  /**
+   * Step 2: Create Quiz only, but requires a paymentTxId already created.
+   * Also adds quizId to teacher object.
+   */
+  async createQuizWithPayment(params: {
     title: string
     questionText: string
     options: string[]
@@ -38,11 +53,14 @@ export class TeacherHelper {
     entryFee: bigint
     teacher: Teacher
     paymentTxId: string
-  }): Promise<any> {
+  }): Promise<Quiz> {
+    console.log(`🎯 Creating quiz: ${params.title}`)
+
     Teacher.validateQuizParams(params.questionText, params.options, params.correctAnswer, params.rewardAmount)
 
     const teacherPubKey = await params.teacher.publicKey
-    const quiz = await this.computer.new(Quiz, [
+
+    const quiz = (await this.computer.new(Quiz, [
       {
         title: params.title,
         questionText: params.questionText,
@@ -53,18 +71,27 @@ export class TeacherHelper {
         teacherPublicKey: teacherPubKey,
         paymentTxId: params.paymentTxId,
       },
-    ], process.env.NEXT_PUBLIC_QUIZ_MOD)
+    ])) as Quiz
 
-    await new Promise((r) => setTimeout(r, 3000))
+    await new Promise((resolve) => setTimeout(resolve, 3000))
 
-    const updatedTeacher = await this.getTeacher(await params.teacher._id)
-    await updatedTeacher.addQuiz(await quiz._id)
+    // Add quiz to teacher list
+    const teacherId = await params.teacher._id
+    const updatedTeacher = await this.getTeacher(teacherId)
+    const quizId = await quiz._id
+    await updatedTeacher.addQuiz(quizId)
 
-    await new Promise((r) => setTimeout(r, 3000))
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+
+    console.log(`✅ Quiz created successfully: ${quizId}`)
     return quiz
   }
 
-  // NEW: Combined method to create quiz with payment
+  /**
+   * Convenience wrapper (optional):
+   * Does both steps: create payment + create quiz.
+   * Keeps your old API working if other tests use it.
+   */
   async createQuiz(params: {
     title: string
     questionText: string
@@ -73,50 +100,65 @@ export class TeacherHelper {
     rewardAmount: bigint
     entryFee: bigint
     teacher: Teacher
-  }): Promise<{ quiz: Quiz, paymentTxId: string }> {
-    // First create the reward payment
-    const payment = await this.createRewardPayment(params.rewardAmount)
-    const paymentTxId = await payment._id
-
-    // Then create the quiz with the payment ID using the deployed module spec
-    const quiz = await this.computer.new(Quiz, [{
-      title: params.title,
-      questionText: params.questionText,
-      options: params.options,
-      correctAnswer: params.correctAnswer,
-      rewardAmount: params.rewardAmount,
-      entryFee: params.entryFee,
-      teacherPublicKey: await params.teacher.publicKey,
-      paymentTxId
-    }], process.env.NEXT_PUBLIC_QUIZ_MOD)
-
+  }): Promise<{ quiz: Quiz; paymentTxId: string }> {
+    const { paymentTxId } = await this.createQuizRewardPayment(params.rewardAmount)
+    const quiz = await this.createQuizWithPayment({ ...params, paymentTxId })
     return { quiz, paymentTxId }
   }
 
-  async getQuiz(quizId: string): Promise<any> {
-    return await this.computer.sync(quizId)
+  /**
+   * If you still want a quiz without payment object.
+   */
+  async createQuizOnly(params: {
+    title: string
+    questionText: string
+    options: string[]
+    correctAnswer: number
+    rewardAmount: bigint
+    entryFee: bigint
+    teacher: Teacher
+  }): Promise<Quiz> {
+    console.log(`🎯 Teacher creating quiz (no payment object): ${params.title}`)
+
+    Teacher.validateQuizParams(params.questionText, params.options, params.correctAnswer, params.rewardAmount)
+
+    const teacherPubKey = await params.teacher.publicKey
+    const quiz = (await this.computer.new(Quiz, [
+      {
+        title: params.title,
+        questionText: params.questionText,
+        options: params.options,
+        correctAnswer: params.correctAnswer,
+        rewardAmount: params.rewardAmount,
+        entryFee: params.entryFee,
+        teacherPublicKey: teacherPubKey,
+        paymentTxId: '',
+      },
+    ])) as Quiz
+
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+
+    const teacherId = await params.teacher._id
+    const updatedTeacher = await this.getTeacher(teacherId)
+    const quizId = await quiz._id
+    await updatedTeacher.addQuiz(quizId)
+
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+
+    console.log(`✅ Quiz-only created successfully: ${quizId}`)
+    return quiz
   }
 
-  /**
-   * Get quizzes created by this teacher
-   */
-  async getQuizzesByTeacher(teacherId: string): Promise<any[]> {
-    const teacher = await this.getTeacher(teacherId)
+  async deactivateQuiz(teacher: Teacher, quizId: string) {
+    const quiz = await this.getQuiz(quizId)
+
+    const quizTeacherPubKey = await quiz.teacherPublicKey
     const teacherPubKey = await teacher.publicKey
-    
-    // Get all Quiz objects owned by this teacher using the deployed module spec
-    const revs = await this.computer.query({
-      publicKey: teacherPubKey,
-      mod: process.env.NEXT_PUBLIC_QUIZ_MOD
-    })
-    
-    const quizzes = await Promise.all(
-      revs.map(async (rev: string) => {
-        const quiz = await this.computer.sync(rev)
-        return quiz
-      })
-    )
-    
-    return quizzes
+    if (quizTeacherPubKey !== teacherPubKey) {
+      throw new Error('Only the quiz creator can deactivate this quiz')
+    }
+
+    await quiz.deactivate()
+    await new Promise((resolve) => setTimeout(resolve, 3000))
   }
 }

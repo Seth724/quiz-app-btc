@@ -1,4 +1,5 @@
 import { Computer } from '@bitcoin-computer/lib'
+import { Quiz } from '../quiz.js'
 
 /**
  * QuizHelper - Utility class for Quiz contract operations
@@ -20,40 +21,40 @@ export class QuizHelper {
   /**
    * Get a quiz by ID
    */
-  async getQuiz(quizId: string): Promise<any> {
-    return await this.computer.sync(quizId)
+  async getQuiz(quizId: string): Promise<Quiz> {
+    return await this.computer.sync(quizId) as Quiz
   }
 
   /**
    * Check if a quiz is currently active
    */
   async isQuizActive(quizId: string): Promise<boolean> {
-    const quiz: any = await this.getQuiz(quizId)
-    return quiz.isActive
+    const quiz = await this.getQuiz(quizId)
+    return await quiz.isActive
   }
 
   /**
    * Check if the reward for a quiz has been claimed
    */
   async isRewardClaimed(quizId: string): Promise<boolean> {
-    const quiz: any = await this.getQuiz(quizId)
-    return quiz.isClaimed
+    const quiz = await this.getQuiz(quizId)
+    return await quiz.isClaimed
   }
 
   /**
    * Get the public key of the student who claimed the reward
    */
   async getRewardClaimedBy(quizId: string): Promise<string> {
-    const quiz: any = await this.getQuiz(quizId)
-    return quiz.claimedBy
+    const quiz = await this.getQuiz(quizId)
+    return await quiz.claimedBy
   }
 
   /**
    * Check if a student has already attempted a quiz
    */
   async hasStudentAttempted(quizId: string, studentPublicKey: string): Promise<boolean> {
-    const quiz: any = await this.getQuiz(quizId)
-    return quiz.hasStudentAttempted ? quiz.hasStudentAttempted(studentPublicKey) : false
+    const quiz = await this.getQuiz(quizId)
+    return await quiz.hasStudentAttempted(studentPublicKey)
   }
 
   /**
@@ -63,16 +64,16 @@ export class QuizHelper {
    * - Student has not already attempted
    */
   async canStudentAttemptQuiz(quizId: string, studentPublicKey: string): Promise<boolean> {
-    const quiz: any = await this.getQuiz(quizId)
-    return quiz.canStudentAttempt ? quiz.canStudentAttempt(studentPublicKey) : false
+    const quiz = await this.getQuiz(quizId)
+    return await quiz.canStudentAttempt(studentPublicKey)
   }
 
   /**
    * Get the number of students who have attempted a quiz
    */
   async getAttemptCount(quizId: string): Promise<number> {
-    const quiz: any = await this.getQuiz(quizId)
-    const attemptedStudents = quiz.attemptedStudents || []
+    const quiz = await this.getQuiz(quizId)
+    const attemptedStudents = await quiz.attemptedStudents
     return attemptedStudents.length
   }
 
@@ -84,28 +85,24 @@ export class QuizHelper {
     questionText: string
     options: string[]
     rewardAmount: bigint
-    entryFee: bigint
     isActive: boolean
     isClaimed: boolean
     claimedBy: string
     attemptCount: number
-    attemptedStudents: string[]
     paymentTxId: string
   }> {
-    const quiz: any = await this.getQuiz(quizId)
-
+    const quiz = await this.getQuiz(quizId)
+    
     return {
-      title: quiz.title,
-      questionText: quiz.questionText,
-      options: quiz.options,
-      rewardAmount: quiz.rewardAmount,
-      entryFee: quiz.entryFee,
-      isActive: quiz.isActive,
-      isClaimed: quiz.isClaimed,
-      claimedBy: quiz.claimedBy,
-      attemptCount: (quiz.attemptedStudents || []).length,
-      attemptedStudents: quiz.attemptedStudents || [],
-      paymentTxId: quiz.paymentTxId
+      title: await quiz.title,
+      questionText: await quiz.questionText,
+      options: await quiz.options,
+      rewardAmount: await quiz.rewardAmount,
+      isActive: await quiz.isActive,
+      isClaimed: await quiz.isClaimed,
+      claimedBy: await quiz.claimedBy,
+      attemptCount: (await quiz.attemptedStudents).length,
+      paymentTxId: await quiz.paymentTxId
     }
   }
 
@@ -113,10 +110,8 @@ export class QuizHelper {
    * Deactivate a quiz (typically called by teacher)
    */
   async deactivateQuiz(quizId: string): Promise<void> {
-    const quiz: any = await this.getQuiz(quizId)
-    if (quiz.deactivate) {
-      await quiz.deactivate()
-    }
+    const quiz = await this.getQuiz(quizId)
+    await quiz.deactivate()
     // Add delay to avoid mempool conflicts
     await new Promise(resolve => setTimeout(resolve, 2000))
   }
@@ -126,25 +121,5 @@ export class QuizHelper {
    */
   isValidAnswerIndex(answerIndex: number): boolean {
     return answerIndex >= 0 && answerIndex <= 3
-  }
-
-  /**
-   * Get quizzes by teacher public key
-   */
-  async getQuizzesByTeacher(teacherPublicKey: string): Promise<any[]> {
-    // Query for Quiz objects owned by the teacher using the deployed module spec
-    const revs = await this.computer.query({
-      publicKey: teacherPublicKey,
-      mod: process.env.NEXT_PUBLIC_QUIZ_MOD
-    })
-    
-    const quizzes = await Promise.all(
-      revs.map(async (rev: string) => {
-        const quiz = await this.computer.sync(rev)
-        return quiz
-      })
-    )
-    
-    return quizzes
   }
 }

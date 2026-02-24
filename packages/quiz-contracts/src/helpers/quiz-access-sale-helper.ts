@@ -48,6 +48,22 @@ export class QuizAccessSaleHelper {
     }) as unknown as Promise<EncodeResult>
   }
 
+  async isOfferTx(tx: TransactionType): Promise<boolean> {
+    try {
+      const { exp, mod } = await this.computer.decode(tx)
+      return exp === 'QuizAccessSale.exec(o, p)' && mod === this.mod
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Checks:
+   * - correct exp + module
+   * - effect env keys are exactly o,p
+   * Returns the asking price (tx.outs[0].value).
+   */
+
   async checkOfferTx(tx: TransactionType): Promise<bigint> {
     const decoded = (await this.computer.decode(tx)) as unknown as DecodeResult
     const { exp, env, mod } = decoded

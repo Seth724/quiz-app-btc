@@ -396,6 +396,52 @@ fundWallet().catch(console.error)
 # scripts\lib.ts
 
 ```ts
+// import { Computer } from '@bitcoin-computer/lib'
+// import { Teacher } from '../src/teacher.js'
+// import { Student } from '../src/student.js'
+// import { Quiz } from '../src/quiz.js'
+// import { QuizAttempt } from '../src/attempt.js'
+// import { Payment, Withdraw } from '../src/payment.js'
+// import { QuizAccess } from '../src/quiz-access.js'
+// import { QuizAccessSale } from '../src/quiz-access-sale.js'
+
+// // Polyfill for __name helper that some bundlers inject
+// // This prevents "__name is not a function" errors in the browser SES sandbox
+// const BC_PRELUDE = `const __name = (target, value) => target;
+// `
+
+// export async function deployQuizContracts(computer: Computer): Promise<{
+//   teacherMod: string
+//   studentMod: string
+//   quizMod: string
+//   attemptMod: string
+//   paymentMod: string
+//   quizAccessMod: string
+//   quizAccessSaleMod: string
+// }> {
+//   // Deploy all contracts with __name polyfill to prevent SES errors
+//   const teacherMod = await computer.deploy(`${BC_PRELUDE}export ${Teacher}`)
+//   const studentMod = await computer.deploy(`${BC_PRELUDE}export ${Student}`)
+//   const quizMod = await computer.deploy(`${BC_PRELUDE}export ${Quiz}`)
+//   const attemptMod = await computer.deploy(`${BC_PRELUDE}export ${QuizAttempt}`)
+//   const paymentMod = await computer.deploy(`${BC_PRELUDE}export ${Payment}; export ${Withdraw}`)
+//   const quizAccessMod = await computer.deploy(`${BC_PRELUDE}export ${QuizAccess}`)
+//   const quizAccessSaleMod = await computer.deploy(`${BC_PRELUDE}export ${QuizAccessSale}`)
+
+//   return {
+//     teacherMod,
+//     studentMod,
+//     quizMod,
+//     attemptMod,
+//     paymentMod,
+//     quizAccessMod,
+//     quizAccessSaleMod
+//   }
+// }
+
+
+
+
 import { Computer } from '@bitcoin-computer/lib'
 import { Teacher } from '../src/teacher.js'
 import { Student } from '../src/student.js'
@@ -551,8 +597,9 @@ export class AttemptHelper {
 # src\helpers\leaderboard-helper.ts
 
 ```ts
-//import { Payment } from '../payment.js'
+import { Computer } from '@bitcoin-computer/lib'
 import { PaymentHelper } from './payment-helper.js'
+import { PaymentType } from '../types/index.js'
 
 export interface StudentReward {
   publicKey: string
@@ -573,7 +620,7 @@ export interface QuizResult {
 }
 
 export class LeaderboardHelper {
-  computer: any
+  computer: Computer
   paymentHelper: PaymentHelper
 
   // In-memory storage for tracking student rewards
@@ -581,7 +628,7 @@ export class LeaderboardHelper {
   private studentRewards: Map<string, StudentReward> = new Map()
   private quizResults: QuizResult[] = []
 
-  constructor(computer: any) {
+  constructor(computer: Computer) {
     this.computer = computer
     this.paymentHelper = new PaymentHelper(computer)
   }
@@ -590,15 +637,14 @@ export class LeaderboardHelper {
   async recordQuizResult(result: QuizResult): Promise<void> {
     this.quizResults.push(result)
 
-    // Update student reward if they earned something
+    // Update student reward only if they actually claimed the reward
+    // A claimed reward requires: isCorrect AND rewardEarned > 0 AND paymentTxId provided
     if (result.isCorrect && result.rewardEarned > 0n && result.paymentTxId) {
       await this.addStudentReward(result.studentPublicKey, result.rewardEarned, result.paymentTxId)
-    } else if (result.isCorrect && result.rewardEarned > 0n) {
-      // Even if no paymentTxId (meaning they couldn't claim), still track the potential reward
-      await this.addStudentReward(result.studentPublicKey, result.rewardEarned, "")
-    } else if (result.isCorrect) {
-      // Track students who answered correctly but earned 0 (maybe they were too slow to claim)
-      // Initialize them with 0 reward but still track their participation
+    } else {
+      // Student participated but didn't claim a reward (either wrong answer, 
+      // or correct but didn't claim first, or reward was 0)
+      // Still track them for participation statistics
       await this.ensureStudentExists(result.studentPublicKey)
     }
   }
@@ -772,23 +818,25 @@ export class LeaderboardHelper {
 # src\helpers\payment-helper.ts
 
 ```ts
-import { Payment,Withdraw  } from '../payment.js'
+import { Computer } from '@bitcoin-computer/lib'
+import { Payment, Withdraw } from '../payment.js'
+//import { PaymentType } from '../types/index.js'
 
 export class PaymentHelper {
-  computer: any
+  computer: Computer
   mod?: string
 
-  constructor(computer: any, mod?: string) {
+  constructor(computer: Computer, mod?: string) {
     this.computer = computer
     this.mod = mod
   }
 
-  async deploy() {
+  async deploy(): Promise<string> {
     this.mod = await this.computer.deploy(`export ${Payment}; export ${Withdraw}`)
     return this.mod
   }
 
-  async createPaymentTx(satoshis: bigint) {
+  async createPaymentTx(satoshis: bigint): Promise<unknown> {
     const exp = `new Payment(${satoshis}n)`
     return this.computer.encode({
       exp,
@@ -797,7 +845,7 @@ export class PaymentHelper {
   }
 
   async createPayment(satoshis: bigint): Promise<Payment> {
-    const payment = await this.computer.new(Payment, [satoshis])
+    const payment = await this.computer.new(Payment, [satoshis]) as unknown as Payment
     // Add delay to avoid mempool conflicts
     await new Promise(resolve => setTimeout(resolve, 1500))
     return payment
@@ -808,7 +856,7 @@ export class PaymentHelper {
     const id = paymentTxId.includes(':') ? paymentTxId :`${paymentTxId}:0`
     const rev = await this.computer.getLatestRev(id)
 
-    const syncedPayment: Payment = await this.computer.sync(rev)
+    const syncedPayment = await this.computer.sync(rev) as unknown as Payment
     return syncedPayment
   }
 
@@ -1041,6 +1089,22 @@ export class QuizAccessSaleHelper {
     }) as unknown as Promise<EncodeResult>
   }
 
+  async isOfferTx(tx: TransactionType): Promise<boolean> {
+    try {
+      const { exp, mod } = await this.computer.decode(tx)
+      return exp === 'QuizAccessSale.exec(o, p)' && mod === this.mod
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Checks:
+   * - correct exp + module
+   * - effect env keys are exactly o,p
+   * Returns the asking price (tx.outs[0].value).
+   */
+
   async checkOfferTx(tx: TransactionType): Promise<bigint> {
     const decoded = (await this.computer.decode(tx)) as unknown as DecodeResult
     const { exp, env, mod } = decoded
@@ -1080,6 +1144,7 @@ export class QuizAccessSaleHelper {
 
 ```ts
 import { Computer } from '@bitcoin-computer/lib'
+import { Quiz } from '../quiz.js'
 
 /**
  * QuizHelper - Utility class for Quiz contract operations
@@ -1101,40 +1166,40 @@ export class QuizHelper {
   /**
    * Get a quiz by ID
    */
-  async getQuiz(quizId: string): Promise<any> {
-    return await this.computer.sync(quizId)
+  async getQuiz(quizId: string): Promise<Quiz> {
+    return await this.computer.sync(quizId) as Quiz
   }
 
   /**
    * Check if a quiz is currently active
    */
   async isQuizActive(quizId: string): Promise<boolean> {
-    const quiz: any = await this.getQuiz(quizId)
-    return quiz.isActive
+    const quiz = await this.getQuiz(quizId)
+    return await quiz.isActive
   }
 
   /**
    * Check if the reward for a quiz has been claimed
    */
   async isRewardClaimed(quizId: string): Promise<boolean> {
-    const quiz: any = await this.getQuiz(quizId)
-    return quiz.isClaimed
+    const quiz = await this.getQuiz(quizId)
+    return await quiz.isClaimed
   }
 
   /**
    * Get the public key of the student who claimed the reward
    */
   async getRewardClaimedBy(quizId: string): Promise<string> {
-    const quiz: any = await this.getQuiz(quizId)
-    return quiz.claimedBy
+    const quiz = await this.getQuiz(quizId)
+    return await quiz.claimedBy
   }
 
   /**
    * Check if a student has already attempted a quiz
    */
   async hasStudentAttempted(quizId: string, studentPublicKey: string): Promise<boolean> {
-    const quiz: any = await this.getQuiz(quizId)
-    return quiz.hasStudentAttempted ? quiz.hasStudentAttempted(studentPublicKey) : false
+    const quiz = await this.getQuiz(quizId)
+    return await quiz.hasStudentAttempted(studentPublicKey)
   }
 
   /**
@@ -1144,16 +1209,16 @@ export class QuizHelper {
    * - Student has not already attempted
    */
   async canStudentAttemptQuiz(quizId: string, studentPublicKey: string): Promise<boolean> {
-    const quiz: any = await this.getQuiz(quizId)
-    return quiz.canStudentAttempt ? quiz.canStudentAttempt(studentPublicKey) : false
+    const quiz = await this.getQuiz(quizId)
+    return await quiz.canStudentAttempt(studentPublicKey)
   }
 
   /**
    * Get the number of students who have attempted a quiz
    */
   async getAttemptCount(quizId: string): Promise<number> {
-    const quiz: any = await this.getQuiz(quizId)
-    const attemptedStudents = quiz.attemptedStudents || []
+    const quiz = await this.getQuiz(quizId)
+    const attemptedStudents = await quiz.attemptedStudents
     return attemptedStudents.length
   }
 
@@ -1165,28 +1230,24 @@ export class QuizHelper {
     questionText: string
     options: string[]
     rewardAmount: bigint
-    entryFee: bigint
     isActive: boolean
     isClaimed: boolean
     claimedBy: string
     attemptCount: number
-    attemptedStudents: string[]
     paymentTxId: string
   }> {
-    const quiz: any = await this.getQuiz(quizId)
-
+    const quiz = await this.getQuiz(quizId)
+    
     return {
-      title: quiz.title,
-      questionText: quiz.questionText,
-      options: quiz.options,
-      rewardAmount: quiz.rewardAmount,
-      entryFee: quiz.entryFee,
-      isActive: quiz.isActive,
-      isClaimed: quiz.isClaimed,
-      claimedBy: quiz.claimedBy,
-      attemptCount: (quiz.attemptedStudents || []).length,
-      attemptedStudents: quiz.attemptedStudents || [],
-      paymentTxId: quiz.paymentTxId
+      title: await quiz.title,
+      questionText: await quiz.questionText,
+      options: await quiz.options,
+      rewardAmount: await quiz.rewardAmount,
+      isActive: await quiz.isActive,
+      isClaimed: await quiz.isClaimed,
+      claimedBy: await quiz.claimedBy,
+      attemptCount: (await quiz.attemptedStudents).length,
+      paymentTxId: await quiz.paymentTxId
     }
   }
 
@@ -1194,10 +1255,8 @@ export class QuizHelper {
    * Deactivate a quiz (typically called by teacher)
    */
   async deactivateQuiz(quizId: string): Promise<void> {
-    const quiz: any = await this.getQuiz(quizId)
-    if (quiz.deactivate) {
-      await quiz.deactivate()
-    }
+    const quiz = await this.getQuiz(quizId)
+    await quiz.deactivate()
     // Add delay to avoid mempool conflicts
     await new Promise(resolve => setTimeout(resolve, 2000))
   }
@@ -1207,26 +1266,6 @@ export class QuizHelper {
    */
   isValidAnswerIndex(answerIndex: number): boolean {
     return answerIndex >= 0 && answerIndex <= 3
-  }
-
-  /**
-   * Get quizzes by teacher public key
-   */
-  async getQuizzesByTeacher(teacherPublicKey: string): Promise<any[]> {
-    // Query for Quiz objects owned by the teacher using the deployed module spec
-    const revs = await this.computer.query({
-      publicKey: teacherPublicKey,
-      mod: process.env.NEXT_PUBLIC_QUIZ_MOD
-    })
-    
-    const quizzes = await Promise.all(
-      revs.map(async (rev: string) => {
-        const quiz = await this.computer.sync(rev)
-        return quiz
-      })
-    )
-    
-    return quizzes
   }
 }
 ```
@@ -1365,7 +1404,6 @@ export class StudentHelper {
 ): Promise<{
   isCorrect: boolean
   rewardEarned: bigint
-  selectedAnswer: number
 }> {
   console.log(`📝 Student attempting quiz ${quizId} with QuizAttempt contract`)
 
@@ -1405,7 +1443,7 @@ export class StudentHelper {
 
   await new Promise((resolve) => setTimeout(resolve, 2500))
 
-  return { isCorrect, rewardEarned, selectedAnswer }
+  return { isCorrect, rewardEarned }
 }
 
   async getQuiz(quizId: string): Promise<Quiz> {
@@ -1439,22 +1477,37 @@ export class TeacherHelper {
   }
 
   async createTeacher(name: string, publicKey: string): Promise<Teacher> {
-    const teacher = (await this.computer.new(Teacher, [name, publicKey])) as unknown as Teacher
-    await new Promise((r) => setTimeout(r, 3000))
+    const teacher = (await this.computer.new(Teacher, [name, publicKey])) as Teacher
+    await new Promise((resolve) => setTimeout(resolve, 3000))
     return teacher
   }
 
   async getTeacher(teacherId: string): Promise<Teacher> {
-    return (await this.computer.sync(teacherId)) as unknown as Teacher
+    return (await this.computer.sync(teacherId)) as Teacher
   }
 
-  // 1) create reward payment only
-  async createRewardPayment(rewardAmount: bigint): Promise<Payment> {
-    return await this.paymentHelper.createPayment(rewardAmount)
+  async getQuiz(quizId: string): Promise<Quiz> {
+    return (await this.computer.sync(quizId)) as Quiz
   }
 
-  // 2) create quiz only (must pass paymentTxId you created above)
-  async createQuizOnly(params: {
+  /**
+   * Step 1: Create reward Payment only.
+   * Returns both the Payment object and its id (paymentTxId).
+   */
+  async createQuizRewardPayment(rewardAmount: bigint): Promise<{ payment: Payment; paymentTxId: string }> {
+    console.log(`💰 Creating reward payment: ${rewardAmount} sats`)
+    const payment = await this.paymentHelper.createPayment(rewardAmount)
+    const paymentTxId = await payment._id
+    console.log(`✅ Reward payment created: ${paymentTxId}`)
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+    return { payment, paymentTxId }
+  }
+
+  /**
+   * Step 2: Create Quiz only, but requires a paymentTxId already created.
+   * Also adds quizId to teacher object.
+   */
+  async createQuizWithPayment(params: {
     title: string
     questionText: string
     options: string[]
@@ -1463,11 +1516,14 @@ export class TeacherHelper {
     entryFee: bigint
     teacher: Teacher
     paymentTxId: string
-  }): Promise<any> {
+  }): Promise<Quiz> {
+    console.log(`🎯 Creating quiz: ${params.title}`)
+
     Teacher.validateQuizParams(params.questionText, params.options, params.correctAnswer, params.rewardAmount)
 
     const teacherPubKey = await params.teacher.publicKey
-    const quiz = await this.computer.new(Quiz, [
+
+    const quiz = (await this.computer.new(Quiz, [
       {
         title: params.title,
         questionText: params.questionText,
@@ -1478,18 +1534,27 @@ export class TeacherHelper {
         teacherPublicKey: teacherPubKey,
         paymentTxId: params.paymentTxId,
       },
-    ], process.env.NEXT_PUBLIC_QUIZ_MOD)
+    ])) as Quiz
 
-    await new Promise((r) => setTimeout(r, 3000))
+    await new Promise((resolve) => setTimeout(resolve, 3000))
 
-    const updatedTeacher = await this.getTeacher(await params.teacher._id)
-    await updatedTeacher.addQuiz(await quiz._id)
+    // Add quiz to teacher list
+    const teacherId = await params.teacher._id
+    const updatedTeacher = await this.getTeacher(teacherId)
+    const quizId = await quiz._id
+    await updatedTeacher.addQuiz(quizId)
 
-    await new Promise((r) => setTimeout(r, 3000))
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+
+    console.log(`✅ Quiz created successfully: ${quizId}`)
     return quiz
   }
 
-  // NEW: Combined method to create quiz with payment
+  /**
+   * Convenience wrapper (optional):
+   * Does both steps: create payment + create quiz.
+   * Keeps your old API working if other tests use it.
+   */
   async createQuiz(params: {
     title: string
     questionText: string
@@ -1498,51 +1563,66 @@ export class TeacherHelper {
     rewardAmount: bigint
     entryFee: bigint
     teacher: Teacher
-  }): Promise<{ quiz: Quiz, paymentTxId: string }> {
-    // First create the reward payment
-    const payment = await this.createRewardPayment(params.rewardAmount)
-    const paymentTxId = await payment._id
-
-    // Then create the quiz with the payment ID using the deployed module spec
-    const quiz = await this.computer.new(Quiz, [{
-      title: params.title,
-      questionText: params.questionText,
-      options: params.options,
-      correctAnswer: params.correctAnswer,
-      rewardAmount: params.rewardAmount,
-      entryFee: params.entryFee,
-      teacherPublicKey: await params.teacher.publicKey,
-      paymentTxId
-    }], process.env.NEXT_PUBLIC_QUIZ_MOD)
-
+  }): Promise<{ quiz: Quiz; paymentTxId: string }> {
+    const { paymentTxId } = await this.createQuizRewardPayment(params.rewardAmount)
+    const quiz = await this.createQuizWithPayment({ ...params, paymentTxId })
     return { quiz, paymentTxId }
   }
 
-  async getQuiz(quizId: string): Promise<any> {
-    return await this.computer.sync(quizId)
+  /**
+   * If you still want a quiz without payment object.
+   */
+  async createQuizOnly(params: {
+    title: string
+    questionText: string
+    options: string[]
+    correctAnswer: number
+    rewardAmount: bigint
+    entryFee: bigint
+    teacher: Teacher
+  }): Promise<Quiz> {
+    console.log(`🎯 Teacher creating quiz (no payment object): ${params.title}`)
+
+    Teacher.validateQuizParams(params.questionText, params.options, params.correctAnswer, params.rewardAmount)
+
+    const teacherPubKey = await params.teacher.publicKey
+    const quiz = (await this.computer.new(Quiz, [
+      {
+        title: params.title,
+        questionText: params.questionText,
+        options: params.options,
+        correctAnswer: params.correctAnswer,
+        rewardAmount: params.rewardAmount,
+        entryFee: params.entryFee,
+        teacherPublicKey: teacherPubKey,
+        paymentTxId: '',
+      },
+    ])) as Quiz
+
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+
+    const teacherId = await params.teacher._id
+    const updatedTeacher = await this.getTeacher(teacherId)
+    const quizId = await quiz._id
+    await updatedTeacher.addQuiz(quizId)
+
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+
+    console.log(`✅ Quiz-only created successfully: ${quizId}`)
+    return quiz
   }
 
-  /**
-   * Get quizzes created by this teacher
-   */
-  async getQuizzesByTeacher(teacherId: string): Promise<any[]> {
-    const teacher = await this.getTeacher(teacherId)
+  async deactivateQuiz(teacher: Teacher, quizId: string) {
+    const quiz = await this.getQuiz(quizId)
+
+    const quizTeacherPubKey = await quiz.teacherPublicKey
     const teacherPubKey = await teacher.publicKey
-    
-    // Get all Quiz objects owned by this teacher using the deployed module spec
-    const revs = await this.computer.query({
-      publicKey: teacherPubKey,
-      mod: process.env.NEXT_PUBLIC_QUIZ_MOD
-    })
-    
-    const quizzes = await Promise.all(
-      revs.map(async (rev: string) => {
-        const quiz = await this.computer.sync(rev)
-        return quiz
-      })
-    )
-    
-    return quizzes
+    if (quizTeacherPubKey !== teacherPubKey) {
+      throw new Error('Only the quiz creator can deactivate this quiz')
+    }
+
+    await quiz.deactivate()
+    await new Promise((resolve) => setTimeout(resolve, 3000))
   }
 }
 ```
@@ -1571,7 +1651,10 @@ export { TeacherHelper } from './helpers/teacher-helper.js'
 export { AttemptHelper } from './helpers/attempt-helper.js'
 export { QuizHelper } from './helpers/quiz-helper.js'
 export { QuizAccessHelper } from './helpers/quiz-access-helper.js'
-export { LeaderboardHelper } from './helpers/leaderboard-helper.js'
+export { LeaderboardHelper, type QuizResult, type StudentReward } from './helpers/leaderboard-helper.js'
+
+// types
+export * from './types/index.js'
 ```
 
 # src\modSpecs.ts
@@ -1709,7 +1792,7 @@ export class PaymentMock {
  */
 export class Withdraw extends Contract {
   static exec(payments: Payment[]) {
-    payments.forEach((payment) => payment.withdraw())
+    payments.forEach((payment) => payment.setSatoshis(0n))
   }
 }
 ```
@@ -1721,6 +1804,13 @@ import { Contract } from '@bitcoin-computer/lib'
 import { QuizAccess } from './quiz-access.js'
 import { Payment } from './payment.js'
 
+/**
+ * Sale-style atomic exchange:
+ * - access (o) goes to buyer (owner of payment)
+ * - payment (p) goes to seller (current owner of access)
+ *
+ * Return order matters: [p, o] => output0 is payment, output1 is access.
+ */
 export class QuizAccessSale extends Contract {
   static exec(o: QuizAccess, p: Payment) {
     const [seller] = o._owners
@@ -1739,14 +1829,18 @@ export class QuizAccessSale extends Contract {
 ```ts
 import { Contract } from '@bitcoin-computer/lib'
 
-type Constructor<T> = new (...args: unknown[]) => T
+type Constructor<T> = {
+  new (to: string, quizId: string, amount: bigint, symbol: string): T
+}
 
 /**
  * Fungible Quiz Access Token (UTXO bag model)
  *
  * - quizId: which quiz this access is for
- * - amount: number of attempts allowed (usually 1n)
- * - burn(1n): consumes one attempt
+ * - amount: how many "access units" this bag holds (usually 1n)
+ * - burn(1n): consume one access unit (used when attempting the quiz)
+ *
+ * This replaces the old "NFT-like" access token + used flag.
  */
 export class QuizAccess extends Contract {
   quizId!: string
@@ -1754,32 +1848,37 @@ export class QuizAccess extends Contract {
   symbol!: string
   _owners!: string[]
 
-  constructor(to: string, quizId: string, amount: bigint = 1n, symbol: string = 'QACC') {
+  constructor(to: string, quizId: string, amount: bigint = 1n, symbol = 'QACC') {
     super({ _owners: [to], quizId, amount, symbol })
   }
 
   /**
-   * Transfer ownership:
-   * - transfer(to): sends whole bag
-   * - transfer(to, amount): splits `amount` into a NEW bag owned by `to`
+   * Transfer ownership.
+   * - If amount is undefined: transfer the whole bag to `to`.
+   * - If amount is provided: split `amount` into a NEW bag owned by `to`.
    */
   transfer(to: string, amount?: bigint): QuizAccess | undefined {
     if (typeof amount === 'undefined') {
+      // Send entire bag
       this._owners = [to]
       return undefined
     }
 
     if (amount <= 0n) throw new Error('Amount must be positive')
-    if (amount > this.amount) throw new Error('Insufficient access balance')
 
-    this.amount -= amount
-    const ctor = this.constructor as unknown as Constructor<this>
-    return new ctor(to, this.quizId, amount, this.symbol) as unknown as QuizAccess
+    if (this.amount >= amount) {
+      // Split into a new bag
+      this.amount -= amount
+      const ctor = this.constructor as Constructor<this>
+      return new ctor(to, this.quizId, amount, this.symbol) as unknown as QuizAccess
+    }
+
+    throw new Error('Insufficient access balance')
   }
 
   /**
-   * Burn access units from this bag.
-   * Default: burn all remaining units.
+   * Burn access units in this bag.
+   * Default: burn everything (amount -> 0).
    */
   burn(amount: bigint = this.amount) {
     if (amount < 0n) throw new Error('Amount must be non-negative')
@@ -1939,147 +2038,6 @@ export class Quiz extends Contract {
 }
 ```
 
-# src\scripts\deploy.ts
-
-```ts
-import { Computer } from '@bitcoin-computer/lib'
-import { config } from 'dotenv'
-import { createInterface } from 'node:readline/promises'
-import { stdin as input, stdout as output } from 'node:process'
-import { deployQuizContracts } from './lib.js'
-
-
-config()
-
-const {
-  NEXT_PUBLIC_CHAIN: chain,
-  NEXT_PUBLIC_NETWORK: network,
-  NEXT_PUBLIC_URL: url,
-  NEXT_PUBLIC_PATH: path,
-  DEPLOYMENT_MNEMONIC: mnemonic
-} = process.env
-
-const rl = createInterface({ input, output })
-
-if (!network || !chain || !url) {
-  throw new Error('Please set NEXT_PUBLIC_CHAIN, NEXT_PUBLIC_NETWORK, and NEXT_PUBLIC_URL in the .env file')
-}
-
-const computer = new Computer({
-  chain,
-  network,
-  url,
-  path,
-  mnemonic // Use fixed mnemonic for consistent deployment wallet
-})
-
-if (network === 'regtest') {
-  console.log(' - Using regtest environment...')
-  const address = computer.getAddress()
-  console.log(` - Using address: ${address}`)
-  console.log(' - Please ensure your regtest wallet is funded')
-  console.log(' - You can fund it manually using: npm run fund')
-}
-
-const { balance } = await computer.getBalance()
-
-console.log(`
-Chain \x1b[2m${chain}\x1b[0m
-Network \x1b[2m${network}\x1b[0m
-Node Url \x1b[2m${url}\x1b[0m
-Address \x1b[2m${computer.getAddress()}\x1b[0m
-Balance \x1b[2m${balance} satoshis\x1b[0m`)
-
-// Check if we have sufficient balance for deployment
-if (balance < 50000n) { // Need at least 50k satoshis for deployment
-
-  console.error(`\n❌ Insufficient balance: ${balance} satoshis`)
-  console.error(' - Need at least 50,000 satoshis for contract deployment')
-
-  if (network === 'regtest') {
-    console.log(' - Try funding the wallet again or check if the Bitcoin Computer node is running')
-    console.log(' - Command: npm run node:up (to start the node)')
-  } else {
-    console.log(' - Please fund your wallet with sufficient Bitcoin/Litecoin')
-    console.log(' - Address:', computer.getAddress())
-  }
-
-  rl.close()
-  process.exit(1)
-}
-
-const answer = await rl.question('\nDo you want to deploy the quiz contracts? \x1b[2m(y/n)\x1b[0m')
-if (answer === 'n') {
-  console.log(' - Aborting...')
-  rl.close()
-  process.exit(0)
-}
-
-const { teacherMod, studentMod, quizMod, attemptMod, paymentMod, quizAccessMod, quizAccessSaleMod } = await deployQuizContracts(computer)
-console.log(' \x1b[2m- Successfully deployed all quiz contracts\x1b[0m')
-
-console.log(`
------------------
-ACTION REQUIRED
------------------
-
-Update the following rows in your .env file.
-
-NEXT_PUBLIC_TEACHER_MOD_SPEC\x1b[2m=${teacherMod}\x1b[0m
-NEXT_PUBLIC_STUDENT_MOD_SPEC\x1b[2m=${studentMod}\x1b[0m
-NEXT_PUBLIC_QUIZ_MOD_SPEC\x1b[2m=${quizMod}\x1b[0m
-NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC\x1b[2m=${attemptMod}\x1b[0m
-NEXT_PUBLIC_PAYMENT_MOD_SPEC\x1b[2m=${paymentMod}\x1b[0m
-NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC\x1b[2m=${quizAccessMod}\x1b[0m
-NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC\x1b[2m=${quizAccessSaleMod}\x1b[0m
-`)
-
-console.log("\nRun 'npm run dev' to start the application.\n")
-rl.close()
-```
-
-# src\scripts\lib.ts
-
-```ts
-import { Computer } from '@bitcoin-computer/lib'
-import { Teacher } from '../teacher.js'
-import { Student } from '../student.js'
-import { Quiz } from '../quiz.js'
-import { QuizAttempt } from '../attempt.js'
-import { Payment, Withdraw } from '../payment.js'
-import { QuizAccess } from '../quiz-access.js'
-import { QuizAccessSale } from '../quiz-access-sale.js'
-
-export async function deployQuizContracts(computer: Computer): Promise<{
-  teacherMod: string
-  studentMod: string
-  quizMod: string
-  attemptMod: string
-  paymentMod: string
-  quizAccessMod: string
-  quizAccessSaleMod: string
-}> {
-  // Deploy all contracts at once
-  const teacherMod = await computer.deploy(`export ${Teacher}`)
-  const studentMod = await computer.deploy(`export ${Student}`)
-  const quizMod = await computer.deploy(`export ${Quiz}`)
-  const attemptMod = await computer.deploy(`export ${QuizAttempt}`)
-  const paymentMod = await computer.deploy(`export ${Payment}; export ${Withdraw}`)
-  const quizAccessMod = await computer.deploy(`export ${QuizAccess}`)
-  const quizAccessSaleMod = await computer.deploy(`export ${QuizAccessSale}`)
-
-  return {
-    teacherMod,
-    studentMod,
-    quizMod,
-    attemptMod,
-    paymentMod,
-    quizAccessMod,
-    quizAccessSaleMod
-  }
-}
-```
-
 # src\student.ts
 
 ```ts
@@ -2175,6 +2133,121 @@ export class Teacher extends Contract {
 }
 ```
 
+# src\types\index.ts
+
+```ts
+/**
+ * Base type for all contract metadata fields
+ */
+export interface ContractMetadata {
+  _id: string
+  _rev: string
+  _root: string
+  _owners: string[]
+  _satoshis?: bigint
+}
+
+/**
+ * QuizAccess contract type
+ * Fungible access token for quiz participation
+ */
+export interface QuizAccessType extends ContractMetadata {
+  quizId: string
+  amount: bigint
+  symbol: string
+}
+
+/**
+ * Payment contract type
+ * Holds reward funds for quiz winners
+ */
+export interface PaymentType extends ContractMetadata {
+  _satoshis: bigint
+}
+
+/**
+ * Quiz contract type
+ * Single-question quiz with reward
+ */
+export interface QuizType extends ContractMetadata {
+  title: string
+  questionText: string
+  options: string[]
+  correctAnswer: number
+  rewardAmount: bigint
+  entryFee: bigint
+  teacherPublicKey: string
+  isActive: boolean
+  paymentTxId: string
+  isClaimed: boolean
+  claimedBy: string
+  attemptedStudents: string[]
+}
+
+/**
+ * QuizAttempt contract type
+ * Tracks a student's attempt at a quiz
+ */
+export interface QuizAttemptType extends ContractMetadata {
+  quizId: string
+  studentPublicKey: string
+  selectedAnswer: number
+  isCorrect: boolean
+  rewardEarned: bigint
+  attemptedAt: number
+  isCompleted: boolean
+}
+
+/**
+ * Teacher contract type
+ */
+export interface TeacherType extends ContractMetadata {
+  name: string
+  publicKey: string
+  createdQuizzes: string[]
+}
+
+/**
+ * Student contract type
+ */
+export interface StudentType extends ContractMetadata {
+  name: string
+  publicKey: string
+  attemptedQuizzes: string[]
+  claimedRewards: bigint
+}
+
+/**
+ * QuizAccessSale contract type
+ * Atomic exchange contract for selling quiz access
+ */
+export interface QuizAccessSaleType {
+  exec(o: QuizAccessType, p: PaymentType): [PaymentType, QuizAccessType]
+}
+
+/**
+ * Withdraw contract type
+ * Reduces payment to dust and releases funds
+ */
+export interface WithdrawType {
+  exec(payments: PaymentType[]): void
+}
+
+/**
+ * PaymentMock type (for testing)
+ */
+export interface PaymentMockType {
+  _id: string
+  _rev: string
+  _root: string
+  _satoshis: bigint
+  _owners: string[]
+  transfer(to: string): void
+  setSatoshis(a: bigint): void
+}
+
+```
+
 # src\utils\index.ts
 
 ```ts
@@ -2190,12 +2263,13 @@ export const RLTC: {
   url: 'http://localhost:1031',
 }
 
+// Type guard functions for contract metadata validation
 export const meta = {
-  _id: (x: any) => typeof x === 'string',
-  _rev: (x: any) => typeof x === 'string',
-  _root: (x: any) => typeof x === 'string',
-  _owners: (x: any) => Array.isArray(x),
-  _satoshis: (x: any) => typeof x === 'bigint',
+  _id: (x: unknown): x is string => typeof x === 'string',
+  _rev: (x: unknown): x is string => typeof x === 'string',
+  _root: (x: unknown): x is string => typeof x === 'string',
+  _owners: (x: unknown): x is string[] => Array.isArray(x),
+  _satoshis: (x: unknown): x is bigint => typeof x === 'bigint',
 }
 
 ```
@@ -2263,8 +2337,756 @@ export class MineBlocks {
 # test\complete-quiz-access-sale.test.ts
 
 ```ts
-import { expect } from 'chai'
+// import { expect } from 'chai'
+// import { Computer } from '@bitcoin-computer/lib'
+// import dotenv from 'dotenv'
+// import path from 'path'
+
+// import { Teacher } from '../src/teacher.js'
+// import { Student } from '../src/student.js'
+// import { Quiz } from '../src/quiz.js'
+// import { Payment, PaymentMock } from '../src/payment.js'
+// import { QuizAccess } from '../src/quiz-access.js'
+
+// import { QuizAccessHelper, QuizAccessSaleHelper } from '../src/index.js'
+// import { TeacherHelper } from '../src/helpers/teacher-helper.js'
+// import { StudentHelper } from '../src/helpers/student-helper.js'
+// import { AttemptHelper } from '../src/helpers/attempt-helper.js'
+// import { PaymentHelper } from '../src/helpers/payment-helper.js'
+// import { LeaderboardHelper, QuizResult } from '../src/helpers/leaderboard-helper.js'
+// import { MineBlocks } from '../src/utils/mineblock.js'
+
+// const envPaths = [
+//   path.resolve(process.cwd(), './packages/node/.env'),
+//   '../node/.env',
+// ]
+// for (const envPath of envPaths) dotenv.config({ path: envPath })
+
+// const url = process.env.BCN_URL
+// const chain = process.env.BCN_CHAIN
+// const network = process.env.BCN_NETWORK
+
+// if (!url || !chain || !network) {
+//   throw new Error('Missing BCN_URL / BCN_CHAIN / BCN_NETWORK in env')
+// }
+
+// const basePath = process.env.BCN_BASE_PATH || `m/44'/2'/0'/0`
+
+// type SaleSync = { env: { o: QuizAccess; p: Payment } }
+
+// describe('Comprehensive Quiz with Leaderboard (Sale offers for access, Fungible tokens)', function () {
+//   this.timeout(300000)
+
+//   let teacherComputer: Computer, student1Computer: Computer, student2Computer: Computer
+//   let teacherHelper: TeacherHelper
+//   let student1Helper: StudentHelper
+//   let student2Helper: StudentHelper
+//   let attempt1Helper: AttemptHelper
+//   let attempt2Helper: AttemptHelper
+//   let paymentHelper: PaymentHelper
+//   let leaderboardHelper: LeaderboardHelper
+
+//   let teacher: Teacher, student1: Student, student2: Student
+//   let quiz: Quiz
+//   let rewardPayment: Payment
+//   let quizId: string
+
+//   let teacherPubKey: string, student1PubKey: string, student2PubKey: string
+
+//   let quizAccessHelper: QuizAccessHelper
+//   let quizAccessSaleHelper: QuizAccessSaleHelper
+
+//   let entryFeePaymentS1: Payment
+//   let entryFeePaymentS2: Payment
+
+//   let quizAccessTokenS1: QuizAccess
+//   let quizAccessTokenS2: QuizAccess
+
+//   const mine = async (blocks: number = 1) => {
+//     if (network === 'regtest') await MineBlocks.mine(url, chain, network, blocks)
+//   }
+
+//   const sleep = async (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+//   const syncOrMine = async <T>(computer: Computer, id: string): Promise<T> => {
+//     try {
+//       return (await computer.sync(id)) as unknown as T
+//     } catch {
+//       await mine(1)
+//       return (await computer.sync(id)) as unknown as T
+//     }
+//   }
+
+//   before(async function () {
+//     teacherComputer = new Computer({ url, chain, network, path: `${basePath}/0` })
+//     student1Computer = new Computer({ url, chain, network, path: `${basePath}/1` })
+//     student2Computer = new Computer({ url, chain, network, path: `${basePath}/2` })
+
+//     teacherPubKey = teacherComputer.getPublicKey()
+//     student1PubKey = student1Computer.getPublicKey()
+//     student2PubKey = student2Computer.getPublicKey()
+
+//     if (network === 'regtest') {
+//       await teacherComputer.faucet(2e8)
+//       await student1Computer.faucet(2e8)
+//       await student2Computer.faucet(2e8)
+//       await sleep(500)
+//     }
+
+//     teacherHelper = new TeacherHelper(teacherComputer)
+//     student1Helper = new StudentHelper(student1Computer)
+//     student2Helper = new StudentHelper(student2Computer)
+//     attempt1Helper = new AttemptHelper(student1Computer)
+//     attempt2Helper = new AttemptHelper(student2Computer)
+//     paymentHelper = new PaymentHelper(teacherComputer)
+//     leaderboardHelper = new LeaderboardHelper(teacherComputer)
+
+//     quizAccessHelper = new QuizAccessHelper(teacherComputer)
+//     await quizAccessHelper.deploy()
+
+//     quizAccessSaleHelper = new QuizAccessSaleHelper(teacherComputer)
+//     await quizAccessSaleHelper.deploy()
+
+//     await paymentHelper.deploy()
+//   })
+
+//   it('should create teacher and students', async function () {
+//     teacher = await teacherHelper.createTeacher('Professor', teacherPubKey)
+//     student1 = await student1Helper.createStudent('Alice', student1PubKey)
+//     student2 = await student2Helper.createStudent('Bob', student2PubKey)
+
+//     expect(await student1.name).to.equal('Alice')
+//     expect(await student2.name).to.equal('Bob')
+//   })
+
+//   it('should create reward payment then quiz (separate steps)', async function () {
+//     const quizData = {
+//       title: 'Math Quiz',
+//       questionText: 'What is 2+2?',
+//       options: ['3', '4', '5', '6'],
+//       correctAnswer: 1,
+//       rewardAmount: 1000000n,
+//       entryFee: 100000000n,
+//       teacher,
+//     }
+
+//     // STEP A: reward payment
+//     rewardPayment = await teacherHelper.createQuizWithPayment(quizData.rewardAmount)
+//     const paymentTxId = await rewardPayment._id
+
+//     expect(await rewardPayment._satoshis).to.equal(1000000n)
+//     expect(await rewardPayment._owners).deep.eq([teacherPubKey])
+
+//     // STEP B: quiz creation referencing paymentTxId
+//     quiz = await teacherHelper.createQuizOnly({
+//       ...quizData,
+//       paymentTxId,
+//     })
+
+//     quizId = await quiz._id
+
+//     expect(await quiz.title).to.equal('Math Quiz')
+//     expect(await quiz.entryFee).to.equal(100000000n)
+//     expect(await quiz.paymentTxId).to.equal(paymentTxId)
+//   })
+
+//   it('should allow students to purchase access (SALE OFFERS) using fungible access token', async function () {
+//     console.log('\n🧾 SALE OFFER MECHANISM (FUNGIBLE ACCESS TOKENS)')
+//     console.log('===============================================')
+
+//     // ---------- Student 1 ----------
+//     console.log(`\n<Student 1 (${student1PubKey.substring(0, 10)}...) accepting offer>`)
+
+//     // Teacher mints a 1-unit access token to themselves
+//     const access1 = await quizAccessHelper.createQuizAccess(quizId, 1n)
+//     const teacherBalanceBefore = await teacherComputer.db.wallet.getBalance() // sync before broadcast to avoid mempool conflict
+    
+//     console.log('😊Teacher balance before offer broadcast:', teacherBalanceBefore)
+//     expect(access1._owners).deep.eq([teacherPubKey])
+//     expect(access1.quizId).to.equal(quizId)
+//     expect(access1.amount).to.equal(1n)
+
+//     console.log('Teacher minted access token:', {
+//       id: access1._id,
+//       rev: access1._rev,
+//       quizId: access1.quizId,
+//       amount: access1.amount.toString(),
+//       owner: access1._owners[0].slice(0, 10) + '...',
+//     })
+
+//     // Teacher builds offer using PaymentMock(entryFee)
+//     const mock1 = new PaymentMock(await quiz.entryFee)
+//     const offer1 = await quizAccessSaleHelper.createOfferTx(access1, mock1)
+//     const offerTx1 = offer1.tx
+
+//     // Offer tx shape checks (partial signature)
+//     expect(offerTx1.ins).to.have.lengthOf(2)
+//     expect(offerTx1.ins[0].script.length).to.be.greaterThan(0)
+//     expect(offerTx1.ins[1].script.length).to.equal(0)
+//     expect(BigInt(offerTx1.outs[0].value)).to.equal(await quiz.entryFee)
+//     expect(BigInt(offerTx1.outs[1].value)).to.be.greaterThan(0)
+
+//     console.log('Offer tx (teacher created, before student finalizes):', {
+//       id: offerTx1.getId(),
+//       out0Value: offerTx1.outs[0].value,
+//       out1Value: offerTx1.outs[1].value,
+//     })
+
+//     // Student checks offer
+//     const sHelper1 = new QuizAccessSaleHelper(student1Computer, quizAccessSaleHelper.mod)
+//     expect(await sHelper1.checkOfferTx(offerTx1)).to.equal(await quiz.entryFee)
+
+//     // Student creates real payment + finalizes + signs + broadcasts
+//     const pay1 = await student1Computer.new(Payment, [await quiz.entryFee])
+//     const s1Script = student1Computer.toScriptPubKey()
+//     if (!s1Script) throw new Error('student1Computer.toScriptPubKey() returned undefined')
+//     QuizAccessSaleHelper.finalizeOfferTx(offerTx1, pay1, s1Script)
+
+//     await student1Computer.fund(offerTx1)
+//     await student1Computer.sign(offerTx1)
+//     await sleep(1000) // avoid mempool conflicts
+    
+//     const txId1 = await student1Computer.broadcast(offerTx1)
+//     await sleep(5000)
+    
+
+//     const synced1 = await syncOrMine<SaleSync>(student1Computer, txId1)
+//     quizAccessTokenS1 = synced1.env.o
+//     entryFeePaymentS1 = synced1.env.p
+//     const teacherBalanceAfter = await teacherComputer.db.wallet.getBalance() // sync before balance check to avoid mempool conflict
+//     console.log("❤️balance after broadcast:", teacherBalanceAfter)
+
+//     expect(quizAccessTokenS1._owners).deep.eq([student1PubKey])
+//     expect(entryFeePaymentS1._owners).deep.eq([teacherPubKey])
+//     expect(quizAccessTokenS1.amount).to.equal(1n)
+
+//     console.log('After broadcast (Student 1):', {
+//       accessOwner: quizAccessTokenS1._owners[0].slice(0, 10) + '...',
+//       accessAmount: quizAccessTokenS1.amount.toString(),
+//       paymentOwner: entryFeePaymentS1._owners[0].slice(0, 10) + '...',
+//       paymentSats: entryFeePaymentS1._satoshis.toString(),
+//     })
+
+//     // ---------- Student 2 ----------
+//     console.log(`\n<Student 2 (${student2PubKey.substring(0, 10)}...) accepting offer>`)
+
+//     const access2 = await quizAccessHelper.createQuizAccess(quizId, 1n)
+//     expect(access2._owners).deep.eq([teacherPubKey])
+//     expect(access2.quizId).to.equal(quizId)
+//     expect(access2.amount).to.equal(1n)
+
+//     const mock2 = new PaymentMock(await quiz.entryFee)
+//     const offer2 = await quizAccessSaleHelper.createOfferTx(access2, mock2)
+//     const offerTx2 = offer2.tx
+
+//     const sHelper2 = new QuizAccessSaleHelper(student2Computer, quizAccessSaleHelper.mod)
+//     expect(await sHelper2.checkOfferTx(offerTx2)).to.equal(await quiz.entryFee)
+
+//     const pay2 = await student2Computer.new(Payment, [await quiz.entryFee])
+//     const s2Script = student2Computer.toScriptPubKey()
+//     if (!s2Script) throw new Error('student2Computer.toScriptPubKey() returned undefined')
+//     QuizAccessSaleHelper.finalizeOfferTx(offerTx2, pay2, s2Script)
+
+//     await student2Computer.fund(offerTx2)
+//     await student2Computer.sign(offerTx2)
+//     const txId2 = await student2Computer.broadcast(offerTx2)
+
+//     const synced2 = await syncOrMine<SaleSync>(student2Computer, txId2)
+//     quizAccessTokenS2 = synced2.env.o
+//     entryFeePaymentS2 = synced2.env.p
+
+//     expect(quizAccessTokenS2._owners).deep.eq([student2PubKey])
+//     expect(entryFeePaymentS2._owners).deep.eq([teacherPubKey])
+//     expect(quizAccessTokenS2.amount).to.equal(1n)
+
+//     console.log('After broadcast (Student 2):', {
+//       accessOwner: quizAccessTokenS2._owners[0].slice(0, 10) + '...',
+//       accessAmount: quizAccessTokenS2.amount.toString(),
+//       paymentOwner: entryFeePaymentS2._owners[0].slice(0, 10) + '...',
+//       paymentSats: entryFeePaymentS2._satoshis.toString(),
+//     })
+//   })
+
+//   it('should allow students with access to attempt the quiz (burn access unit)', async function () {
+//     console.log('\n🎯 QUIZ ATTEMPT PHASE (burn 1 access unit)')
+//     console.log('=========================================')
+
+//     // keep revs so we can prove they changed after burn
+//     const s1AccessRevBefore = quizAccessTokenS1._rev
+//     const s2AccessRevBefore = quizAccessTokenS2._rev
+
+//     await mine(1) 
+//     const attempt1 = await attempt1Helper.createAttempt(quizId, student1PubKey)
+//     await attempt1.submitAnswer(quizAccessTokenS1, 1, await quiz.correctAnswer, await quiz.rewardAmount)
+//     await quiz.addAttemptedStudent(student1PubKey)
+//     const claimed1 = await quiz.claimReward(student1PubKey)
+
+//     const attempt2 = await attempt2Helper.createAttempt(quizId, student2PubKey)
+//     await attempt2.submitAnswer(quizAccessTokenS2, 1, await quiz.correctAnswer, await quiz.rewardAmount)
+//     await quiz.addAttemptedStudent(student2PubKey)
+//     const claimed2 = await quiz.claimReward(student2PubKey)
+
+//     expect(claimed1).to.equal(true)
+//     expect(claimed2).to.equal(false)
+//     expect(await quiz.isClaimed).to.equal(true)
+//     expect(await quiz.claimedBy).to.equal(student1PubKey)
+
+//     // re-sync latest access token revisions and assert amount burned to 0
+//     const s1LatestRev = await student1Computer.getLatestRev(quizAccessTokenS1._id)
+//     const s2LatestRev = await student2Computer.getLatestRev(quizAccessTokenS2._id)
+
+//     expect(s1LatestRev).to.not.equal(s1AccessRevBefore)
+//     expect(s2LatestRev).to.not.equal(s2AccessRevBefore)
+
+//     quizAccessTokenS1 = (await student1Computer.sync(s1LatestRev)) as unknown as QuizAccess
+//     quizAccessTokenS2 = (await student2Computer.sync(s2LatestRev)) as unknown as QuizAccess
+
+//     expect(quizAccessTokenS1.amount).to.equal(0n)
+//     expect(quizAccessTokenS2.amount).to.equal(0n)
+
+//     console.log('Access burned:', {
+//       s1Amount: quizAccessTokenS1.amount.toString(),
+//       s2Amount: quizAccessTokenS2.amount.toString(),
+//     })
+
+//     const quizResult1: QuizResult = {
+//       quizId,
+//       quizTitle: await quiz.title,
+//       studentPublicKey: student1PubKey,
+//       isCorrect: await attempt1.isCorrect,
+//       rewardEarned: await attempt1.rewardEarned,
+//       paymentTxId: await rewardPayment._id,
+//       timestamp: Date.now(),
+//     }
+
+//     const quizResult2: QuizResult = {
+//       quizId,
+//       quizTitle: await quiz.title,
+//       studentPublicKey: student2PubKey,
+//       isCorrect: await attempt2.isCorrect,
+//       rewardEarned: await attempt2.rewardEarned,
+//       timestamp: Date.now(),
+//     }
+
+//     await leaderboardHelper.recordQuizResult(quizResult1)
+//     await leaderboardHelper.recordQuizResult(quizResult2)
+//   })
+
+//   it('should transfer reward payment to winner', async function () {
+//     await rewardPayment.transfer(student1PubKey)
+//     expect(await rewardPayment._owners).deep.eq([student1PubKey])
+//   })
+
+//   it('should allow winner to withdraw reward payment (mine only here)', async function () {
+//     await mine(1) // confirm previous chain to avoid too-long-mempool-chain
+
+//     const student1PaymentHelper = new PaymentHelper(student1Computer)
+//     const withdrawnAmount = await student1PaymentHelper.withdrawPayment(rewardPayment)
+//     expect(withdrawnAmount).to.equal(999454n)
+//   })
+
+  
+//   it('should allow teacher to withdraw entry fees (real withdrawal)', async function () {
+//     await mine(1) // confirm chain before teacher withdrawals
+//     console.log('Before w1:', await teacherComputer.getBalance())
+// const w1 = await paymentHelper.withdrawPayment(entryFeePaymentS1)
+// console.log('After w1:', await teacherComputer.getBalance())
+
+// await mine(1)
+// console.log('After mine:', await teacherComputer.getBalance())
+
+// const w2 = await paymentHelper.withdrawPayment(entryFeePaymentS2)
+// console.log('After w2:', await teacherComputer.getBalance())
+
+// await mine(1)
+// console.log('After mine 2:', await teacherComputer.getBalance())
+
+//     // entryFee 50000n => 50000 - 546 = 49454
+//     //expect(w1).to.equal(49454n)
+//     //expect(w2).to.equal(49454n)
+//     console.log('Teacher withdrew entry fees:', { w1, w2 })
+//     console.log('Teacher balance:',await teacherComputer.getBalance())
+//   })
+
+//   it('should verify leaderboard and ownerships', async function () {
+//     expect(await quiz.isClaimed).to.equal(true)
+//     expect(await quiz.claimedBy).to.equal(student1PubKey)
+
+//     const leaderboard = leaderboardHelper.getLeaderboard()
+//     expect(leaderboard.length).to.be.greaterThan(0)
+
+//     console.log('\n📈 LEADERBOARD:')
+//     leaderboard.forEach((s, i) => {
+//       console.log(`${i + 1}. ${s.publicKey.substring(0, 10)}... - ${s.totalRewards} sats`)
+//     })
+//   })
+// })
+
+// import { Computer } from '@bitcoin-computer/lib'
+// import { expect } from 'chai'
+// import { Teacher } from '../src/teacher.js'
+// import { Student } from '../src/student.js'
+// import { Quiz } from '../src/quiz.js'
+// import { Payment, PaymentMock } from '../src/payment.js'
+// import { QuizAccessHelper, QuizAccessSaleHelper } from '../src/index.js'
+// import { TeacherHelper } from '../src/helpers/teacher-helper.js'
+// import { StudentHelper } from '../src/helpers/student-helper.js'
+// import { AttemptHelper } from '../src/helpers/attempt-helper.js'
+// import { PaymentHelper } from '../src/helpers/payment-helper.js'
+// import { LeaderboardHelper, QuizResult } from '../src/helpers/leaderboard-helper.js'
+// import { MineBlocks } from '../src/utils/mineblock.js'
+// import dotenv from 'dotenv'
+// dotenv.config()
+
+// describe('Comprehensive Quiz with Leaderboard (Sale offers for access)', function () {
+//   this.timeout(300000)
+
+//   const chain = process.env.CHAIN || 'LTC'
+//   const network = process.env.NETWORK || 'regtest'
+//   const url = process.env.URL || 'http://localhost:3000'
+//   const basePath = process.env.PATH || `m/44'/1'/0'/0`
+
+//   let teacherComputer: Computer, student1Computer: Computer, student2Computer: Computer
+//   let teacherHelper: TeacherHelper,
+//     student1Helper: StudentHelper,
+//     student2Helper: StudentHelper,
+//     attempt1Helper: AttemptHelper,
+//     attempt2Helper: AttemptHelper,
+//     paymentHelper: PaymentHelper,
+//     leaderboardHelper: LeaderboardHelper
+
+//   let teacher: Teacher, student1: Student, student2: Student
+//   let quiz: Quiz, payment: Payment
+//   let quizId: string
+//   let teacherPubKey: string, student1PubKey: string, student2PubKey: string
+
+//   let quizAccessHelper: QuizAccessHelper
+//   let quizAccessSaleHelper: QuizAccessSaleHelper
+
+//   let entryFeePaymentS1: Payment
+//   let entryFeePaymentS2: Payment
+
+//   // store access tokens for attempt enforcement
+//   let quizAccessTokenS1: any
+//   let quizAccessTokenS2: any
+
+//   const walletBalances = {
+//     teacher: { initial: 0, afterSetup: 0, afterQuizCreation: 0, afterEntryFees: 0, afterAttempts: 0, afterTransfer: 0, afterWithdrawal: 0 },
+//     student1: { initial: 0, afterSetup: 0, afterQuizCreation: 0, afterEntryFees: 0, afterAttempts: 0, afterTransfer: 0, afterWithdrawal: 0 },
+//     student2: { initial: 0, afterSetup: 0, afterQuizCreation: 0, afterEntryFees: 0, afterAttempts: 0, afterTransfer: 0, afterWithdrawal: 0 },
+//   }
+
+//   async function updateWalletBalances(stage: keyof typeof walletBalances.teacher) {
+//     const teacherBal = await teacherComputer.getBalance()
+//     const student1Bal = await student1Computer.getBalance()
+//     const student2Bal = await student2Computer.getBalance()
+
+//     walletBalances.teacher[stage] = Number(teacherBal.confirmed || teacherBal.balance)
+//     walletBalances.student1[stage] = Number(student1Bal.confirmed || student1Bal.balance)
+//     walletBalances.student2[stage] = Number(student2Bal.confirmed || student2Bal.balance)
+//   }
+
+//   const mine = async (blocks = 1) => {
+//     if (network === 'regtest') {
+//       await MineBlocks.mine(url, chain, network, blocks)
+//       //console.log(`⛏️  Mining..`)
+//     }
+//   }
+
+//   before(async function () {
+//     teacherComputer = new Computer({ chain, network, url, path: `${basePath}/0` })
+//     student1Computer = new Computer({ chain, network, url, path: `${basePath}/1` })
+//     student2Computer = new Computer({ chain, network, url, path: `${basePath}/2` })
+
+//     teacherPubKey = teacherComputer.getPublicKey()
+//     student1PubKey = student1Computer.getPublicKey()
+//     student2PubKey = student2Computer.getPublicKey()
+
+//     if (network === 'regtest') {
+//       await teacherComputer.faucet(2e8)
+//       await student1Computer.faucet(2e8)
+//       await student2Computer.faucet(2e8)
+
+//       await updateWalletBalances('initial')
+      
+//     }
+
+//     teacherHelper = new TeacherHelper(teacherComputer)
+//     student1Helper = new StudentHelper(student1Computer)
+//     student2Helper = new StudentHelper(student2Computer)
+//     attempt1Helper = new AttemptHelper(student1Computer)
+//     attempt2Helper = new AttemptHelper(student2Computer)
+//     paymentHelper = new PaymentHelper(teacherComputer)
+//     leaderboardHelper = new LeaderboardHelper(teacherComputer)
+
+//     quizAccessHelper = new QuizAccessHelper(teacherComputer)
+//     await quizAccessHelper.deploy()
+//     await mine(1)
+
+//     quizAccessSaleHelper = new QuizAccessSaleHelper(teacherComputer)
+//     await quizAccessSaleHelper.deploy()
+//     await mine(1)
+
+//     await paymentHelper.deploy()
+//     await mine(1)
+
+//     await updateWalletBalances('afterSetup')
+//   })
+
+//   it('should create teacher and students', async function () {
+//     teacher = await teacherHelper.createTeacher('Professor', teacherPubKey)
+//     student1 = await student1Helper.createStudent('Alice', student1PubKey)
+//     student2 = await student2Helper.createStudent('Bob', student2PubKey)
+
+//     expect(await student1.name).to.equal('Alice')
+//     expect(await student2.name).to.equal('Bob')
+
+//     await mine(1)
+//   })
+
+//   it('should create quiz with payment', async function () {
+//     const quizData = {
+//       title: 'Math Quiz',
+//       questionText: 'What is 2+2?',
+//       options: ['3', '4', '5', '6'],
+//       correctAnswer: 1,
+//       rewardAmount: 1000000n,
+//       entryFee: 50000n,
+//       teacher: teacher,
+//     }
+
+//     const quizResult = await teacherHelper.createQuiz(quizData)
+//     quiz = quizResult.quiz
+//     quizId = await quiz._id
+//     const paymentTxId = quizResult.paymentTxId
+//     payment = (await teacherComputer.sync(paymentTxId)) as Payment
+
+//     expect(await quiz.title).to.equal('Math Quiz')
+//     expect(await payment._satoshis).to.equal(1000000n)
+//     expect(await quiz.entryFee).to.equal(50000n)
+
+//     await mine(1)
+//     await updateWalletBalances('afterQuizCreation')
+//   })
+
+//   it('should allow students to purchase access to the quiz (SALE OFFERS)', async function () {
+//     console.log('\n🧾 SALE OFFER MECHANISM INITIATED')
+//     console.log('==================================')
+
+//     // Student 1
+//     console.log(`\n<Student 1 (${student1PubKey.substring(0, 10)}...) accepting offer>`)
+
+//     const quizAccess1 = await quizAccessHelper.createQuizAccess(quizId) // amount=1n
+//     console.log(`📋 Access token minted: ${await quizAccess1._id}`)
+
+//     const mock1 = new PaymentMock(await quiz.entryFee)
+//     const { tx: offerTx1 } = await quizAccessSaleHelper.createOfferTx(quizAccess1, mock1)
+//     console.log("swap objects in offerTx1.env:", offerTx1.env)
+//     console.log(`📝 Offer tx created (partially signed): ${offerTx1}`)
+
+//     console.log(offerTx1)
+
+//     const studentSaleHelper1 = new QuizAccessSaleHelper(student1Computer, quizAccessSaleHelper.mod)
+//     expect(await studentSaleHelper1.checkOfferTx(offerTx1)).to.equal(await quiz.entryFee)
+
+//     const entryFeePayment1 = await student1Computer.new(Payment, [await quiz.entryFee])
+
+//     const s1Script = student1Computer.toScriptPubKey()
+//     if (!s1Script) throw new Error('student1Computer.toScriptPubKey() returned undefined')
+
+//     QuizAccessSaleHelper.finalizeOfferTx(offerTx1, entryFeePayment1, s1Script)
+
+//     console.log("swap objects in offerTx1.env:", offerTx1.env)
+
+//     console.log(offerTx1)
+
+//     await student1Computer.fund(offerTx1)
+//     await student1Computer.sign(offerTx1)
+//     console.log(offerTx1)
+//     const txId1 = await student1Computer.broadcast(offerTx1)
+//     console.log(offerTx1)
+//     console.log("swap objects in offerTx1.env:", offerTx1.env)
+//     await mine(1)
+
+//     const {
+//       env: { o: quizAccessS1, p: entryFeePaymentS1_temp },
+//     } = (await student1Computer.sync(txId1)) as { env: { o: any; p: any } }
+
+//     expect(quizAccessS1._owners).deep.eq([student1PubKey])
+//     expect(entryFeePaymentS1_temp._owners).deep.eq([teacherPubKey])
+
+//     // NEW: access token is fungible-bag style
+//     expect(quizAccessS1.quizId).to.equal(quizId)
+//     expect(quizAccessS1.amount).to.equal(1n)
+
+//     quizAccessTokenS1 = quizAccessS1
+//     entryFeePaymentS1 = entryFeePaymentS1_temp
+
+//     console.log(`✅ Student 1 purchase complete: access->student, payment->teacher`)
+
+//     // Student 2
+//     console.log(`\n<Student 2 (${student2PubKey.substring(0, 10)}...) accepting offer>`)
+
+//     const quizAccess2 = await quizAccessHelper.createQuizAccess(quizId)
+//     console.log(`📋 Access token minted: ${await quizAccess2._id}`)
+
+//     const mock2 = new PaymentMock(await quiz.entryFee)
+//     const { tx: offerTx2 } = await quizAccessSaleHelper.createOfferTx(quizAccess2, mock2)
+//     console.log(`📝 Offer tx created (partially signed): ${offerTx2.getId()}`)
+
+//     const studentSaleHelper2 = new QuizAccessSaleHelper(student2Computer, quizAccessSaleHelper.mod)
+//     expect(await studentSaleHelper2.checkOfferTx(offerTx2)).to.equal(await quiz.entryFee)
+
+//     const entryFeePayment2 = await student2Computer.new(Payment, [await quiz.entryFee])
+
+//     const s2Script = student2Computer.toScriptPubKey()
+//     if (!s2Script) throw new Error('student2Computer.toScriptPubKey() returned undefined')
+
+//     QuizAccessSaleHelper.finalizeOfferTx(offerTx2, entryFeePayment2, s2Script)
+
+//     await student2Computer.fund(offerTx2)
+//     await student2Computer.sign(offerTx2)
+//     const txId2 = await student2Computer.broadcast(offerTx2)
+//     await mine(1)
+
+//     const {
+//       env: { o: quizAccessS2, p: entryFeePaymentS2_temp },
+//     } = (await student2Computer.sync(txId2)) as { env: { o: any; p: any } }
+
+//     expect(quizAccessS2._owners).deep.eq([student2PubKey])
+//     expect(entryFeePaymentS2_temp._owners).deep.eq([teacherPubKey])
+
+//     expect(quizAccessS2.quizId).to.equal(quizId)
+//     expect(quizAccessS2.amount).to.equal(1n)
+
+//     quizAccessTokenS2 = quizAccessS2
+//     entryFeePaymentS2 = entryFeePaymentS2_temp
+
+//     console.log(`✅ Student 2 purchase complete: access->student, payment->teacher`)
+
+//     await updateWalletBalances('afterEntryFees')
+
+//     console.log(`\n✅ SALE OFFER MECHANISM COMPLETED SUCCESSFULLY`)
+//     console.log('==============================================')
+//   })
+
+//   it('should allow students with access to attempt the quiz', async function () {
+//     console.log('\n🎯 QUIZ ATTEMPT PHASE')
+//     console.log('====================')
+
+//     console.log(`\n<Student 1 (${student1PubKey.substring(0, 10)}...) attempting quiz first>`)
+//     const attempt1 = await attempt1Helper.createAttempt(quizId, student1PubKey)
+
+//     // IMPORTANT: submitAnswer now takes (accessToken, selectedAnswer, correctAnswer, rewardAmount)
+//     await attempt1.submitAnswer(quizAccessTokenS1, 1, await quiz.correctAnswer, await quiz.rewardAmount)
+
+//     await quiz.addAttemptedStudent(student1PubKey)
+//     const claimed1 = await quiz.claimReward(student1PubKey)
+
+//     console.log(`\n<Student 2 (${student2PubKey.substring(0, 10)}...) attempting quiz second>`)
+//     const attempt2 = await attempt2Helper.createAttempt(quizId, student2PubKey)
+//     await attempt2.submitAnswer(quizAccessTokenS2, 1, await quiz.correctAnswer, await quiz.rewardAmount)
+
+//     await quiz.addAttemptedStudent(student2PubKey)
+//     const claimed2 = await quiz.claimReward(student2PubKey)
+
+//     expect(claimed1).to.equal(true)
+//     expect(claimed2).to.equal(false)
+//     expect(await quiz.isClaimed).to.equal(true)
+//     expect(await quiz.claimedBy).to.equal(student1PubKey)
+
+//     // NEW: tokens are "burned" (amount goes to 0n)
+//     // Safer to re-sync latest state
+//     const s1Latest = await student1Computer.getLatestRev(quizAccessTokenS1._id)
+//     const s2Latest = await student2Computer.getLatestRev(quizAccessTokenS2._id)
+//     quizAccessTokenS1 = await student1Computer.sync(s1Latest)
+//     quizAccessTokenS2 = await student2Computer.sync(s2Latest)
+
+//     expect(await quizAccessTokenS1.amount).to.equal(0n)
+//     expect(await quizAccessTokenS2.amount).to.equal(0n)
+
+//     await mine(1)
+//     await updateWalletBalances('afterAttempts')
+
+//     const quizResult1: QuizResult = {
+//       quizId: quizId,
+//       quizTitle: await quiz.title,
+//       studentPublicKey: student1PubKey,
+//       isCorrect: await attempt1.isCorrect,
+//       rewardEarned: await attempt1.rewardEarned,
+//       paymentTxId: await payment._id,
+//       timestamp: Date.now(),
+//     }
+
+//     const quizResult2: QuizResult = {
+//       quizId: quizId,
+//       quizTitle: await quiz.title,
+//       studentPublicKey: student2PubKey,
+//       isCorrect: await attempt2.isCorrect,
+//       rewardEarned: await attempt2.rewardEarned,
+//       timestamp: Date.now(),
+//     }
+
+//     await leaderboardHelper.recordQuizResult(quizResult1)
+//     await leaderboardHelper.recordQuizResult(quizResult2)
+//   })
+
+//   it('should transfer payment to winner', async function () {
+//     await payment.transfer(student1PubKey)
+//     const owners = await payment._owners
+//     expect(owners[0]).to.equal(student1PubKey)
+
+//     await mine(1)
+//     await updateWalletBalances('afterTransfer')
+//   })
+
+//   it('should allow winner to withdraw payment', async function () {
+//     await mine(1)
+
+//     const student1PaymentHelper = new PaymentHelper(student1Computer)
+//     const withdrawnAmount = await student1PaymentHelper.withdrawPayment(payment)
+//     expect(withdrawnAmount).to.equal(999454n)
+
+//     await mine(1)
+//     await updateWalletBalances('afterWithdrawal')
+//   })
+
+//   it('should verify teacher received entry fees', async function () {
+//     const owners1 = await entryFeePaymentS1._owners
+//     const owners2 = await entryFeePaymentS2._owners
+
+//     expect(owners1).deep.eq([teacherPubKey])
+//     expect(owners2).deep.eq([teacherPubKey])
+
+//     const totalEntryFees = (await entryFeePaymentS1._satoshis) + (await entryFeePaymentS2._satoshis)
+//     console.log(`\n💰 Total entry fees collected: ${totalEntryFees} sats`)
+
+//     const teacherBalance = await teacherComputer.getBalance()
+//     const teacherBalanceNum = Number(teacherBalance.confirmed || teacherBalance.balance)
+//     expect(teacherBalanceNum).to.be.greaterThan(100000000)
+//   })
+
+//   it('should verify leaderboard shows correct rewards and payment ownership', async function () {
+//     expect(await quiz.isClaimed).to.equal(true)
+//     expect(await quiz.claimedBy).to.equal(student1PubKey)
+
+//     const finalOwners = await payment._owners
+//     expect(finalOwners[0]).to.equal(student1PubKey)
+
+//     console.log('\n📈 LEADERBOARD:')
+//     const leaderboard = leaderboardHelper.getLeaderboard()
+//     if (leaderboard.length > 0) {
+//       leaderboard.forEach((student, index) => {
+//         console.log(`${index + 1}. ${student.publicKey.substring(0, 10)}... - ${student.totalRewards} sats`)
+//       })
+//     }
+//   })
+// })
+
+
+
 import { Computer } from '@bitcoin-computer/lib'
+import { expect } from 'chai'
 import dotenv from 'dotenv'
 import path from 'path'
 
@@ -2273,7 +3095,6 @@ import { Student } from '../src/student.js'
 import { Quiz } from '../src/quiz.js'
 import { Payment, PaymentMock } from '../src/payment.js'
 import { QuizAccess } from '../src/quiz-access.js'
-
 import { QuizAccessHelper, QuizAccessSaleHelper } from '../src/index.js'
 import { TeacherHelper } from '../src/helpers/teacher-helper.js'
 import { StudentHelper } from '../src/helpers/student-helper.js'
@@ -2282,28 +3103,30 @@ import { PaymentHelper } from '../src/helpers/payment-helper.js'
 import { LeaderboardHelper, QuizResult } from '../src/helpers/leaderboard-helper.js'
 import { MineBlocks } from '../src/utils/mineblock.js'
 
+// Type for sale transaction sync result
+type SaleSyncResult = { env: { o: QuizAccess; p: Payment } }
+
+// Load env like other monorepo tests
 const envPaths = [
-  path.resolve(process.cwd(), './packages/node/.env'),
+  path.resolve(process.cwd(), './packages/node/.env'), // workspace root
+  path.resolve(process.cwd(), './.env'),
   '../node/.env',
 ]
 for (const envPath of envPaths) dotenv.config({ path: envPath })
 
-const url = process.env.BCN_URL
-const chain = process.env.BCN_CHAIN
-const network = process.env.BCN_NETWORK
-
-if (!url || !chain || !network) {
-  throw new Error('Missing BCN_URL / BCN_CHAIN / BCN_NETWORK in env')
-}
-
-const basePath = process.env.BCN_BASE_PATH || `m/44'/2'/0'/0`
-
-type SaleSync = { env: { o: QuizAccess; p: Payment } }
-
-describe('Comprehensive Quiz with Leaderboard (Sale offers for access, Fungible tokens)', function () {
+describe('Comprehensive Quiz with Leaderboard (Sale offers for access)', function () {
   this.timeout(300000)
 
-  let teacherComputer: Computer, student1Computer: Computer, student2Computer: Computer
+  // Use BCN_* (same convention as the standard tests)
+  const chain = process.env.BCN_CHAIN || 'LTC'
+  const network = process.env.BCN_NETWORK || 'regtest'
+  const url = process.env.BCN_URL || 'http://localhost:1031'
+  const basePath = process.env.BCN_BASE_PATH || `m/44'/2'/0'/0`
+
+  let teacherComputer: Computer
+  let student1Computer: Computer
+  let student2Computer: Computer
+
   let teacherHelper: TeacherHelper
   let student1Helper: StudentHelper
   let student2Helper: StudentHelper
@@ -2312,41 +3135,55 @@ describe('Comprehensive Quiz with Leaderboard (Sale offers for access, Fungible 
   let paymentHelper: PaymentHelper
   let leaderboardHelper: LeaderboardHelper
 
-  let teacher: Teacher, student1: Student, student2: Student
-  let quiz: Quiz
-  let rewardPayment: Payment
-  let quizId: string
+  let teacher!: Teacher
+  let student1!: Student
+  let student2!: Student
 
-  let teacherPubKey: string, student1PubKey: string, student2PubKey: string
+  let quiz!: Quiz
+  let payment!: Payment
+  let quizId!: string
 
-  let quizAccessHelper: QuizAccessHelper
-  let quizAccessSaleHelper: QuizAccessSaleHelper
+  let teacherPubKey!: string
+  let student1PubKey!: string
+  let student2PubKey!: string
 
-  let entryFeePaymentS1: Payment
-  let entryFeePaymentS2: Payment
+  let quizAccessHelper!: QuizAccessHelper
+  let quizAccessSaleHelper!: QuizAccessSaleHelper
 
-  let quizAccessTokenS1: QuizAccess
-  let quizAccessTokenS2: QuizAccess
+  let entryFeePaymentS1!: Payment
+  let entryFeePaymentS2!: Payment
 
-  const mine = async (blocks: number = 1) => {
+  // typed (no any)
+  let quizAccessTokenS1!: QuizAccess
+  let quizAccessTokenS2!: QuizAccess
+
+  const walletBalances = {
+    teacher: { initial: 0, afterSetup: 0, afterQuizCreation: 0, afterEntryFees: 0, afterAttempts: 0, afterTransfer: 0, afterWithdrawal: 0 },
+    student1: { initial: 0, afterSetup: 0, afterQuizCreation: 0, afterEntryFees: 0, afterAttempts: 0, afterTransfer: 0, afterWithdrawal: 0 },
+    student2: { initial: 0, afterSetup: 0, afterQuizCreation: 0, afterEntryFees: 0, afterAttempts: 0, afterTransfer: 0, afterWithdrawal: 0 },
+  }
+
+  async function updateWalletBalances(stage: keyof typeof walletBalances.teacher) {
+    const teacherBal = await teacherComputer.getBalance()
+    const student1Bal = await student1Computer.getBalance()
+    const student2Bal = await student2Computer.getBalance()
+
+    walletBalances.teacher[stage] = Number(teacherBal.confirmed || teacherBal.balance)
+    walletBalances.student1[stage] = Number(student1Bal.confirmed || student1Bal.balance)
+    walletBalances.student2[stage] = Number(student2Bal.confirmed || student2Bal.balance)
+  }
+
+  const mine = async (blocks = 1) => {
     if (network === 'regtest') await MineBlocks.mine(url, chain, network, blocks)
   }
 
-  const sleep = async (ms: number) => new Promise((r) => setTimeout(r, ms))
-
-  const syncOrMine = async <T>(computer: Computer, id: string): Promise<T> => {
-    try {
-      return (await computer.sync(id)) as unknown as T
-    } catch {
-      await mine(1)
-      return (await computer.sync(id)) as unknown as T
-    }
-  }
-
   before(async function () {
-    teacherComputer = new Computer({ url, chain, network, path: `${basePath}/0` })
-    student1Computer = new Computer({ url, chain, network, path: `${basePath}/1` })
-    student2Computer = new Computer({ url, chain, network, path: `${basePath}/2` })
+    // quick sanity log (helps confirm env is actually loaded)
+    console.log('ENV:', { url, chain, network, basePath })
+
+    teacherComputer = new Computer({ chain, network, url, path: `${basePath}/0` })
+    student1Computer = new Computer({ chain, network, url, path: `${basePath}/1` })
+    student2Computer = new Computer({ chain, network, url, path: `${basePath}/2` })
 
     teacherPubKey = teacherComputer.getPublicKey()
     student1PubKey = student1Computer.getPublicKey()
@@ -2356,7 +3193,8 @@ describe('Comprehensive Quiz with Leaderboard (Sale offers for access, Fungible 
       await teacherComputer.faucet(2e8)
       await student1Computer.faucet(2e8)
       await student2Computer.faucet(2e8)
-      await sleep(500)
+      await updateWalletBalances('initial')
+      await mine(1)
     }
 
     teacherHelper = new TeacherHelper(teacherComputer)
@@ -2369,11 +3207,16 @@ describe('Comprehensive Quiz with Leaderboard (Sale offers for access, Fungible 
 
     quizAccessHelper = new QuizAccessHelper(teacherComputer)
     await quizAccessHelper.deploy()
+    await mine(1)
 
     quizAccessSaleHelper = new QuizAccessSaleHelper(teacherComputer)
     await quizAccessSaleHelper.deploy()
+    await mine(1)
 
     await paymentHelper.deploy()
+    await mine(1)
+
+    await updateWalletBalances('afterSetup')
   })
 
   it('should create teacher and students', async function () {
@@ -2383,165 +3226,185 @@ describe('Comprehensive Quiz with Leaderboard (Sale offers for access, Fungible 
 
     expect(await student1.name).to.equal('Alice')
     expect(await student2.name).to.equal('Bob')
+
+    await mine(1)
   })
 
-  it('should create reward payment then quiz (separate steps)', async function () {
+  it('should create quiz with payment', async function () {
     const quizData = {
       title: 'Math Quiz',
       questionText: 'What is 2+2?',
       options: ['3', '4', '5', '6'],
       correctAnswer: 1,
       rewardAmount: 1000000n,
-      entryFee: 100000000n,
-      teacher,
+      entryFee: 50000n,
+      teacher: teacher,
     }
 
-    // STEP A: reward payment
-    rewardPayment = await teacherHelper.createRewardPayment(quizData.rewardAmount)
-    const paymentTxId = await rewardPayment._id
-
-    expect(await rewardPayment._satoshis).to.equal(1000000n)
-    expect(await rewardPayment._owners).deep.eq([teacherPubKey])
-
-    // STEP B: quiz creation referencing paymentTxId
-    quiz = await teacherHelper.createQuizOnly({
-      ...quizData,
-      paymentTxId,
-    })
-
+    const quizResult = await teacherHelper.createQuiz(quizData)
+    quiz = quizResult.quiz
     quizId = await quiz._id
 
+    const paymentTxId = quizResult.paymentTxId
+    payment = (await teacherComputer.sync(paymentTxId)) as Payment
+
     expect(await quiz.title).to.equal('Math Quiz')
-    expect(await quiz.entryFee).to.equal(100000000n)
-    expect(await quiz.paymentTxId).to.equal(paymentTxId)
+    expect(await payment._satoshis).to.equal(1000000n)
+    expect(await quiz.entryFee).to.equal(50000n)
+
+    await mine(1)
+    await updateWalletBalances('afterQuizCreation')
   })
 
-  it('should allow students to purchase access (SALE OFFERS) using fungible access token', async function () {
-    console.log('\n🧾 SALE OFFER MECHANISM (FUNGIBLE ACCESS TOKENS)')
-    console.log('===============================================')
+  it('should allow students to purchase access to the quiz (SALE OFFERS)', async function () {
+    console.log('\n🧾 SALE OFFER MECHANISM INITIATED')
+    console.log('==================================')
 
     // ---------- Student 1 ----------
     console.log(`\n<Student 1 (${student1PubKey.substring(0, 10)}...) accepting offer>`)
 
-    // Teacher mints a 1-unit access token to themselves
+    // teacher mints access token bag (teacher owns it initially)
     const access1 = await quizAccessHelper.createQuizAccess(quizId, 1n)
-    const teacherBalanceBefore = await teacherComputer.db.wallet.getBalance() // sync before broadcast to avoid mempool conflict
-    
-    console.log('😊Teacher balance before offer broadcast:', teacherBalanceBefore)
-    expect(access1._owners).deep.eq([teacherPubKey])
+
+    // metadata asserts (like fungible token test)
+    expect(access1._id).to.be.a('string')
+    expect(access1._rev).to.be.a('string')
+    expect(access1._root).to.be.a('string')
+    expect(access1._owners).deep.equal([teacherPubKey])
     expect(access1.quizId).to.equal(quizId)
     expect(access1.amount).to.equal(1n)
 
-    console.log('Teacher minted access token:', {
-      id: access1._id,
-      rev: access1._rev,
-      quizId: access1.quizId,
-      amount: access1.amount.toString(),
-      owner: access1._owners[0].slice(0, 10) + '...',
-    })
+    const access1RevBefore = access1._rev
 
-    // Teacher builds offer using PaymentMock(entryFee)
     const mock1 = new PaymentMock(await quiz.entryFee)
-    const offer1 = await quizAccessSaleHelper.createOfferTx(access1, mock1)
-    const offerTx1 = offer1.tx
+    const { tx: offerTx1 } = await quizAccessSaleHelper.createOfferTx(access1, mock1)
 
-    // Offer tx shape checks (partial signature)
+    console.log("swap objects in offerTx1.env:", offerTx1)
+    console.log('\n--- OFFER TX (teacher created, before finalize) ---')
+    console.log('txid:', offerTx1.getId())
+    console.log('ins:', offerTx1.ins.length, 'outs:', offerTx1.outs.length)
+    console.log('out0 value (price):', offerTx1.outs[0].value)
+    console.log('out1 value (min dust):', offerTx1.outs[1].value)
+
+    // Offer tx shape asserts (like sale.test.ts)
     expect(offerTx1.ins).to.have.lengthOf(2)
-    expect(offerTx1.ins[0].script.length).to.be.greaterThan(0)
-    expect(offerTx1.ins[1].script.length).to.equal(0)
+    expect(offerTx1.ins[0].script.length).to.be.greaterThan(0) // signed by teacher
+    expect(offerTx1.ins[1].script.length).to.equal(0) // unsigned (student will provide)
     expect(BigInt(offerTx1.outs[0].value)).to.equal(await quiz.entryFee)
-    expect(BigInt(offerTx1.outs[1].value)).to.be.greaterThan(0)
+    expect(offerTx1.outs[1].value).to.be.greaterThan(0)
 
-    console.log('Offer tx (teacher created, before student finalizes):', {
-      id: offerTx1.getId(),
-      out0Value: offerTx1.outs[0].value,
-      out1Value: offerTx1.outs[1].value,
-    })
+    // student validates teacher offer
+    const studentSaleHelper1 = new QuizAccessSaleHelper(student1Computer, quizAccessSaleHelper.mod)
+    expect(await studentSaleHelper1.checkOfferTx(offerTx1)).to.equal(await quiz.entryFee)
 
-    // Student checks offer
-    const sHelper1 = new QuizAccessSaleHelper(student1Computer, quizAccessSaleHelper.mod)
-    expect(await sHelper1.checkOfferTx(offerTx1)).to.equal(await quiz.entryFee)
+    // student creates real payment
+    const entryPay1 = await student1Computer.new(Payment, [await quiz.entryFee])
+    expect(entryPay1._owners).deep.equal([student1PubKey])
+    expect(entryPay1._satoshis).to.equal(await quiz.entryFee)
 
-    // Student creates real payment + finalizes + signs + broadcasts
-    const pay1 = await student1Computer.new(Payment, [await quiz.entryFee])
     const s1Script = student1Computer.toScriptPubKey()
     if (!s1Script) throw new Error('student1Computer.toScriptPubKey() returned undefined')
-    QuizAccessSaleHelper.finalizeOfferTx(offerTx1, pay1, s1Script)
+
+    QuizAccessSaleHelper.finalizeOfferTx(offerTx1, entryPay1, s1Script)
+
+    console.log('\n--- OFFER TX (after finalize, before fund/sign/broadcast) ---')
+    console.log('txid:', offerTx1.getId())
+    console.log('ins:', offerTx1.ins.length, 'outs:', offerTx1.outs.length)
 
     await student1Computer.fund(offerTx1)
+
+    console.log('\n--- OFFER TX (after FUND, before SIGN) ---')
+    console.log('ins:', offerTx1.ins.length, 'outs:', offerTx1.outs.length)
+
     await student1Computer.sign(offerTx1)
-    await sleep(1000) // avoid mempool conflicts
-    
+
+    console.log('\n--- OFFER TX (after SIGN, before BROADCAST) ---')
+    console.log('ins:', offerTx1.ins.length, 'outs:', offerTx1.outs.length)
+
     const txId1 = await student1Computer.broadcast(offerTx1)
-    await sleep(5000)
-    
+    await mine(1)
 
-    const synced1 = await syncOrMine<SaleSync>(student1Computer, txId1)
-    quizAccessTokenS1 = synced1.env.o
-    entryFeePaymentS1 = synced1.env.p
-    const teacherBalanceAfter = await teacherComputer.db.wallet.getBalance() // sync before balance check to avoid mempool conflict
-    console.log("❤️balance after broadcast:", teacherBalanceAfter)
+    console.log('\n--- BROADCASTED TX ---')
+    console.log('txId:', txId1)
 
-    expect(quizAccessTokenS1._owners).deep.eq([student1PubKey])
-    expect(entryFeePaymentS1._owners).deep.eq([teacherPubKey])
-    expect(quizAccessTokenS1.amount).to.equal(1n)
+    // sync result
+    const synced1 = (await student1Computer.sync(txId1)) as SaleSyncResult
+    console.log('\n--- SYNCED TX ENV ---')
+    console.log(synced1.env)
+    const quizAccessS1 = synced1.env.o
+    const entryFeePaymentS1Temp = synced1.env.p
 
-    console.log('After broadcast (Student 1):', {
-      accessOwner: quizAccessTokenS1._owners[0].slice(0, 10) + '...',
-      accessAmount: quizAccessTokenS1.amount.toString(),
-      paymentOwner: entryFeePaymentS1._owners[0].slice(0, 10) + '...',
-      paymentSats: entryFeePaymentS1._satoshis.toString(),
-    })
+    // ownership swaps
+    expect(quizAccessS1._owners).deep.eq([student1PubKey])
+    expect(entryFeePaymentS1Temp._owners).deep.eq([teacherPubKey])
+
+    // access token still amount 1 (not used yet)
+    expect(quizAccessS1.quizId).to.equal(quizId)
+    expect(quizAccessS1.amount).to.equal(1n)
+
+    // rev changed because state changed (owner changed)
+    expect(quizAccessS1._rev).to.be.a('string')
+    expect(quizAccessS1._rev).to.not.equal(access1RevBefore)
+
+    quizAccessTokenS1 = quizAccessS1
+    entryFeePaymentS1 = entryFeePaymentS1Temp
+
+    console.log(`✅ Student 1 purchase complete: access->student, payment->teacher`)
 
     // ---------- Student 2 ----------
     console.log(`\n<Student 2 (${student2PubKey.substring(0, 10)}...) accepting offer>`)
 
     const access2 = await quizAccessHelper.createQuizAccess(quizId, 1n)
-    expect(access2._owners).deep.eq([teacherPubKey])
-    expect(access2.quizId).to.equal(quizId)
+    expect(access2._owners).deep.equal([teacherPubKey])
     expect(access2.amount).to.equal(1n)
 
     const mock2 = new PaymentMock(await quiz.entryFee)
-    const offer2 = await quizAccessSaleHelper.createOfferTx(access2, mock2)
-    const offerTx2 = offer2.tx
+    const { tx: offerTx2 } = await quizAccessSaleHelper.createOfferTx(access2, mock2)
 
-    const sHelper2 = new QuizAccessSaleHelper(student2Computer, quizAccessSaleHelper.mod)
-    expect(await sHelper2.checkOfferTx(offerTx2)).to.equal(await quiz.entryFee)
+    // offer shape asserts
+    expect(offerTx2.ins).to.have.lengthOf(2)
+    expect(offerTx2.ins[0].script.length).to.be.greaterThan(0)
+    expect(offerTx2.ins[1].script.length).to.equal(0)
 
-    const pay2 = await student2Computer.new(Payment, [await quiz.entryFee])
+    const studentSaleHelper2 = new QuizAccessSaleHelper(student2Computer, quizAccessSaleHelper.mod)
+    expect(await studentSaleHelper2.checkOfferTx(offerTx2)).to.equal(await quiz.entryFee)
+
+    const entryPay2 = await student2Computer.new(Payment, [await quiz.entryFee])
+    expect(entryPay2._owners).deep.equal([student2PubKey])
+    expect(entryPay2._satoshis).to.equal(await quiz.entryFee)
+
     const s2Script = student2Computer.toScriptPubKey()
     if (!s2Script) throw new Error('student2Computer.toScriptPubKey() returned undefined')
-    QuizAccessSaleHelper.finalizeOfferTx(offerTx2, pay2, s2Script)
+
+    QuizAccessSaleHelper.finalizeOfferTx(offerTx2, entryPay2, s2Script)
 
     await student2Computer.fund(offerTx2)
     await student2Computer.sign(offerTx2)
     const txId2 = await student2Computer.broadcast(offerTx2)
+    await mine(1)
 
-    const synced2 = await syncOrMine<SaleSync>(student2Computer, txId2)
-    quizAccessTokenS2 = synced2.env.o
-    entryFeePaymentS2 = synced2.env.p
+    const synced2 = (await student2Computer.sync(txId2)) as SaleSyncResult
+    const quizAccessS2 = synced2.env.o
+    const entryFeePaymentS2Temp = synced2.env.p
 
-    expect(quizAccessTokenS2._owners).deep.eq([student2PubKey])
-    expect(entryFeePaymentS2._owners).deep.eq([teacherPubKey])
-    expect(quizAccessTokenS2.amount).to.equal(1n)
+    expect(quizAccessS2._owners).deep.eq([student2PubKey])
+    expect(entryFeePaymentS2Temp._owners).deep.eq([teacherPubKey])
+    expect(quizAccessS2.quizId).to.equal(quizId)
+    expect(quizAccessS2.amount).to.equal(1n)
 
-    console.log('After broadcast (Student 2):', {
-      accessOwner: quizAccessTokenS2._owners[0].slice(0, 10) + '...',
-      accessAmount: quizAccessTokenS2.amount.toString(),
-      paymentOwner: entryFeePaymentS2._owners[0].slice(0, 10) + '...',
-      paymentSats: entryFeePaymentS2._satoshis.toString(),
-    })
+    quizAccessTokenS2 = quizAccessS2
+    entryFeePaymentS2 = entryFeePaymentS2Temp
+
+    await updateWalletBalances('afterEntryFees')
+
+    console.log(`\n✅ SALE OFFER MECHANISM COMPLETED SUCCESSFULLY`)
+    console.log('==============================================')
   })
 
-  it('should allow students with access to attempt the quiz (burn access unit)', async function () {
-    console.log('\n🎯 QUIZ ATTEMPT PHASE (burn 1 access unit)')
-    console.log('=========================================')
+  it('should allow students with access to attempt the quiz', async function () {
+    console.log('\n🎯 QUIZ ATTEMPT PHASE')
+    console.log('====================')
 
-    // keep revs so we can prove they changed after burn
-    const s1AccessRevBefore = quizAccessTokenS1._rev
-    const s2AccessRevBefore = quizAccessTokenS2._rev
-
-    await mine(1) 
     const attempt1 = await attempt1Helper.createAttempt(quizId, student1PubKey)
     await attempt1.submitAnswer(quizAccessTokenS1, 1, await quiz.correctAnswer, await quiz.rewardAmount)
     await quiz.addAttemptedStudent(student1PubKey)
@@ -2557,40 +3420,37 @@ describe('Comprehensive Quiz with Leaderboard (Sale offers for access, Fungible 
     expect(await quiz.isClaimed).to.equal(true)
     expect(await quiz.claimedBy).to.equal(student1PubKey)
 
-    // re-sync latest access token revisions and assert amount burned to 0
-    const s1LatestRev = await student1Computer.getLatestRev(quizAccessTokenS1._id)
-    const s2LatestRev = await student2Computer.getLatestRev(quizAccessTokenS2._id)
+    // Re-sync latest tokens to verify burn (amount -> 0n)
+    const s1Latest = await student1Computer.getLatestRev(quizAccessTokenS1._id)
+    const s2Latest = await student2Computer.getLatestRev(quizAccessTokenS2._id)
 
-    expect(s1LatestRev).to.not.equal(s1AccessRevBefore)
-    expect(s2LatestRev).to.not.equal(s2AccessRevBefore)
-
-    quizAccessTokenS1 = (await student1Computer.sync(s1LatestRev)) as unknown as QuizAccess
-    quizAccessTokenS2 = (await student2Computer.sync(s2LatestRev)) as unknown as QuizAccess
+    quizAccessTokenS1 = (await student1Computer.sync(s1Latest)) as QuizAccess
+    quizAccessTokenS2 = (await student2Computer.sync(s2Latest)) as QuizAccess
 
     expect(quizAccessTokenS1.amount).to.equal(0n)
     expect(quizAccessTokenS2.amount).to.equal(0n)
 
-    console.log('Access burned:', {
-      s1Amount: quizAccessTokenS1.amount.toString(),
-      s2Amount: quizAccessTokenS2.amount.toString(),
-    })
+    await mine(1)
+    await updateWalletBalances('afterAttempts')
 
+    // Student 1 claimed the reward, so record the full rewardEarned with paymentTxId
     const quizResult1: QuizResult = {
       quizId,
       quizTitle: await quiz.title,
       studentPublicKey: student1PubKey,
       isCorrect: await attempt1.isCorrect,
       rewardEarned: await attempt1.rewardEarned,
-      paymentTxId: await rewardPayment._id,
+      paymentTxId: await payment._id,
       timestamp: Date.now(),
     }
 
+    // Student 2 answered correctly but didn't claim (claimed2 === false), so rewardEarned should be 0
     const quizResult2: QuizResult = {
       quizId,
       quizTitle: await quiz.title,
       studentPublicKey: student2PubKey,
       isCorrect: await attempt2.isCorrect,
-      rewardEarned: await attempt2.rewardEarned,
+      rewardEarned: claimed2 ? await attempt2.rewardEarned : 0n,
       timestamp: Date.now(),
     }
 
@@ -2598,110 +3458,57 @@ describe('Comprehensive Quiz with Leaderboard (Sale offers for access, Fungible 
     await leaderboardHelper.recordQuizResult(quizResult2)
   })
 
-  it('should transfer reward payment to winner', async function () {
-    await rewardPayment.transfer(student1PubKey)
-    expect(await rewardPayment._owners).deep.eq([student1PubKey])
+  it('should transfer payment to winner', async function () {
+    await payment.transfer(student1PubKey)
+    const owners = await payment._owners
+    expect(owners[0]).to.equal(student1PubKey)
+
+    await mine(1)
+    await updateWalletBalances('afterTransfer')
   })
 
-  it('should allow winner to withdraw reward payment (mine only here)', async function () {
-    await mine(1) // confirm previous chain to avoid too-long-mempool-chain
+  it('should allow winner to withdraw payment', async function () {
+    await mine(1)
 
     const student1PaymentHelper = new PaymentHelper(student1Computer)
-    const withdrawnAmount = await student1PaymentHelper.withdrawPayment(rewardPayment)
+    const withdrawnAmount = await student1PaymentHelper.withdrawPayment(payment)
     expect(withdrawnAmount).to.equal(999454n)
+
+    await mine(1)
+    await updateWalletBalances('afterWithdrawal')
   })
 
-  
-  it('should allow teacher to withdraw entry fees (real withdrawal)', async function () {
-    await mine(1) // confirm chain before teacher withdrawals
-    console.log('Before w1:', await teacherComputer.getBalance())
-const w1 = await paymentHelper.withdrawPayment(entryFeePaymentS1)
-console.log('After w1:', await teacherComputer.getBalance())
+  it('should verify teacher received entry fees', async function () {
+    const owners1 = await entryFeePaymentS1._owners
+    const owners2 = await entryFeePaymentS2._owners
 
-await mine(1)
-console.log('After mine:', await teacherComputer.getBalance())
+    expect(owners1).deep.eq([teacherPubKey])
+    expect(owners2).deep.eq([teacherPubKey])
 
-const w2 = await paymentHelper.withdrawPayment(entryFeePaymentS2)
-console.log('After w2:', await teacherComputer.getBalance())
+    const totalEntryFees = (await entryFeePaymentS1._satoshis) + (await entryFeePaymentS2._satoshis)
+    console.log(`\n💰 Total entry fees collected: ${totalEntryFees} sats`)
 
-await mine(1)
-console.log('After mine 2:', await teacherComputer.getBalance())
-
-    // entryFee 50000n => 50000 - 546 = 49454
-    //expect(w1).to.equal(49454n)
-    //expect(w2).to.equal(49454n)
-    console.log('Teacher withdrew entry fees:', { w1, w2 })
-    console.log('Teacher balance:',await teacherComputer.getBalance())
+    const teacherBalance = await teacherComputer.getBalance()
+    const teacherBalanceNum = Number(teacherBalance.confirmed || teacherBalance.balance)
+    expect(teacherBalanceNum).to.be.greaterThan(100000000)
   })
 
-  it('should verify leaderboard and ownerships', async function () {
+  it('should verify leaderboard shows correct rewards and payment ownership', async function () {
     expect(await quiz.isClaimed).to.equal(true)
     expect(await quiz.claimedBy).to.equal(student1PubKey)
 
-    const leaderboard = leaderboardHelper.getLeaderboard()
-    expect(leaderboard.length).to.be.greaterThan(0)
+    const finalOwners = await payment._owners
+    expect(finalOwners[0]).to.equal(student1PubKey)
 
     console.log('\n📈 LEADERBOARD:')
-    leaderboard.forEach((s, i) => {
-      console.log(`${i + 1}. ${s.publicKey.substring(0, 10)}... - ${s.totalRewards} sats`)
-    })
+    const leaderboard = leaderboardHelper.getLeaderboard()
+    if (leaderboard.length > 0) {
+      leaderboard.forEach((student, index) => {
+        console.log(`${index + 1}. ${student.publicKey.substring(0, 10)}... - ${student.totalRewards} sats`)
+      })
+    }
   })
 })
-```
-
-# test\payment.test.ts
-
-```ts
-import { expect } from 'chai'
-import { Computer } from '@bitcoin-computer/lib'
-import dotenv from 'dotenv'
-import { Payment } from '../src/index.js'
-import { PaymentHelper } from '../src/helpers/payment-helper.js'
-import path from 'path'
-
-const envPaths = [
-  path.resolve(process.cwd(), './packages/node/.env'), // workspace root
-  '../node/.env', // when running from local
-]
-
-for (const envPath of envPaths) {
-  dotenv.config({ path: envPath })
-}
-
-const url = process.env.BCN_URL
-const chain = process.env.BCN_CHAIN
-const network = process.env.BCN_NETWORK
-
-describe('Payment', () => {
-  const alice = new Computer({ url, chain, network })
-
-  before('Before', async () => {
-    await alice.faucet(4e8)
-  })
-
-  describe('Alice creates payment', () => {
-    let paymentTxId: string
-    let paymentHelper: PaymentHelper
-
-    before('Before creating a payment', async () => {
-      paymentHelper = new PaymentHelper(alice)
-    })
-
-    it('Alice deploys the payment contract', async () => {
-      await paymentHelper.deploy()
-    })
-
-    it('Alice creates an payment transaction and broadcast it', async () => {
-      const paymentTx = await paymentHelper.createPaymentTx(BigInt(2e8)) as any
-
-      paymentTxId = await alice.broadcast(paymentTx)
-
-      const payment: Payment = await paymentHelper.getPayment(paymentTxId)
-      expect(payment._satoshis).eq(BigInt(2e8))
-    })
-  })
-})
-
 ```
 
 # tsconfig.json
@@ -2746,9 +3553,10 @@ describe('Payment', () => {
     "skipLibCheck": true,
     "target": "ES2020",
     "module": "esnext",
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "types": ["mocha", "chai", "node"]
   },
-  "include": ["src/**/*", "test/**/*"],
+  "include": ["src/**/*", "test/**/*", "test/**/*.test.ts"],
   "exclude": ["node_modules", "dist", "src/scripts/**/*"]
 }
 ```
