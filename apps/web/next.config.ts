@@ -1,9 +1,17 @@
 import type { NextConfig } from "next";
 import webpack from 'webpack';
+import path from 'path';
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@quiz-app/contracts', '@bitcoin-computer/lib'],
+  // Only transpile bitcoin-computer/lib, NOT quiz-contracts (to avoid __name decoration issues)
+  transpilePackages: ['@bitcoin-computer/lib'],
   webpack: (config, { isServer }) => {
+    // Alias @quiz-app/contracts to pre-compiled dist to avoid SWC __name issues
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@quiz-app/contracts': path.resolve(__dirname, '../../packages/quiz-contracts/dist/index.js'),
+    };
+
     if (!isServer) {
       config.resolve.fallback = {
         ...(config.resolve.fallback ?? {}),
@@ -23,6 +31,7 @@ const nextConfig: NextConfig = {
           process: ['process'],
         }),
       );
+
     }
     return config;
   },
