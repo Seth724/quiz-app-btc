@@ -19,7 +19,7 @@ export const MODULE_SPECS = {
   teacherMod: process.env.NEXT_PUBLIC_TEACHER_MOD_SPEC || process.env.NEXT_PUBLIC_TEACHER_MOD || '',
   studentMod: process.env.NEXT_PUBLIC_STUDENT_MOD_SPEC || process.env.NEXT_PUBLIC_STUDENT_MOD || '',
   quizMod: process.env.NEXT_PUBLIC_QUIZ_MOD_SPEC || process.env.NEXT_PUBLIC_QUIZ_MOD || '',
-  attemptMod: process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC || process.env.NEXT_PUBLIC_ATTEMPT_MOD || '',
+  attemptMod: process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC || process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD || '',
   paymentMod: process.env.NEXT_PUBLIC_PAYMENT_MOD_SPEC || process.env.NEXT_PUBLIC_PAYMENT_MOD || '',
   quizAccessMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC || process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD || '',
   quizAccessSaleMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC || process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD || ''
@@ -27,13 +27,13 @@ export const MODULE_SPECS = {
 
 // Force log all environment variables for debugging
 console.log('🔧 ALL NEXT_PUBLIC env vars:', {
-  NEXT_PUBLIC_TEACHER_MOD_SPEC: process.env.NEXT_PUBLIC_TEACHER_MOD_SPEC,
-  NEXT_PUBLIC_STUDENT_MOD_SPEC: process.env.NEXT_PUBLIC_STUDENT_MOD_SPEC,
-  NEXT_PUBLIC_QUIZ_MOD_SPEC: process.env.NEXT_PUBLIC_QUIZ_MOD_SPEC,
-  NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC: process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC,
-  NEXT_PUBLIC_PAYMENT_MOD_SPEC: process.env.NEXT_PUBLIC_PAYMENT_MOD_SPEC,
-  NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC: process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC,
-  NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC: process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC
+  NEXT_PUBLIC_TEACHER_MOD: process.env.NEXT_PUBLIC_TEACHER_MOD,
+  NEXT_PUBLIC_STUDENT_MOD: process.env.NEXT_PUBLIC_STUDENT_MOD,
+  NEXT_PUBLIC_QUIZ_MOD: process.env.NEXT_PUBLIC_QUIZ_MOD,
+  NEXT_PUBLIC_QUIZ_ATTEMPT_MOD: process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD,
+  NEXT_PUBLIC_PAYMENT_MOD: process.env.NEXT_PUBLIC_PAYMENT_MOD,
+  NEXT_PUBLIC_QUIZ_ACCESS_MOD: process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD,
+  NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD: process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD
 })
 
 // Blockchain config object
@@ -59,13 +59,13 @@ export function hasModuleSpecs(): boolean {
   // Debug: Log what we actually have
   console.log('🔍 Debug MODULE_SPECS:', MODULE_SPECS)
   console.log('🔍 Debug env vars:', {
-    teacherMod: process.env.NEXT_PUBLIC_TEACHER_MOD_SPEC,
-    studentMod: process.env.NEXT_PUBLIC_STUDENT_MOD_SPEC,
-    quizMod: process.env.NEXT_PUBLIC_QUIZ_MOD_SPEC,
-    attemptMod: process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC,
-    paymentMod: process.env.NEXT_PUBLIC_PAYMENT_MOD_SPEC,
-    quizAccessMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC,
-    quizAccessSaleMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC
+    teacherMod: process.env.NEXT_PUBLIC_TEACHER_MOD,
+    studentMod: process.env.NEXT_PUBLIC_STUDENT_MOD,
+    quizMod: process.env.NEXT_PUBLIC_QUIZ_MOD,
+    attemptMod: process.env.NEXT_PUBLIC_QUIZ_ATTEMPT_MOD,
+    paymentMod: process.env.NEXT_PUBLIC_PAYMENT_MOD,
+    quizAccessMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_MOD,
+    quizAccessSaleMod: process.env.NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD
   })
   
   const hasSpecs = Object.values(MODULE_SPECS).every(mod => mod !== '')

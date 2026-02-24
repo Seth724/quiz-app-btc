@@ -36,7 +36,7 @@ if (network === 'regtest') {
   console.log(' - Please ensure your regtest wallet is funded')
   console.log(' - You can fund it manually using: npm run fund')
 }
-
+await computer.faucet(1e8)
 const { balance } = await computer.getBalance()
 
 console.log(`
