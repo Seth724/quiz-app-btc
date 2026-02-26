@@ -12,8 +12,31 @@ import {
   QuizAccessSaleHelper,
   PaymentHelper,
   PaymentMock,
+  Payment,
 } from '@quiz-app/contracts'
 import { withComputerLock } from './txUtils'
+
+/** Shape of a synced QuizAccess token */
+interface SyncedAccess {
+  _id: string
+  _rev: string
+  _root: string
+  _owners: string[]
+  _satoshis: bigint
+  quizId: string
+  amount: bigint
+  createdAt?: number
+}
+
+/** Shape of a synced swap result */
+interface SyncedSwapResult {
+  env?: {
+    o?: {
+      _id?: string
+      _rev?: string
+    }
+  }
+}
 
 export interface AccessDTO {
   _id: string
@@ -62,6 +85,7 @@ export class BrowserAccessClient {
    * Uses QuizAccessHelper for minting and QuizAccessSaleHelper for offer creation.
    */
   async mintAndCreateOffer(quizId: string, entryFee: bigint): Promise<MintOfferResult> {
+    
     return withComputerLock(this.computer, async () => {
       console.log('🏭 [Teacher] Minting QuizAccess token for quiz:', quizId)
 
@@ -113,7 +137,7 @@ export class BrowserAccessClient {
       // Step 3: Finalize using QuizAccessSaleHelper.finalizeOfferTx
       const scriptPubKey = this.computer.toScriptPubKey()
       if (!scriptPubKey) throw new Error('Could not get scriptPubKey from student computer')
-      QuizAccessSaleHelper.finalizeOfferTx(offerTx, payment as any, scriptPubKey)
+      QuizAccessSaleHelper.finalizeOfferTx(offerTx, payment as unknown as Payment, scriptPubKey)
 
       console.log('✅ [Student] Offer finalized, funding and signing...')
 
@@ -124,7 +148,7 @@ export class BrowserAccessClient {
       console.log('✅ [Student] Offer broadcast! txId:', txId)
 
       // Step 5: Sync the result to get the QuizAccess token
-      const synced = await this.computer.sync(txId) as any
+      const synced = await this.computer.sync(txId) as SyncedSwapResult
       const accessToken = synced?.env?.o
 
       // Use _rev (post-swap revision) not _id (original mint revision)
@@ -151,16 +175,16 @@ export class BrowserAccessClient {
    */
   async checkAccess(studentId: string, quizId: string): Promise<boolean> {
     try {
-      const accessIds = await this.computer.query({
+      const accessIds = await this.computer.getOUTXOs({
         mod: MODULE_SPECS.quizAccessMod,
         publicKey: studentId,
-      })
+      }) as string[]
 
       for (const id of accessIds) {
         try {
-          const access: any = await this.computer.sync(id)
+          const access = await this.computer.sync(id) as SyncedAccess
           if (access.quizId === quizId && access.amount > BigInt(0)) return true
-        } catch (accessError) {
+        } catch (accessError: unknown) {
           console.error(`Failed to sync access token ${id}:`, accessError)
         }
       }
@@ -176,14 +200,14 @@ export class BrowserAccessClient {
    */
   async getAccessTokenId(studentId: string, quizId: string): Promise<string | null> {
     try {
-      const accessIds = await this.computer.query({
+      const accessIds = await this.computer.getOUTXOs({
         mod: MODULE_SPECS.quizAccessMod,
         publicKey: studentId,
-      })
+      }) as string[]
 
       for (const id of accessIds) {
         try {
-          const access: any = await this.computer.sync(id)
+          const access = await this.computer.sync(id) as SyncedAccess
           if (access.quizId === quizId && access.amount > BigInt(0)) return access._rev
         } catch {
           // skip
@@ -199,15 +223,15 @@ export class BrowserAccessClient {
    * List all access tokens for a student
    */
   async listByStudent(studentId: string): Promise<AccessDTO[]> {
-    const accessIds = await this.computer.query({
+    const accessIds = await this.computer.getOUTXOs({
       mod: MODULE_SPECS.quizAccessMod,
       publicKey: studentId,
-    })
+    }) as string[]
 
     const accesses: AccessDTO[] = []
     for (const id of accessIds) {
       try {
-        const access: any = await this.computer.sync(id)
+        const access = await this.computer.sync(id) as SyncedAccess
         accesses.push({
           _id: access._id,
           _rev: access._rev,
@@ -219,7 +243,7 @@ export class BrowserAccessClient {
           hasAccess: access.amount > BigInt(0),
           purchasedAt: access.createdAt || Date.now(),
         })
-      } catch (accessError) {
+      } catch (accessError: unknown) {
         console.error(`Failed to sync access token ${id}:`, accessError)
       }
     }

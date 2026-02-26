@@ -24,13 +24,14 @@ export async function withComputerLock<T>(computer: Computer, fn: () => Promise<
   }
 }
 
-function msgOf(err: any) {
-  return String(err?.message ?? err?.toString?.() ?? '')
+function msgOf(err: unknown) {
+  if (err instanceof Error) return err.message
+  return String(err)
 }
 
-export function isRetryableBcNetworkError(err: any) {
+export function isRetryableBcNetworkError(err: unknown) {
   const msg = msgOf(err)
-  const code = String(err?.code ?? '')
+  const code = String((err as Record<string, unknown>)?.code ?? '')
 
   // Axios/browser/network-ish
   if (code === 'ERR_NETWORK') return true
@@ -42,7 +43,7 @@ export function isRetryableBcNetworkError(err: any) {
   return false
 }
 
-export function isRetryableMempoolError(err: any) {
+export function isRetryableMempoolError(err: unknown) {
   const msg = msgOf(err)
   return (
     msg.includes('txn-mempool-conflict') ||
@@ -64,7 +65,6 @@ export async function waitForSync(
   const intervalMs = opts.intervalMs ?? 300
 
   const start = Date.now()
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       await computer.sync(id)
@@ -98,14 +98,14 @@ export async function encodeBroadcastWithRetry(
   computer: Computer,
   args: EncodeArgs,
   opts: EncodeBroadcastOpts = {}
-): Promise<any> {
+): Promise<unknown> {
   const label = opts.label ?? 'tx'
   const maxAttempts = opts.maxAttempts ?? 6
   const baseDelayMs = opts.baseDelayMs ?? 450
   const postBroadcastDelayMs = opts.postBroadcastDelayMs ?? 800
   const waitForEffectSync = opts.waitForEffectSync ?? true
 
-  let lastErr: any
+  let lastErr: unknown
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -115,7 +115,9 @@ export async function encodeBroadcastWithRetry(
 
       // give BCN a moment to update UTXO view / mempool index
       if (waitForEffectSync) {
-        const id = encoded?.effect?.res?._id
+        const effect = encoded?.effect as Record<string, unknown> | undefined
+        const res = effect?.res as Record<string, unknown> | undefined
+        const id = res?._id
         if (typeof id === 'string' && id.length > 10) {
           try {
             await waitForSync(computer, id, { timeoutMs: 12_000, intervalMs: 250 })
@@ -127,7 +129,7 @@ export async function encodeBroadcastWithRetry(
 
       await sleep(postBroadcastDelayMs)
       return encoded
-    } catch (err: any) {
+    } catch (err: unknown) {
       lastErr = err
 
       const retryable =

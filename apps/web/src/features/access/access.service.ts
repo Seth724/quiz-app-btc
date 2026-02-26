@@ -1,21 +1,23 @@
 /**
  * Access Service - Handle quiz access via QuizAccessSale atomic swap
- * 
+ *
+ * Now backed by NestJS API + MongoDB (no more in-memory store).
+ *
  * Flow:
- * 1. Student requests access → stored in API relay
- * 2. Teacher approves → mints QuizAccess + creates offer tx → stores in relay
+ * 1. Student requests access → stored in DB via NestJS API
+ * 2. Teacher approves → mints QuizAccess + creates offer tx → stored in DB
  * 3. Student finalizes → deserializes offer tx, creates Payment, broadcasts atomic swap
  */
 
 'use client'
 
 import type { BrowserAccessClient } from '@/services/bc/BrowserAccessClient'
-import type { AccessRequestData } from '@/lib/accessRequestStore'
+import { accessRequestService, type AccessRequestData } from '@/services/backend'
 
 export type { AccessRequestData }
 
 // ─────────────────────────────────────────────
-// Access Request API helpers
+// Access Request API helpers (via NestJS backend)
 // ─────────────────────────────────────────────
 
 /**
@@ -28,13 +30,7 @@ export async function requestAccess(params: {
   teacherPublicKey: string
   entryFee: string
 }): Promise<AccessRequestData> {
-  const response = await fetch('/api/access-requests', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-  if (!response.ok) throw new Error('Failed to create access request')
-  return response.json()
+  return accessRequestService.create(params)
 }
 
 /**
@@ -46,24 +42,14 @@ export async function getAccessRequests(filters?: {
   teacherPublicKey?: string
   status?: string
 }): Promise<AccessRequestData[]> {
-  const params = new URLSearchParams()
-  if (filters?.quizId) params.set('quizId', filters.quizId)
-  if (filters?.studentPublicKey) params.set('studentPublicKey', filters.studentPublicKey)
-  if (filters?.teacherPublicKey) params.set('teacherPublicKey', filters.teacherPublicKey)
-  if (filters?.status) params.set('status', filters.status)
-
-  const response = await fetch(`/api/access-requests?${params.toString()}`)
-  if (!response.ok) throw new Error('Failed to fetch access requests')
-  return response.json()
+  return accessRequestService.list(filters)
 }
 
 /**
  * Get a single access request by ID
  */
 export async function getAccessRequest(id: string): Promise<AccessRequestData> {
-  const response = await fetch(`/api/access-requests/${id}`)
-  if (!response.ok) throw new Error('Access request not found')
-  return response.json()
+  return accessRequestService.getById(id)
 }
 
 /**
@@ -74,17 +60,11 @@ export async function approveAccessRequest(
   offerTxHex: string,
   accessTokenId: string
 ): Promise<AccessRequestData> {
-  const response = await fetch(`/api/access-requests/${requestId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      status: 'approved',
-      offerTxHex,
-      accessTokenId,
-    }),
+  return accessRequestService.update(requestId, {
+    status: 'approved',
+    offerTxHex,
+    accessTokenId,
   })
-  if (!response.ok) throw new Error('Failed to approve access request')
-  return response.json()
 }
 
 /**
@@ -94,16 +74,10 @@ export async function completeAccessRequest(
   requestId: string,
   completedTxId: string
 ): Promise<AccessRequestData> {
-  const response = await fetch(`/api/access-requests/${requestId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      status: 'completed',
-      completedTxId,
-    }),
+  return accessRequestService.update(requestId, {
+    status: 'completed',
+    completedTxId,
   })
-  if (!response.ok) throw new Error('Failed to complete access request')
-  return response.json()
 }
 
 // ─────────────────────────────────────────────

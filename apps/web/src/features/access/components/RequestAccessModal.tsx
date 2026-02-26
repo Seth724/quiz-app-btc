@@ -8,8 +8,8 @@
 import { useState } from 'react'
 import { useComputer } from '@/hooks'
 import { useWalletStore } from '@/stores'
-import { requestQuizAccess } from '../access.service'
-import { formatSatoshis } from '@/lib'
+import { requestAccess } from '../access.service'
+import { formatSats } from '@/lib'
 import type { Quiz } from '@/features/quizzes'
 
 interface RequestAccessModalProps {
@@ -37,14 +37,15 @@ export function RequestAccessModal({ quiz, isOpen, onClose, onSuccess }: Request
       }
 
       // Step 1: Create entry fee payment
-      const { paymentId, paymentRev } = await requestQuizAccess(
-        computer,
-        quiz._id,
-        quiz.entryFee,
-        publicKey
-      )
+      const result = await requestAccess({
+        quizId: quiz._id,
+        quizTitle: quiz.title,
+        studentPublicKey: publicKey,
+        teacherPublicKey: quiz.teacherPublicKey || '',
+        entryFee: String(quiz.entryFee),
+      })
 
-      console.log('✅ Payment created:', { paymentId, paymentRev })
+      console.log('✅ Access request created:', result.id)
       setStep('waiting')
 
       // Step 2: In a real implementation, this would:
@@ -91,13 +92,13 @@ export function RequestAccessModal({ quiz, isOpen, onClose, onSuccess }: Request
               <div className="flex justify-between">
                 <span>Entry Fee:</span>
                 <span className="font-medium text-blue-600 dark:text-blue-400">
-                  {formatSatoshis(quiz.entryFee)}
+                  {formatSats(quiz.entryFee)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Reward:</span>
                 <span className="font-medium text-green-600 dark:text-green-400">
-                  {formatSatoshis(quiz.rewardAmount)}
+                  {formatSats(quiz.rewardAmount)}
                 </span>
               </div>
             </div>

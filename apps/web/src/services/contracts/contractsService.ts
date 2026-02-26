@@ -25,7 +25,7 @@ export function getComputer(): Computer {
 /**
  * Create a new Computer instance (useful for multi-wallet scenarios)
  */
-export function createNewComputer(config: any): Computer {
+export function createNewComputer(config: Record<string, unknown>): Computer {
   return new Computer(config)
 }
 

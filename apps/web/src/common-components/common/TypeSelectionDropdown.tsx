@@ -7,13 +7,20 @@ import {
   initFlowbite,
 } from "flowbite";
 
+interface TypeSelectionDropdownProps {
+  id: string;
+  onSelectMethod: (option: string) => void;
+  dropdownList: string[];
+  selectedType?: string;
+}
+
 export const TypeSelectionDropdown = ({
   id,
   onSelectMethod,
   dropdownList,
   selectedType,
    
-}: any) => {
+}: TypeSelectionDropdownProps) => {
   const [dropDown, setDropdown] = useState<DropdownInterface>();
   const [type, setType] = useState(selectedType || "Type");
   const [dropdownSelectionList] = useState(dropdownList);

@@ -1,36 +1,37 @@
 /**
  * Attempts Service - Handle quiz attempts
  * NOTE: Each attempt is for ONE question. Answer is either correct or wrong.
+ *
+ * Strategy: Blockchain for writes, sync to DB, DB-first for reads.
  */
 
 'use client'
 
 import type { BrowserAttemptClient } from '@/services/bc/BrowserAttemptClient'
+import { attemptService, quizService } from '@/services/backend'
 
 export interface Attempt {
   _id: string
   _rev: string
   quizId: string
   studentPublicKey: string
-  selectedAnswer: number  // Index 0-3
-  isCorrect: boolean      // True if correct
-  isCompleted: boolean     // True after submission
-  rewardEarned: bigint    // Full reward if correct, 0 if wrong
+  selectedAnswer: number
+  isCorrect: boolean
+  isCompleted: boolean
+  rewardEarned: bigint
   submittedAt: number
 }
 
 export interface SubmitAttemptParams {
   quizId: string
-  selectedAnswer: number  // Index 0-3
-  accessTokenId: string   // QuizAccess token ID
+  selectedAnswer: number
+  accessTokenId: string
 }
 
 /**
  * Submit quiz attempt
- * Flow:
- * 1. Create attempt with quizId
- * 2. Submit answer with access token (burns 1 unit)
- * 3. If correct → Payment transferred to student
+ * 1. Submit on blockchain
+ * 2. Sync to DB (also updates leaderboard automatically)
  */
 export async function submitAttempt(
   attemptClient: BrowserAttemptClient,
@@ -41,6 +42,33 @@ export async function submitAttempt(
     params.selectedAnswer,
     params.accessTokenId
   )
+
+  // Sync attempt to DB
+  try {
+    const rewardNum = Number(String(attempt.rewardEarned ?? 0).replace(/n$/, ''))
+    await attemptService.create({
+      quizId: params.quizId,
+      studentPubKey: attempt.studentPublicKey || '',
+      selectedAnswer: params.selectedAnswer,
+      isCorrect: attempt.isCorrect ?? false,
+      rewardEarned: rewardNum,
+      blockchainTxId: attempt._id,
+    })
+    console.log('✅ Attempt synced to database')
+
+    // If correct, also mark quiz as claimed in DB
+    if (attempt.isCorrect) {
+      try {
+        await quizService.update(params.quizId, {
+          isClaimed: true,
+          claimedBy: attempt.studentPublicKey || '',
+        })
+        console.log('✅ Quiz marked as claimed in DB')
+      } catch { /* ignore */ }
+    }
+  } catch (error) {
+    console.warn('⚠️ DB attempt sync failed:', error)
+  }
 
   return attempt as Attempt
 }
@@ -62,13 +90,34 @@ export async function getAttempt(
 }
 
 /**
- * Get all attempts by student
+ * Get all attempts by student — DB-first, fallback to blockchain
  */
 export async function getStudentAttempts(
   attemptClient: BrowserAttemptClient,
   studentPublicKey: string,
   quizId?: string
 ): Promise<Attempt[]> {
+  // Try DB first
+  try {
+    const dbAttempts = await attemptService.list(studentPublicKey)
+    if (dbAttempts.length > 0) {
+      let filtered = dbAttempts
+      if (quizId) filtered = dbAttempts.filter(a => a.quizId === quizId)
+      return filtered.map(a => ({
+        _id: a.id,
+        _rev: a.id,
+        quizId: a.quizId,
+        studentPublicKey: a.studentPubKey,
+        selectedAnswer: a.selectedAnswer,
+        isCorrect: a.isCorrect,
+        isCompleted: true,
+        rewardEarned: BigInt(a.rewardEarned || 0),
+        submittedAt: new Date(a.attemptedAt).getTime(),
+      }))
+    }
+  } catch { /* fall through */ }
+
+  // Fallback to blockchain
   try {
     const attempts = await attemptClient.getStudentAttempts(studentPublicKey, quizId)
     return attempts as Attempt[]

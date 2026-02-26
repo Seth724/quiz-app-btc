@@ -24,21 +24,21 @@ const toggleModal = (id: string) => {
 };
 
  
-const ShowButton = ({ id, text }: any) => (
+const ShowButton = ({ id, text }: { id: string; text: string }) => (
   <button data-modal-target={id} data-modal-show={id} type="button">
     {text}
   </button>
 );
 
  
-const HideButton = ({ id, text }: any) => (
+const HideButton = ({ id, text }: { id: string; text: string }) => (
   <button data-modal-target={id} data-modal-hide={id} type="button">
     {text}
   </button>
 );
 
  
-const ToggleButton = ({ id, text }: any) => (
+const ToggleButton = ({ id, text }: { id: string; text: string }) => (
   <button data-modal-target={id} data-modal-toggle={id} type="button">
     {text}
   </button>
@@ -52,9 +52,9 @@ const Component = ({
   onClickClose,
 }: {
   title: string;
-  content: any;  
+  content: (data?: unknown) => React.ReactNode;
   id: string;
-  contentData?: any;  
+  contentData?: unknown;
   onClickClose?: () => void;
 }) => (
   <div

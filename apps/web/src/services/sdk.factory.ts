@@ -44,7 +44,7 @@ export function createComputerFromStorage(): Computer {
   const url = typeof window !== 'undefined' ? localStorage.getItem('URL') : 'http://localhost:1031'
   const path = typeof window !== 'undefined' ? localStorage.getItem('PATH') : undefined
 
-  const config: any = { chain, network, url }
+  const config: ComputerConfig = { chain: chain as Chain, network: network as Network, url: url || 'http://localhost:1031' }
   if (mnemonic) config.mnemonic = mnemonic
   if (path) config.path = path
 

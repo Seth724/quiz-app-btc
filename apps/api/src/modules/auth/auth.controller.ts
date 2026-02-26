@@ -19,7 +19,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current authenticated user' })
-  async getMe(@Request() req: any) {
+  async getMe(@Request() req: { user: { publicKey: string; name: string; role: string } }) {
     return req.user;
   }
 }

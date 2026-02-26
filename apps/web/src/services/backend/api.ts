@@ -29,7 +29,7 @@ export function clearToken() {
  * - sets Content-Type
  * - attaches Bearer token (if available)
  */
-async function request<T = any>(
+async function request<T = unknown>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
@@ -60,26 +60,26 @@ async function request<T = any>(
 
 /** HTTP helpers */
 export const api = {
-  get: <T = any>(endpoint: string) => request<T>(endpoint),
+  get: <T = unknown>(endpoint: string) => request<T>(endpoint),
 
-  post: <T = any>(endpoint: string, body?: unknown) =>
+  post: <T = unknown>(endpoint: string, body?: unknown) =>
     request<T>(endpoint, {
       method: 'POST',
       body: body ? JSON.stringify(body) : undefined,
     }),
 
-  put: <T = any>(endpoint: string, body?: unknown) =>
+  put: <T = unknown>(endpoint: string, body?: unknown) =>
     request<T>(endpoint, {
       method: 'PUT',
       body: body ? JSON.stringify(body) : undefined,
     }),
 
-  patch: <T = any>(endpoint: string, body?: unknown) =>
+  patch: <T = unknown>(endpoint: string, body?: unknown) =>
     request<T>(endpoint, {
       method: 'PATCH',
       body: body ? JSON.stringify(body) : undefined,
     }),
 
-  delete: <T = any>(endpoint: string) =>
+  delete: <T = unknown>(endpoint: string) =>
     request<T>(endpoint, { method: 'DELETE' }),
 };

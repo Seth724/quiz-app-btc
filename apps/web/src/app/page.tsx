@@ -1,11 +1,16 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { useWallet } from '@/hooks'
 import { truncatePublicKey } from '@/lib'
+import { useSessionStore } from '@/stores'
+import { LoginModal } from '@/common-components/LoginModal'
 
 export default function HomePage() {
   const { isConnected, publicKey } = useWallet()
+  const { userName, setRole } = useSessionStore()
+  const [showLogin, setShowLogin] = useState(false)
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-8 relative overflow-hidden">
@@ -34,15 +39,29 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Wallet Status */}
+        {/* Wallet / Login Status */}
         {isConnected && publicKey && (
           <div className="flex justify-center">
             <div className="inline-flex items-center gap-3 px-5 py-3 rounded-2xl bg-white/60 dark:bg-white/5 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 shadow-sm">
               <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
-              <span className="text-sm text-gray-500 dark:text-gray-400">Connected as</span>
-              <span className="text-sm font-mono font-semibold text-gray-900 dark:text-gray-100">
-                {truncatePublicKey(publicKey)}
-              </span>
+              {userName ? (
+                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{userName}</span>
+              ) : (
+                <>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Connected as</span>
+                  <span className="text-sm font-mono font-semibold text-gray-900 dark:text-gray-100">
+                    {truncatePublicKey(publicKey)}
+                  </span>
+                </>
+              )}
+              {!userName && (
+                <button
+                  onClick={() => setShowLogin(true)}
+                  className="ml-2 text-xs px-3 py-1 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-medium hover:bg-indigo-200 dark:hover:bg-indigo-500/30 transition-colors"
+                >
+                  Set Name
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -52,6 +71,10 @@ export default function HomePage() {
           {/* Teacher Card */}
           <Link
             href="/teacher"
+            onClick={() => {
+              setRole('teacher')
+              if (!userName) setShowLogin(true)
+            }}
             className="group relative bg-white/70 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-8 text-center border border-gray-200/50 dark:border-gray-700/50 hover:border-indigo-300 dark:hover:border-indigo-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1"
           >
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -69,6 +92,10 @@ export default function HomePage() {
           {/* Student Card */}
           <Link
             href="/student"
+            onClick={() => {
+              setRole('student')
+              if (!userName) setShowLogin(true)
+            }}
             className="group relative bg-white/70 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-8 text-center border border-gray-200/50 dark:border-gray-700/50 hover:border-emerald-300 dark:hover:border-emerald-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-500/10 hover:-translate-y-1"
           >
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-500/5 to-teal-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -101,6 +128,8 @@ export default function HomePage() {
           </Link>
         </div>
       </div>
+
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
     </div>
   )
 }

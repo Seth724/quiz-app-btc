@@ -12,12 +12,13 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  publicKey String   @unique
-  name      String?
-  role      String   // "TEACHER" | "STUDENT"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  publicKey          String   @unique
+  name               String?
+  role               String   // "TEACHER" | "STUDENT"
+  encryptedMnemonic  String?  // Stored teacher mnemonic for auto-approve (base64 encoded)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   quizzesCreated Quiz[]
   attempts       Attempt[]
@@ -28,6 +29,7 @@ model User {
 model Quiz {
   id            String   @id @map("_id") // blockchain txId
   title         String
+  description   String?
   questionText  String
   options       String[] // Array of options
   correctAnswer Int?     // Index of correct answer (hidden from students)
@@ -41,8 +43,9 @@ model Quiz {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  teacher  User      @relation(fields: [teacherPubKey], references: [publicKey])
-  attempts Attempt[]
+  teacher        User             @relation(fields: [teacherPubKey], references: [publicKey])
+  attempts       Attempt[]
+  accessRequests AccessRequest[]
 
   @@index([teacherPubKey])
   @@index([isActive])
@@ -83,4 +86,27 @@ model LeaderboardEntry {
   @@index([rank])
   @@index([totalRewards])
   @@map("leaderboard")
+}
+
+model AccessRequest {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  quizId            String
+  quizTitle         String?
+  studentPublicKey  String
+  teacherPublicKey  String
+  entryFee          String   // BigInt serialized as string
+  status            String   @default("pending") // pending | approved | completed | rejected
+  offerTxHex        String?  // serialized offer tx from teacher
+  accessTokenId     String?
+  completedTxId     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  quiz Quiz @relation(fields: [quizId], references: [id])
+
+  @@index([quizId])
+  @@index([studentPublicKey])
+  @@index([teacherPublicKey])
+  @@index([status])
+  @@map("access_requests")
 }

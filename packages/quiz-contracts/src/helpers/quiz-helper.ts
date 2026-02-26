@@ -109,10 +109,11 @@ export class QuizHelper {
   }
 
   /**
-   * Deactivate a quiz (typically called by teacher)
+   * Deactivate a quiz (typically called by teacher).
+   * Always resolves to the latest on-chain revision so we spend the current UTXO.
    */
   async deactivateQuiz(quizId: string): Promise<void> {
-    const quiz = await this.getQuiz(quizId)
+    const quiz = await this.getLatestQuiz(quizId)
     await quiz.deactivate()
     // Add delay to avoid mempool conflicts
     await new Promise(resolve => setTimeout(resolve, 2000))
@@ -153,9 +154,10 @@ export class QuizHelper {
       await new Promise(resolve => setTimeout(resolve, 2000))
 
       // Extract the created object ID from the transaction effect
-      const res = encoded?.effect?.res as any
+      const res = encoded?.effect?.res as { _id?: string } | string | undefined
       const resId: string | undefined =
-        res?._id ?? (typeof res === 'string' ? res : undefined)
+        (typeof res === 'object' && res !== null ? res._id : undefined) ??
+        (typeof res === 'string' ? res : undefined)
       if (typeof resId === 'string') {
         return await this.computer.sync(resId) as Quiz
       }
@@ -169,19 +171,21 @@ export class QuizHelper {
   }
 
   /**
-   * Add a student to a quiz's attempted list (teacher-only)
+   * Add a student to a quiz's attempted list (teacher-only).
+   * Resolves to latest revision to avoid spending stale UTXOs.
    */
   async addAttemptedStudent(quizId: string, studentPublicKey: string): Promise<void> {
-    const quiz = await this.getQuiz(quizId)
+    const quiz = await this.getLatestQuiz(quizId)
     await quiz.addAttemptedStudent(studentPublicKey)
     await new Promise(resolve => setTimeout(resolve, 1500))
   }
 
   /**
-   * Claim reward for a student (teacher-only, first correct answer wins)
+   * Claim reward for a student (teacher-only, first correct answer wins).
+   * Resolves to latest revision to avoid spending stale UTXOs.
    */
   async claimReward(quizId: string, studentPublicKey: string): Promise<void> {
-    const quiz = await this.getQuiz(quizId)
+    const quiz = await this.getLatestQuiz(quizId)
     await quiz.claimReward(studentPublicKey)
     await new Promise(resolve => setTimeout(resolve, 1500))
   }

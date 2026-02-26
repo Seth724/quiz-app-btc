@@ -10,7 +10,7 @@ function normalizeRev(input: string | string[] | undefined) {
   return decodeURIComponent(raw).trim();
 }
 
-function safeStringify(value: any) {
+function safeStringify(value: unknown) {
   return JSON.stringify(
     value,
     (_k, v) => (typeof v === "bigint" ? v.toString() : v),
@@ -32,7 +32,7 @@ export default function ObjectPage() {
   const computer = useContext(ComputerContext);
   const rev = useMemo(() => normalizeRev(params?.rev), [params]);
 
-  const [obj, setObj] = useState<any>(null);
+  const [obj, setObj] = useState<Record<string, unknown> | null>(null);
   const [err, setErr] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -40,21 +40,19 @@ export default function ObjectPage() {
     if (!computer || !rev) return;
 
     let active = true;
-    setLoading(true);
-    setErr("");
 
-    computer
-      .sync(rev)
-      .then((res) => {
+    (async () => {
+      try {
+        const res = await computer.sync(rev);
         if (!active) return;
-        setObj(res);
-        setLoading(false);
-      })
-      .catch((e) => {
+        setObj(res as Record<string, unknown>);
+      } catch (e: unknown) {
         if (!active) return;
-        setErr(String(e?.message ?? e));
-        setLoading(false);
-      });
+        setErr(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
 
     return () => {
       active = false;
@@ -76,9 +74,9 @@ export default function ObjectPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card title="Key Fields">
           <div className="space-y-2 text-sm">
-            <div><span className="font-semibold">_id:</span> <span className="font-mono break-all">{obj._id}</span></div>
-            <div><span className="font-semibold">_rev:</span> <span className="font-mono break-all">{obj._rev}</span></div>
-            <div><span className="font-semibold">_root:</span> <span className="font-mono break-all">{obj._root}</span></div>
+            <div><span className="font-semibold">_id:</span> <span className="font-mono break-all">{String(obj._id ?? '')}</span></div>
+            <div><span className="font-semibold">_rev:</span> <span className="font-mono break-all">{String(obj._rev ?? '')}</span></div>
+            <div><span className="font-semibold">_root:</span> <span className="font-mono break-all">{String(obj._root ?? '')}</span></div>
             <div><span className="font-semibold">_satoshis:</span> <span className="font-mono break-all">{String(obj._satoshis)}</span></div>
             <div><span className="font-semibold">_owners:</span> <span className="font-mono break-all">{safeStringify(obj._owners)}</span></div>
           </div>

@@ -5,11 +5,11 @@ import { useContext, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { initFlowbite } from "flowbite";
-import { jsonMap, strip, toObject } from "./common/utils";
+import { Json, jsonMap, strip, toObject } from "./common/utils";
 import { useUtilsComponents } from "./UtilsContext";
 import { ComputerContext } from "./ComputerContext";
 
-export type Class = new (...args: any) => any;
+export type Class = new (...args: unknown[]) => unknown;
 
 export type UserQuery<T extends Class> = Partial<{
   mod: string;
@@ -41,7 +41,7 @@ function HomePageCard({ children }: { children: React.ReactNode }) {
   );
 }
 
-function safeToPretty(value: any) {
+function safeToPretty(value: unknown) {
   try {
     // BigInt-safe stringify
     return JSON.stringify(
@@ -55,7 +55,7 @@ function safeToPretty(value: any) {
 }
 
 function ValueComponent({ rev, computer }: { rev: string; computer: Computer }) {
-  const [value, setValue] = useState<any>(null);
+  const [value, setValue] = useState<unknown>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -64,10 +64,10 @@ function ValueComponent({ rev, computer }: { rev: string; computer: Computer }) 
 
     const fetch = async () => {
       try {
-        const synced: any = await computer.sync(rev);
+        const synced = await computer.sync(rev);
 
         // Try to map/strip to readable object
-        const mapped = toObject(jsonMap(strip)(synced));
+        const mapped = toObject(jsonMap(strip)(synced as Json));
 
         // If mapping results in {}, fall back to raw synced
         const isEmptyObj =
@@ -80,8 +80,8 @@ function ValueComponent({ rev, computer }: { rev: string; computer: Computer }) 
           setValue(isEmptyObj ? synced : mapped);
           setErrorMsg("");
         }
-      } catch (err: any) {
-        if (!cancelled) setErrorMsg(`Error: ${err?.message ?? String(err)}`);
+      } catch (err: unknown) {
+        if (!cancelled) setErrorMsg(`Error: ${err instanceof Error ? err.message : String(err)}`);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -122,7 +122,12 @@ function Pagination({
   handlePrev,
   isNextAvailable,
   handleNext,
-}: any) {
+}: {
+  isPrevAvailable: boolean;
+  handlePrev: () => void;
+  isNextAvailable: boolean;
+  handleNext: () => void;
+}) {
   return (
     <nav className="flex items-center justify-between" aria-label="Table navigation">
       <ul className="inline-flex items-center -space-x-px">
@@ -217,7 +222,7 @@ export function WithPagination<T extends Class>(
 
         // ---- B) utxos mode: get recent outputs (DO NOT pass `source`) ----
         // Only include params getOUTXOs understands.
-        const query: any = {
+        const query: Record<string, string | number | boolean> = {
           offset: contractsPerPage * pageNum,
           limit: contractsPerPage + 1,
           order: "DESC",

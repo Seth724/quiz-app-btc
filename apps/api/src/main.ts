@@ -3,6 +3,14 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
+// Enable BigInt JSON serialization globally
+interface BigIntWithJSON {
+  toJSON(): number;
+}
+(BigInt.prototype as unknown as BigIntWithJSON).toJSON = function () {
+  return Number(this);
+};
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
@@ -40,7 +48,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
-  const port = process.env.PORT || 3001;
+  const port = process.env.PORT || 3002;
   await app.listen(port);
 
   console.log(`🚀 API running on: http://localhost:${port}`);

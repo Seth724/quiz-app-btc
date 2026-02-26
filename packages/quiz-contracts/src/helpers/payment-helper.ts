@@ -25,16 +25,21 @@ export class PaymentHelper {
   }
 
   async createPayment(satoshis: bigint): Promise<Payment> {
+    console.log("👌mod:", this.mod)
     if (this.mod) {
       // Use expression string to avoid bundler serialization issues
+
+
       const exp = `new Payment(${satoshis}n)`
-      console.log(`Creating payment with expression: ${exp}`)
+      console.log(`🙌Creating payment with expression: ${exp}`)
       const encoded = await this.computer.encode({ exp, mod: this.mod })
+      console.log("encoded payment:", encoded)
       await this.computer.broadcast(encoded.tx)
       await new Promise(resolve => setTimeout(resolve, 1500))
-      const res = encoded?.effect?.res as any
+      const res = encoded?.effect?.res as { _id?: string } | string | undefined
       const resId: string | undefined =
-        res?._id ?? (typeof res === 'string' ? res : undefined)
+        (typeof res === 'object' && res !== null ? res._id : undefined) ??
+        (typeof res === 'string' ? res : undefined)
       if (typeof resId === 'string') {
         return await this.computer.sync(resId) as unknown as Payment
       }

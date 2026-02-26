@@ -11,6 +11,15 @@ import { FunctionResultModalContent } from "./common/SmartCallExecutionResult";
 import { SmartObjectFunctions } from "./SmartObjectFunctions";
 import { ComputerContext } from "./ComputerContext";
 
+interface SmartObjectData {
+  _id: string;
+  _rev: string;
+  _root: string;
+  _owners: string[];
+  _satoshis: bigint;
+  [key: string]: unknown;
+}
+
 const keywords = ["_id", "_rev", "_owners", "_root", "_satoshis"];
 const modalId = "smart-object-info-modal";
 
@@ -49,7 +58,7 @@ function ObjectValueCard({ content, id }: { content: string; id?: string }) {
   return <Card content={formattedContent} id={`property-${id}-value`} />;
 }
 
-const SmartObjectValues = ({ smartObject }: any) => {
+const SmartObjectValues = ({ smartObject }: { smartObject: SmartObjectData | null }) => {
   if (!smartObject) return <></>;
   return (
     <>
@@ -67,7 +76,7 @@ const SmartObjectValues = ({ smartObject }: any) => {
   );
 };
 
-function MetaData({ smartObject, prev, next }: any) {
+function MetaData({ smartObject, prev, next }: { smartObject: SmartObjectData | null; prev?: string; next?: string }) {
   const [isVisible, setIsVisible] = useState(false);
 
   const toggleVisibility = () => {
@@ -140,7 +149,7 @@ function MetaData({ smartObject, prev, next }: any) {
                 >
                   {smartObject?._id}
                 </Link>
-                <Copy text={smartObject?._id} />
+                <Copy text={smartObject?._id ?? ''} />
               </td>
             </tr>
 
@@ -156,7 +165,7 @@ function MetaData({ smartObject, prev, next }: any) {
                 >
                   {smartObject?._rev}
                 </Link>
-                <Copy text={smartObject?._rev} />
+                <Copy text={smartObject?._rev ?? ''} />
               </td>
             </tr>
 
@@ -172,7 +181,7 @@ function MetaData({ smartObject, prev, next }: any) {
                 >
                   {smartObject?._root}
                 </Link>
-                <Copy text={smartObject?._root} />
+                <Copy text={smartObject?._root ?? ''} />
               </td>
             </tr>
 
@@ -198,7 +207,7 @@ function MetaData({ smartObject, prev, next }: any) {
                 <span className="font-medium text-gray-900 dark:text-white">
                   {smartObject?._satoshis} Satoshi
                 </span>
-                <Copy text={smartObject?._satoshis} />
+                <Copy text={String(smartObject?._satoshis ?? '')} />
               </td>
             </tr>
           </tbody>
@@ -218,11 +227,11 @@ function Component({ title }: { title?: string }) {
       : decodeURIComponent(params.rev?.[0] || "")
   );
   const computer = useContext(ComputerContext);
-  const [smartObject, setSmartObject] = useState<any | null>(null);
+  const [smartObject, setSmartObject] = useState<SmartObjectData | null>(null);
   const [next, setNext] = useState<string | undefined>(undefined);
   const [prev, setPrev] = useState<string | undefined>(undefined);
   const [functionsExist, setFunctionsExist] = useState(false);
-  const [functionResult, setFunctionResult] = useState<any>({});
+  const [functionResult, setFunctionResult] = useState<Record<string, unknown> | string>({});
   const options = [
     "object",
     "string",
@@ -235,7 +244,7 @@ function Component({ title }: { title?: string }) {
 
   const [modalTitle, setModalTitle] = useState("");
 
-  const setShow: any = (flag: boolean) => {
+  const setShow = (flag: boolean) => {
     if (flag) {
       Modal.get(modalId).show();
     } else {
@@ -248,7 +257,7 @@ function Component({ title }: { title?: string }) {
       if (computer) {
         try {
           const synced = await computer.sync(rev);
-          setSmartObject(synced);
+          setSmartObject(synced as SmartObjectData);
         } catch (error) {
           console.log(error);
           const [txId] = rev.split(":");
@@ -305,22 +314,29 @@ function Component({ title }: { title?: string }) {
           <Copy text={`${txId}:${outNum}`} />
         </div>
 
-        <SmartObjectValues smartObject={smartObject} />
+        {smartObject && (
+          <>
+            <SmartObjectValues smartObject={smartObject} />
 
-        <SmartObjectFunctions
-          smartObject={smartObject}
-          functionsExist={functionsExist}
-          options={options}
-          setFunctionResult={setFunctionResult}
-          setShow={setShow}
-          setModalTitle={setModalTitle}
-        />
+            <SmartObjectFunctions
+              smartObject={smartObject}
+              functionsExist={functionsExist}
+              options={options}
+              setFunctionResult={setFunctionResult}
+              setShow={setShow}
+              setModalTitle={setModalTitle}
+            />
 
-        <MetaData smartObject={smartObject} prev={prev} next={next} />
+            <MetaData smartObject={smartObject} prev={prev} next={next} />
+          </>
+        )}
       </div>
       <Modal.Component
         title={modalTitle}
-        content={FunctionResultModalContent}
+        content={(data) => {
+          const props = data as { functionResult: Record<string, unknown> | string | null } | undefined
+          return <FunctionResultModalContent functionResult={props?.functionResult ?? null} />
+        }}
         contentData={{ functionResult }}
         id={modalId}
       />

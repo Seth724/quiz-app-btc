@@ -6,11 +6,12 @@ import { useSessionStore, useWalletStore } from '@/stores'
 import { getAllQuizzes, type Quiz } from '@/features/quizzes'
 import { QuizGrid } from '@/features/quizzes'
 import { useAttemptClient, useQuizClient } from '@/hooks'
-import { getStudentAttempts } from '@/features/attempts'
 import { formatSatoshis } from '@/services'
+import { attemptService } from '@/services/backend'
+import { LoginModal } from '@/common-components/LoginModal'
 
 export default function StudentPage() {
-  const { userId, setRole } = useSessionStore()
+  const { userName, setRole } = useSessionStore()
   const { isConnected, publicKey } = useWalletStore()
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [loading, setLoading] = useState(true)
@@ -20,12 +21,19 @@ export default function StudentPage() {
   const [withdrawableCount, setWithdrawableCount] = useState(0)
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawResult, setWithdrawResult] = useState<string | null>(null)
+  const [paymentRefreshKey, setPaymentRefreshKey] = useState(0)
   const attemptClient = useAttemptClient()
   const quizClient = useQuizClient()
+  const [showLogin, setShowLogin] = useState(false)
 
   useEffect(() => {
     setRole('student')
   }, [setRole])
+
+  // Show LoginModal if user hasn't set a name
+  useEffect(() => {
+    if (!userName) setShowLogin(true)
+  }, [userName])
 
   useEffect(() => {
     const fetchQuizzes = async () => {
@@ -43,45 +51,35 @@ export default function StudentPage() {
     fetchQuizzes()
   }, [])
 
-  // Fetch student stats from blockchain (deduplicated by quiz)
-  // Only counts rewards where quiz.claimedBy matches this student (actual payment recipient)
+  // Fetch student stats from DB
   useEffect(() => {
     if (!publicKey) return
     const fetchStats = async () => {
       try {
+        const dbAttempts = await attemptService.list(publicKey)
+        if (dbAttempts.length > 0) {
+          const quizIds = new Set(dbAttempts.map(a => a.quizId))
+          setQuizzesTaken(quizIds.size)
+          const totalRwd = dbAttempts.reduce((s, a) => s + Number(String(a.rewardEarned || 0).replace(/n$/, '')), 0)
+          setTotalRewards(totalRwd)
+          return
+        }
+      } catch {
+        // DB unavailable — try blockchain
+      }
+
+      try {
+        const { getStudentAttempts } = await import('@/features/attempts')
         const attempts = await getStudentAttempts(attemptClient, publicKey)
         const completed = attempts.filter(a => a.selectedAnswer !== undefined && a.selectedAnswer >= 0)
-        
-        // Deduplicate by quizId — only count one attempt per quiz
         const quizMap = new Map<string, typeof completed[0]>()
         for (const a of completed) {
-          if (!quizMap.has(a.quizId)) {
-            quizMap.set(a.quizId, a)
-          }
+          if (!quizMap.has(a.quizId)) quizMap.set(a.quizId, a)
         }
-        
         setQuizzesTaken(quizMap.size)
-
-        // Check quiz.claimedBy on-chain to determine actual reward recipient
-        // (same approach as leaderboard — only count rewards if this student was paid)
         let rewards = 0
-        const { createComputerFromStorage } = await import('@/services')
-        const computer = createComputerFromStorage()
-        for (const [quizId, a] of quizMap) {
-          try {
-            let quizRev = quizId
-            try {
-              const latestQuizRev = await computer.latest(quizId)
-              if (latestQuizRev) quizRev = latestQuizRev
-            } catch { /* use original */ }
-            const quiz = await computer.sync(quizRev) as any
-            // Only count reward if this student actually received the payment
-            if (quiz?.claimedBy === publicKey) {
-              rewards += Number(String(quiz?.rewardAmount ?? a.rewardEarned ?? 0).replace(/n$/, ''))
-            }
-          } catch {
-            // Skip unresolvable quizzes
-          }
+        for (const [, a] of quizMap) {
+          rewards += Number(String(a.rewardEarned ?? 0).replace(/n$/, ''))
         }
         setTotalRewards(rewards)
       } catch (err) {
@@ -91,7 +89,7 @@ export default function StudentPage() {
     fetchStats()
   }, [publicKey, attemptClient])
 
-  // Fetch withdrawable payment objects
+  // Fetch withdrawable payment objects (refresh on focus and periodically)
   useEffect(() => {
     if (!publicKey) return
     const fetchPayments = async () => {
@@ -105,7 +103,14 @@ export default function StudentPage() {
       }
     }
     fetchPayments()
-  }, [publicKey, quizClient])
+  }, [publicKey, quizClient, paymentRefreshKey])
+
+  // Refresh payments once when page gains focus (e.g. after coming back from quiz submission)
+  useEffect(() => {
+    const handleFocus = () => setPaymentRefreshKey(k => k + 1)
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [])
 
   const handleWithdrawAll = async () => {
     setWithdrawing(true)
@@ -119,8 +124,9 @@ export default function StudentPage() {
       } else {
         setWithdrawResult('No payments to withdraw')
       }
-    } catch (err) {
-      setWithdrawResult(`Withdraw failed: ${(err as any)?.message}`)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      setWithdrawResult(`Withdraw failed: ${message}`)
     } finally {
       setWithdrawing(false)
     }
@@ -128,7 +134,9 @@ export default function StudentPage() {
 
   if (!isConnected) {
     return (
-      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-8">
+      <>
+        {showLogin && <LoginModal onClose={() => setShowLogin(false)} required={!userName} />}
+        <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-8">
         <div className="max-w-md mx-auto text-center">
           <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
             <span className="text-4xl">🔒</span>
@@ -145,11 +153,14 @@ export default function StudentPage() {
           </Link>
         </div>
       </div>
+      </>
     )
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] p-6 md:p-8">
+    <>
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} required={!userName} />}
+      <div className="min-h-[calc(100vh-4rem)] p-6 md:p-8">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
         <div>
@@ -202,7 +213,7 @@ export default function StudentPage() {
           </div>
         </div>
 
-        {/* Withdraw Rewards Card */}
+        {/* Withdraw Reward Payments */}
         {withdrawableCount > 0 && (
           <div className="rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200/50 dark:border-emerald-700/50 p-6">
             <div className="flex items-center justify-between flex-wrap gap-4">
@@ -263,5 +274,6 @@ export default function StudentPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }

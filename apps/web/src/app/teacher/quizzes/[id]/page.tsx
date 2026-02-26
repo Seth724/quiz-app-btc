@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { getQuiz, type Quiz } from '@/features/quizzes'
 import { useQuizClient } from '@/hooks/useClients'
-import { Card, Loader } from '@/components'
+import { AppCard as Card, AppLoader as Loader } from '@/common-components'
 
 export default function TeacherQuizDetailPage() {
   const params = useParams<{ id: string }>()

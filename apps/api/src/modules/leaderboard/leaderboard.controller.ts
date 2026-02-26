@@ -9,8 +9,9 @@ export class LeaderboardController {
 
   @Get()
   @ApiOperation({ summary: 'Get leaderboard top entries' })
-  async getLeaderboard(@Query('limit') limit?: number) {
-    return this.leaderboardService.getLeaderboard(limit);
+  async getLeaderboard(@Query('limit') limit?: string) {
+    const parsedLimit = limit ? parseInt(limit, 10) : 100;
+    return this.leaderboardService.getLeaderboard(parsedLimit);
   }
 
   @Get(':publicKey')

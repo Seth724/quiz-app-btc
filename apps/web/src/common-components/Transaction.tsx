@@ -14,7 +14,7 @@ function ExpressionCard({
   env: { [s: string]: string };
 }) {
   const entries = Object.entries(env);
-  let formattedContent = content as any;
+  let formattedContent: React.ReactNode[] | string = content;
   entries.forEach((entry) => {
     const [name, rev] = entry;
     const regExp = new RegExp(`(${name})`, "g");
@@ -32,6 +32,29 @@ function ExpressionCard({
   return <Card content={formattedContent} />;
 }
 
+interface RpcVin {
+  txid: string;
+  vout: number;
+  scriptSig?: { asm: string };
+}
+
+interface RpcVout {
+  n: number;
+  value: number;
+  scriptPubKey: { type: string; asm: string };
+}
+
+interface RpcTxnData {
+  vin?: RpcVin[];
+  vout?: RpcVout[];
+}
+
+interface TransitionData {
+  exp: string;
+  env: { [s: string]: string };
+  mod?: string;
+}
+
 function Component() {
   const params = useParams();
   const computer = useContext(ComputerContext);
@@ -40,9 +63,9 @@ function Component() {
       ? decodeURIComponent(params.txn)
       : decodeURIComponent(params.txn?.[0] || "")
   );
-  const [txnData, setTxnData] = useState<any | null>(null);
-  const [rpcTxnData, setRPCTxnData] = useState<any | null>(null);
-  const [transition, setTransition] = useState<any | null>(null);
+  const [txnData, setTxnData] = useState<ReturnType<typeof Computer.txFromHex> | null>(null);
+  const [rpcTxnData, setRPCTxnData] = useState<RpcTxnData | null>(null);
+  const [transition, setTransition] = useState<TransitionData | null>(null);
 
   useEffect(() => {
     const fetch = async () => {
@@ -74,7 +97,7 @@ function Component() {
         if (txnData && computer) setTransition(await computer.decode(txnData));
       } catch (err) {
         if (err instanceof Error) {
-          setTransition("");
+          setTransition(null);
 
           console.log("Error parsing transaction", err.message);
         }
@@ -116,7 +139,9 @@ function Component() {
     </table>
   );
 
-  const transitionComponent = () => (
+  const transitionComponent = () => {
+    if (!transition) return null;
+    return (
     <div>
       <h2 className="mb-2 text-4xl font-bold dark:text-white">Expression</h2>
       <ExpressionCard content={transition.exp} env={transition.env} />
@@ -133,7 +158,8 @@ function Component() {
         </>
       )}
     </div>
-  );
+    );
+  };
 
   const inputsComponent = () => (
     <div className="relative overflow-x-auto sm:rounded-lg">
@@ -154,7 +180,7 @@ function Component() {
           </tr>
         </thead>
         <tbody>
-          {rpcTxnData?.vin?.map((input: any, ind: any) => (
+          {rpcTxnData?.vin?.map((input: RpcVin, ind: number) => (
             <tr
               key={`${input.txid}|${ind}`}
               className="bg-white border-b dark:bg-gray-800 dark:border-gray-700"
@@ -208,7 +234,7 @@ function Component() {
           </tr>
         </thead>
         <tbody>
-          {rpcTxnData?.vout?.map((output: any) => (
+          {rpcTxnData?.vout?.map((output: RpcVout) => (
             <tr
               key={output.n}
               className="bg-white border-b dark:bg-gray-800 dark:border-gray-700"

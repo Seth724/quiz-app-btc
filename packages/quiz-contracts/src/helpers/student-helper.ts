@@ -95,8 +95,9 @@ export class StudentHelper {
           paymentTransferred = true
 
           console.log(`💰 Payment withdrawn to student wallet! Student earned ${quiz.rewardAmount} sats`)
-        } catch (error) {
-          console.log(`❌ Payment transfer failed: ${(error as any).message || error}`)
+        } catch (error: unknown) {
+          const msg = error instanceof Error ? error.message : String(error)
+          console.log(`❌ Payment transfer failed: ${msg}`)
           // Revert the claim if payment transfer failed
           quiz.isClaimed = false
           quiz.claimedBy = ''

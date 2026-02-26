@@ -12,7 +12,7 @@ function ShowDrawer({ text, id }: { text: string; id: string }) {
 }
 
  
-function Component({ Content, id }: any) {
+function Component({ Content, id }: { Content: () => React.ReactNode; id: string }) {
   return (
     <div
       id={id}

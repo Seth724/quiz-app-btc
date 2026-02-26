@@ -28,11 +28,21 @@ export class QuizAccessHelper implements IQuizAccess {
     return this.mod
   }
 
-  async mint(publicKey: string, quizId: string, amount: bigint = 1n, symbol: string = 'QACC'): Promise<QuizAccess> {
-    if (!this.mod) throw new Error('QuizAccessHelper not deployed')
-    const token = await this.computer.new(QuizAccess, [publicKey, quizId, amount, symbol], this.mod)
-    return token as unknown as QuizAccess
-  }
+  async mint(publicKey: string, quizId: string, amount: bigint = 1n, symbol: string = 'QACC') {
+  if (!this.mod) throw new Error('QuizAccessHelper not deployed')
+
+  const exp = `new QuizAccess("${publicKey}", "${quizId}", ${amount}n, "${symbol}")`
+  const encoded = await this.computer.encode({ exp, mod: this.mod })
+  await this.computer.broadcast(encoded.tx)
+
+  const res = encoded?.effect?.res as { _id?: string } | string | undefined
+  const resId: string | undefined =
+    (typeof res === 'object' && res !== null ? res._id : undefined) ??
+    (typeof res === 'string' ? res : undefined)
+  if (!resId) throw new Error('Mint failed: could not extract result ID')
+
+  return (await this.computer.sync(resId)) as unknown as QuizAccess
+}
 
   async createQuizAccess(quizId: string, amount: bigint = 1n): Promise<QuizAccess> {
     return this.mint(this.computer.getPublicKey(), quizId, amount, 'QACC')

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   Query,
@@ -39,6 +40,12 @@ export class QuizzesController {
   @ApiResponse({ status: 201, description: 'Quiz created successfully' })
   async create(@Body() createQuizDto: CreateQuizDto) {
     return this.quizzesService.create(createQuizDto);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update quiz status (claimed, active, etc.)' })
+  async update(@Param('id') id: string, @Body() body: { isClaimed?: boolean; claimedBy?: string; isActive?: boolean }) {
+    return this.quizzesService.update(id, body);
   }
 
   @Get(':id/attempts')

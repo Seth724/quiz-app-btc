@@ -1,6 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "./providers";
-import { Navigation } from "@/components/layout";
+import { Navigation } from "@/common-components/layout";
 import "./globals.css";
 
 // Font configurations

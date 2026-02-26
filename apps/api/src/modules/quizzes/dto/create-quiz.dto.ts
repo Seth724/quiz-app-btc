@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsArray, IsNumber, Min, ArrayMinSize, ArrayMaxSize } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsArray, IsNumber, IsOptional, Min, ArrayMinSize, ArrayMaxSize } from 'class-validator';
 
 export class CreateQuizDto {
   @ApiProperty({ description: 'Quiz blockchain transaction ID' })
@@ -9,6 +9,11 @@ export class CreateQuizDto {
   @ApiProperty({ description: 'Quiz title' })
   @IsString()
   title!: string;
+
+  @ApiPropertyOptional({ description: 'Quiz description' })
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @ApiProperty({ description: 'Question text' })
   @IsString()
@@ -20,6 +25,11 @@ export class CreateQuizDto {
   @ArrayMaxSize(10)
   @IsString({ each: true })
   options!: string[];
+
+  @ApiPropertyOptional({ description: 'Correct answer index' })
+  @IsOptional()
+  @IsNumber()
+  correctAnswer?: number;
 
   @ApiProperty({ description: 'Reward amount in satoshis' })
   @IsNumber()

@@ -32,13 +32,13 @@ const Balance = ({
               : [];
             const payments = (await Promise.all(
               paymentRevs.map((rev: string) => computer.sync(rev))
-            )) as any[];
+            )) as { _satoshis: bigint }[];
             return payments && payments.length
               ? payments.reduce(
                   (total, pay) => total + (pay._satoshis - BigInt(dust)),
                   0n
                 )
-              : 0;
+              : 0n;
           })
         );
         const amountsInPayments: bigint = balances.reduce(
@@ -98,10 +98,11 @@ const Balance = ({
   );
 };
 
-const Address = ({ computer }: any) => {
+const Address = ({ computer }: { computer: Computer | null }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
+    if (!computer) return;
     navigator.clipboard.writeText(computer.getAddress());
     setCopied(true);
     setTimeout(() => setCopied(false), 2000); // Reset icon color after 2 seconds
@@ -124,16 +125,17 @@ const Address = ({ computer }: any) => {
         </button>
       </div>
       <p className="mb-4 font-mono text-xs text-gray-500 dark:text-gray-400">
-        {computer.getAddress()}
+        {computer?.getAddress()}
       </p>
     </div>
   );
 };
 
-const PublicKey = ({ computer }: any) => {
+const PublicKey = ({ computer }: { computer: Computer | null }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
+    if (!computer) return;
     navigator.clipboard.writeText(computer.getPublicKey());
     setCopied(true);
     setTimeout(() => setCopied(false), 2000); // Reset icon color after 2 seconds
@@ -156,13 +158,13 @@ const PublicKey = ({ computer }: any) => {
         </button>
       </div>
       <p className="mb-4 text-xs font-mono text-gray-500 dark:text-gray-400 break-words">
-        {computer.getPublicKey()}
+        {computer?.getPublicKey()}
       </p>
     </div>
   );
 };
 
-const Mnemonic = ({ computer }: any) => {
+const Mnemonic = ({ computer }: { computer: Computer | null }) => {
   const [mnemonicShown, setMnemonicShown] = useState(false);
   return (
     <div className="mb-4">
@@ -176,35 +178,35 @@ const Mnemonic = ({ computer }: any) => {
         </button>
       </h6>
       <p className="text-xs font-mono text-gray-500 dark:text-gray-400 break-words">
-        {mnemonicShown ? computer.getMnemonic() : ""}
+        {mnemonicShown ? computer?.getMnemonic() : ""}
       </p>
     </div>
   );
 };
 
-const Url = ({ computer }: any) => (
+const Url = ({ computer }: { computer: Computer | null }) => (
   <div className="mb-4">
     <h6 className="text-lg font-bold dark:text-white">Node Url</h6>
     <p className="mb-4 font-mono text-xs text-gray-500 dark:text-gray-400 break-words">
-      {computer.getUrl()}
+      {computer?.getUrl()}
     </p>
   </div>
 );
 
-const Chain = ({ computer }: any) => (
+const Chain = ({ computer }: { computer: Computer | null }) => (
   <div className="mb-4">
     <h6 className="text-lg font-bold dark:text-white">Chain</h6>
     <p className="mb-4 font-mono text-xs text-gray-500 dark:text-gray-400 break-words">
-      {computer.getChain()}
+      {computer?.getChain()}
     </p>
   </div>
 );
 
-const Network = ({ computer }: any) => (
+const Network = ({ computer }: { computer: Computer | null }) => (
   <div className="mb-4">
     <h6 className="text-lg font-bold dark:text-white">Network</h6>
     <p className="mb-4 font-mono text-xs text-gray-500 dark:text-gray-400 break-words">
-      {computer.getNetwork()}
+      {computer?.getNetwork()}
     </p>
   </div>
 );

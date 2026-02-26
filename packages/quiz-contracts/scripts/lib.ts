@@ -1,11 +1,12 @@
 import { Computer } from '@bitcoin-computer/lib'
-import { Teacher } from '../src/teacher.js'
-import { Student } from '../src/student.js'
-import { Quiz } from '../src/quiz.js'
-import { QuizAttempt } from '../src/attempt.js'
-import { Payment, Withdraw } from '../src/payment.js'
-import { QuizAccess } from '../src/quiz-access.js'
-import { QuizAccessSale } from '../src/quiz-access-sale.js'
+// Import from dist/ to use tsc-compiled classes (no esbuild __name decorations)
+import { Teacher } from '../dist/teacher.js'
+import { Student } from '../dist/student.js'
+import { Quiz } from '../dist/quiz.js'
+import { QuizAttempt } from '../dist/attempt.js'
+import { Payment, Withdraw } from '../dist/payment.js'
+import { QuizAccess } from '../dist/quiz-access.js'
+import { QuizAccessSale } from '../dist/quiz-access-sale.js'
 
 export async function deployQuizContracts(computer: Computer): Promise<{
   teacherMod: string

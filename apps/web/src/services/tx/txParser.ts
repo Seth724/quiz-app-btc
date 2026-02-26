@@ -35,25 +35,28 @@ export async function parseTransaction(
 ): Promise<ParsedTransaction | null> {
   try {
     // This is a simplified parser. Extend based on your needs
-    const tx = await computer.provider.blockchain.tx.fetch(txId)
+    const tx = await (computer as unknown as { provider: { blockchain: { tx: { fetch: (id: string) => Promise<Record<string, unknown> | null> } } } }).provider.blockchain.tx.fetch(txId)
     
     if (!tx) return null
 
+    const vin = tx.vin as Array<{ addr?: string; value?: number; txid: string; vout: number }> | undefined
+    const vout = tx.vout as Array<{ scriptPubKey?: { addresses?: string[] }; value?: number }> | undefined
+
     return {
       txId,
-      inputs: tx.vin?.map((input: any) => ({
+      inputs: vin?.map((input) => ({
         address: input.addr || 'Unknown',
         value: input.value || 0,
         prevTxId: input.txid,
         prevIndex: input.vout,
       })) || [],
-      outputs: tx.vout?.map((output: any, index: number) => ({
+      outputs: vout?.map((output, index: number) => ({
         address: output.scriptPubKey?.addresses?.[0] || 'Unknown',
         value: output.value || 0,
         index,
       })) || [],
       fee: 0, // Calculate from inputs/outputs if needed
-      timestamp: tx.time,
+      timestamp: tx.time as number | undefined,
     }
   } catch (error) {
     console.error('Failed to parse transaction:', error)

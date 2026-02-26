@@ -20,3 +20,6 @@ export type { LeaderboardEntry } from './leaderboard.service';
 
 export { userService } from './user.service';
 export type { UserProfile, UserStats, CreateUserRequest } from './user.service';
+
+export { accessRequestService } from './access-request.service';
+export type { AccessRequestData } from './access-request.service';

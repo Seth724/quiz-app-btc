@@ -6,15 +6,26 @@
 import { Computer } from '@bitcoin-computer/lib'
 import type { QuizData } from '@/types'
 import { MODULE_SPECS, hasModuleSpecs } from '@/config/env'
-import { PaymentHelper, QuizHelper } from '@quiz-app/contracts'
+import { PaymentHelper, QuizHelper, TeacherHelper } from '@quiz-app/contracts'
 import { withComputerLock } from './txUtils'
 import { MineBlocks } from '../utils/mineblock'
 import { BrowserAttemptClient } from './BrowserAttemptClient'
 
-
 const url = 'http://localhost:1031'
 const chain = process.env.NEXT_PUBLIC_BCN_CHAIN || 'LTC'
 const network = process.env.NEXT_PUBLIC_BCN_NETWORK || 'regtest'
+
+/** Safely extract an error message from an unknown catch value */
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
+/** Shape returned by computer.sync() for a Payment object */
+interface SyncedPayment {
+  _id: string
+  _rev: string
+  _satoshis: bigint
+}
 
 export interface QuizDTO {
   _id: string
@@ -39,8 +50,8 @@ export interface QuizDTO {
 }
 
 const nowMs = () => {
-  if (typeof performance !== 'undefined' && (performance as any).timeOrigin !== undefined) {
-    return Math.floor((performance as any).timeOrigin + performance.now())
+  if (typeof performance !== 'undefined' && performance.timeOrigin !== undefined) {
+    return Math.floor(performance.timeOrigin + performance.now())
   }
   return Date.now()
 }
@@ -48,13 +59,14 @@ const nowMs = () => {
 export class BrowserQuizClient {
   private paymentHelper: PaymentHelper
   private quizHelper: QuizHelper
-
+  private teacherHelper: TeacherHelper
   constructor(private computer: Computer) {
     if (!hasModuleSpecs()) {
       throw new Error('Module specs not deployed. Please run deployment script first.')
     }
     this.paymentHelper = new PaymentHelper(computer, MODULE_SPECS.paymentMod)
     this.quizHelper = new QuizHelper(computer, MODULE_SPECS.quizMod)
+    this.teacherHelper = new TeacherHelper(computer, MODULE_SPECS.teacherMod, MODULE_SPECS.paymentMod)
   }
 
   async createQuiz(quizData: QuizData): Promise<QuizDTO> {
@@ -64,6 +76,7 @@ export class BrowserQuizClient {
       // STEP 1: Create reward Payment using PaymentHelper
       console.log('📤 Creating payment...')
       const payment = await this.paymentHelper.createPayment(quizData.rewardAmount)
+
       const paymentTxId = payment._id as string
       console.log('✅ Payment created:', paymentTxId)
 
@@ -94,16 +107,15 @@ export class BrowserQuizClient {
       const quizId = quiz._id as string
       console.log('✅ Quiz created:', quizId)
 
-      const syncedQuiz = await this.computer.sync(quizId)
+      const syncedQuiz = await this.computer.sync(quizId) as QuizDTO
 
-      const attemptedStudents = (syncedQuiz as any).attemptedStudents || []
       return {
-        ...(syncedQuiz as any),
+        ...syncedQuiz,
         paymentTxId,
-        attemptedStudents,
-        attemptCount: attemptedStudents.length,
-        createdAt: (syncedQuiz as any).createdAt || nowMs(),
-      } as QuizDTO
+        attemptedStudents: syncedQuiz.attemptedStudents || [],
+        attemptCount: (syncedQuiz.attemptedStudents || []).length,
+        createdAt: syncedQuiz.createdAt || nowMs(),
+      }
     })
   }
 
@@ -112,20 +124,18 @@ export class BrowserQuizClient {
       // Resolve to latest revision so we see updated isClaimed/claimedBy/attemptedStudents
       let revToSync = quizId
       try {
-        const latestRev = await this.computer.getLatestRev(quizId)
+        const latestRev = await this.computer.latest(quizId)
         if (latestRev) revToSync = latestRev
       } catch { /* use original quizId */ }
-      const quiz = await this.computer.sync(revToSync)
-      const attemptedStudents = (quiz as any).attemptedStudents || []
-      const result = {
-        ...(quiz as any),
+      const quiz = await this.computer.sync(revToSync) as QuizDTO
+      return {
+        ...quiz,
         _id: quizId, // preserve the root _id for routing
-        attemptedStudents,
-        attemptCount: attemptedStudents.length,
-      } as QuizDTO
-      return result
-    } catch (error) {
-      console.error('❌ BrowserQuizClient.getQuiz - FAILED:', (error as any)?.message)
+        attemptedStudents: quiz.attemptedStudents || [],
+        attemptCount: (quiz.attemptedStudents || []).length,
+      }
+    } catch (error: unknown) {
+      console.error('❌ BrowserQuizClient.getQuiz - FAILED:', errMsg(error))
       return null
     }
   }
@@ -147,9 +157,9 @@ export class BrowserQuizClient {
   }
 
   /**
-   * TEACHER ONLY: Process rewards for a quiz.
-   * Uses QuizHelper to add students and claim rewards.
-   * Uses PaymentHelper to transfer payment to winner.
+   * LEGACY/FALLBACK: Process rewards for a quiz (teacher-side).
+   * Normally rewards are auto-processed server-side by AutoRewardService.
+   * This method is kept as a manual fallback if auto-reward fails.
    */
   async processQuizRewards(quizId: string): Promise<string | null> {
     return withComputerLock(this.computer, async () => {
@@ -185,8 +195,8 @@ export class BrowserQuizClient {
         try {
           await this.quizHelper.addAttemptedStudent(quizId, studentPubKey)
           console.log('✅ [Teacher] Added student to attempted list:', studentPubKey)
-        } catch (err) {
-          console.warn('⚠️ [Teacher] addAttemptedStudent failed (may be duplicate):', (err as any)?.message)
+        } catch (err: unknown) {
+          console.warn('⚠️ [Teacher] addAttemptedStudent failed (may be duplicate):', errMsg(err))
         }
       }
 
@@ -202,17 +212,18 @@ export class BrowserQuizClient {
       try {
         await this.quizHelper.claimReward(quizId, winnerPubKey)
         console.log('✅ [Teacher] Reward claimed for:', winnerPubKey)
-      } catch (err) {
-        console.error('❌ [Teacher] claimReward failed:', (err as any)?.message)
+      } catch (err: unknown) {
+        console.error('❌ [Teacher] claimReward failed:', errMsg(err))
         return null
       }
 
       // Transfer payment to winner using PaymentHelper
       try {
-        await this.paymentHelper.transferPaymentById(quiz.paymentTxId, winnerPubKey)
+        const ownerPayment = await this.paymentHelper.getPayment(quiz.paymentTxId)
+        await this.paymentHelper.transferPayment(ownerPayment, winnerPubKey)
         console.log('✅ [Teacher] Payment transferred to:', winnerPubKey)
-      } catch (err) {
-        console.error('❌ [Teacher] payment.transfer failed:', (err as any)?.message)
+      } catch (err: unknown) {
+        console.error('❌ [Teacher] payment.transfer failed:', errMsg(err))
       }
 
       return winnerPubKey
@@ -220,7 +231,8 @@ export class BrowserQuizClient {
   }
 
   /**
-   * TEACHER ONLY: Process rewards for ALL teacher's quizzes.
+   * LEGACY/FALLBACK: Process rewards for ALL teacher's quizzes.
+   * Normally rewards are auto-processed server-side by AutoRewardService.
    */
   async processAllQuizRewards(teacherPublicKey: string): Promise<void> {
     try {
@@ -229,49 +241,72 @@ export class BrowserQuizClient {
         if (!quiz.isClaimed && quiz.isActive) {
           try {
             await this.processQuizRewards(quiz._id)
-          } catch (err) {
-            console.warn(`⚠️ [Teacher] Failed to process rewards for quiz ${quiz._id}:`, (err as any)?.message)
+          } catch (err: unknown) {
+            console.warn(`⚠️ [Teacher] Failed to process rewards for quiz ${quiz._id}:`, errMsg(err))
           }
         }
       }
-    } catch (err) {
-      console.error('❌ [Teacher] processAllQuizRewards failed:', err)
+    } catch (err: unknown) {
+      console.error('❌ [Teacher] processAllQuizRewards failed:', errMsg(err))
     }
   }
 
   async deactivateQuiz(quizId: string): Promise<QuizDTO | null> {
-    try {
-      await this.quizHelper.deactivateQuiz(quizId)
-      return await this.getQuiz(quizId)
-    } catch (error) {
-      console.error('Failed to deactivate quiz:', error)
+    return withComputerLock(this.computer, async () => {
+      const maxRetries = 3
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          if (attempt > 0) {
+            // Wait longer between retries to let mempool clear
+            await new Promise(resolve => setTimeout(resolve, 3000 * attempt))
+            if (network === 'regtest') {
+              await MineBlocks.mine(url, chain, network, 1)
+            }
+          }
+          // Always resolve to latest revision before deactivating
+          let latestQuizId = quizId
+          try {
+            const latestRev = await this.computer.latest(quizId)
+            if (latestRev) latestQuizId = latestRev
+          } catch { /* use original quizId */ }
+          await this.quizHelper.deactivateQuiz(latestQuizId)
+          return await this.getQuiz(quizId)
+        } catch (error: unknown) {
+          const msg = error instanceof Error ? error.message : String(error)
+          if ((msg.includes('mempool-conflict') || msg.includes('missingorspent')) && attempt < maxRetries - 1) {
+            console.warn(`⚠️ [Deactivate] Mempool/UTXO conflict, retrying (${attempt + 1}/${maxRetries})...`)
+            continue
+          }
+          console.error('Failed to deactivate quiz:', error)
+          throw error
+        }
+      }
       return null
-    }
+    })
   }
 
   async getAllQuizzes(): Promise<QuizDTO[]> {
-    const quizIds = await this.computer.query({ mod: MODULE_SPECS.quizMod })
+    const quizIds = await this.computer.getOUTXOs({ mod: MODULE_SPECS.quizMod }) as string[]
 
     const quizzes: QuizDTO[] = []
     for (const id of quizIds) {
       try {
         let revToSync = id
         try {
-          const latestRev = await this.computer.getLatestRev(id)
+          const latestRev = await this.computer.latest(id)
           if (latestRev) revToSync = latestRev
         } catch { /* use original id */ }
-        const quiz = await this.computer.sync(revToSync)
-        if (quiz && (quiz as any).isActive) {
-          const attemptedStudents = (quiz as any).attemptedStudents || []
+        const quiz = await this.computer.sync(revToSync) as QuizDTO
+        if (quiz && quiz.isActive) {
           quizzes.push({
-            ...(quiz as any),
+            ...quiz,
             _id: id,
-            attemptedStudents,
-            attemptCount: attemptedStudents.length,
-          } as QuizDTO)
+            attemptedStudents: quiz.attemptedStudents || [],
+            attemptCount: (quiz.attemptedStudents || []).length,
+          })
         }
-      } catch (quizError) {
-        console.warn(`Skipping quiz ${id}: cannot sync (may be pruned)`, (quizError as any)?.message)
+      } catch (quizError: unknown) {
+        console.warn(`Skipping quiz ${id}: cannot sync (may be pruned)`, errMsg(quizError))
       }
     }
 
@@ -279,27 +314,26 @@ export class BrowserQuizClient {
   }
 
   async getQuizzesByTeacher(teacherPublicKey: string): Promise<QuizDTO[]> {
-    const quizIds = await this.computer.query({ mod: MODULE_SPECS.quizMod })
+    const quizIds = await this.computer.getOUTXOs({ mod: MODULE_SPECS.quizMod }) as string[]
     const quizzes: QuizDTO[] = []
     for (const id of quizIds) {
       try {
         let revToSync = id
         try {
-          const latestRev = await this.computer.getLatestRev(id)
+          const latestRev = await this.computer.latest(id)
           if (latestRev) revToSync = latestRev
         } catch { /* use original id */ }
-        const quiz = await this.computer.sync(revToSync)
-        if ((quiz as any).teacherPublicKey === teacherPublicKey) {
-          const attemptedStudents = (quiz as any).attemptedStudents || []
+        const quiz = await this.computer.sync(revToSync) as QuizDTO
+        if (quiz.teacherPublicKey === teacherPublicKey) {
           quizzes.push({
-            ...(quiz as any),
+            ...quiz,
             _id: id,
-            attemptedStudents,
-            attemptCount: attemptedStudents.length,
-          } as QuizDTO)
+            attemptedStudents: quiz.attemptedStudents || [],
+            attemptCount: (quiz.attemptedStudents || []).length,
+          })
         }
-      } catch (e) {
-        console.warn(`Skipping quiz ${id} for teacher:`, (e as any)?.message)
+      } catch (e: unknown) {
+        console.warn(`Skipping quiz ${id} for teacher:`, errMsg(e))
       }
     }
     return quizzes
@@ -307,24 +341,69 @@ export class BrowserQuizClient {
 
   /**
    * Get all Payment objects owned by a public key.
+   * Optionally excludes reward payments (those tied to quizzes via paymentTxId)
+   * so only genuine entry-fee or reward-transfer payments are returned.
    */
-  async getOwnedPayments(ownerPublicKey: string): Promise<{ _id: string; _rev: string; _satoshis: number }[]> {
+  async getOwnedPayments(
+    ownerPublicKey: string,
+    options?: { excludeRewardPayments?: boolean }
+  ): Promise<{ _id: string; _rev: string; _satoshis: number }[]> {
     try {
-      const paymentIds: string[] = await this.computer.query({
+      const paymentIds = await this.computer.getOUTXOs({
         mod: MODULE_SPECS.paymentMod,
         publicKey: ownerPublicKey,
-      })
+      }) as string[]
       console.log('💰 [Payments] Found', paymentIds.length, 'payment IDs for', ownerPublicKey.substring(0, 12))
+
+      // If we need to exclude reward payments, get all quiz paymentTxIds first
+      let rewardPaymentIds: Set<string> | null = null
+      if (options?.excludeRewardPayments) {
+        try {
+          const quizIds = await this.computer.getOUTXOs({ mod: MODULE_SPECS.quizMod }) as string[]
+          rewardPaymentIds = new Set<string>()
+          for (const qid of quizIds) {
+            try {
+              let revToSync = qid
+              try {
+                const latestRev = await this.computer.latest(qid)
+                if (latestRev) revToSync = latestRev
+              } catch { /* use original */ }
+              const quiz = await this.computer.sync(revToSync) as QuizDTO
+              if (quiz.paymentTxId) {
+                // Store the root _id of the payment (without :index suffix)
+                const rootId = quiz.paymentTxId.includes(':')
+                  ? quiz.paymentTxId
+                  : `${quiz.paymentTxId}:0`
+                rewardPaymentIds.add(rootId)
+                // Also add without suffix in case of format mismatch
+                rewardPaymentIds.add(quiz.paymentTxId.split(':')[0])
+              }
+            } catch { /* skip quiz */ }
+          }
+          console.log('💰 [Payments] Excluding', rewardPaymentIds.size, 'reward payment IDs')
+        } catch {
+          // If we can't load quizzes, don't filter
+          rewardPaymentIds = null
+        }
+      }
 
       const payments: { _id: string; _rev: string; _satoshis: number }[] = []
       for (const id of paymentIds) {
         try {
+          // Skip reward payments if filtering is enabled
+          if (rewardPaymentIds) {
+            const rootId = id.split(':')[0]
+            if (rewardPaymentIds.has(id) || rewardPaymentIds.has(rootId)) {
+              continue
+            }
+          }
+
           let revToSync = id
           try {
-            const latestRev = await this.computer.getLatestRev(id)
+            const latestRev = await this.computer.latest(id)
             if (latestRev) revToSync = latestRev
           } catch { /* use original */ }
-          const payment = await this.computer.sync(revToSync) as any
+          const payment = await this.computer.sync(revToSync) as SyncedPayment
           const sats = Number(String(payment._satoshis ?? 0).replace(/n$/, ''))
           if (sats > 546) {
             payments.push({
@@ -339,8 +418,8 @@ export class BrowserQuizClient {
       }
       console.log('💰 [Payments] Withdrawable payments:', payments.length, 'total sats:', payments.reduce((s, p) => s + p._satoshis, 0))
       return payments
-    } catch (err) {
-      console.error('Failed to get owned payments:', err)
+    } catch (err: unknown) {
+      console.error('Failed to get owned payments:', errMsg(err))
       return []
     }
   }
@@ -363,13 +442,14 @@ export class BrowserQuizClient {
 
       for (const payment of payments) {
         try {
-          const withdrawnAmount = await this.paymentHelper.withdrawPaymentById(payment._id)
+          const ownerPayment = await this.paymentHelper.getPayment(payment._id)
+          const withdrawnAmount = await this.paymentHelper.withdrawPayment(ownerPayment)
           const withdrawn = Number(withdrawnAmount)
           totalWithdrawn += withdrawn
           count += 1
           console.log(`✅ [Withdraw] Withdrawn ${withdrawn} sats from payment ${payment._id.substring(0, 12)}`)
-        } catch (err) {
-          console.warn(`⚠️ [Withdraw] Failed to withdraw payment ${payment._id.substring(0, 12)}:`, (err as any)?.message)
+        } catch (err: unknown) {
+          console.warn(`⚠️ [Withdraw] Failed to withdraw payment ${payment._id.substring(0, 12)}:`, errMsg(err))
         }
       }
 

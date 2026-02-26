@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { randomBytes } from 'crypto';
+import type { User } from '../../../generated/prisma';
 
 export interface JwtPayload {
   sub: string; // publicKey
@@ -23,7 +24,7 @@ export class AuthService {
    */
   async login(dto: LoginDto) {
     const role = dto.role ?? 'STUDENT';
-    let user: any;
+    let user: User | null = null;
 
     if (dto.publicKey) {
       // Try to find by publicKey first
@@ -53,6 +54,10 @@ export class AuthService {
           data: { publicKey: generatedKey, name: dto.name, role },
         });
       }
+    }
+
+    if (!user) {
+      throw new Error('Failed to find or create user');
     }
 
     const payload: JwtPayload = {

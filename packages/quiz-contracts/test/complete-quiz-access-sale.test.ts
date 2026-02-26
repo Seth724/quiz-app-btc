@@ -1065,6 +1065,9 @@ describe('Comprehensive Quiz with Leaderboard (Sale offers for access)', functio
   it('should allow students with access to attempt the quiz', async function () {
     console.log('\n🎯 QUIZ ATTEMPT PHASE')
     console.log('====================')
+    
+    await attempt1Helper.deploy()
+    await attempt2Helper.deploy() // if your helper has deploy()
 
     const attempt1 = await attempt1Helper.createAttempt(quizId, student1PubKey)
     await attempt1.submitAnswer(quizAccessTokenS1, 1, await quiz.correctAnswer, await quiz.rewardAmount)

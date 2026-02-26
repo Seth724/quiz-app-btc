@@ -1,7 +1,7 @@
 "use client";
 
 import { Gallery } from "@/common-components";
-import { MODULE_SPECS } from "@/config/constants";
+import { MODULE_SPECS } from "@/config";
 
 export default function GalleryPage() {
   return (

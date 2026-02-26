@@ -33,8 +33,10 @@ export interface QuizListResponse {
 export interface CreateQuizRequest {
   id: string; // blockchain txId
   title: string;
+  description?: string;
   questionText: string;
   options: string[];
+  correctAnswer?: number;
   rewardAmount: number;
   entryFee: number;
   paymentTxId: string;
@@ -74,5 +76,10 @@ export const quizService = {
   /** Get all attempts for a quiz */
   async getAttempts(quizId: string) {
     return api.get(`/quizzes/${quizId}/attempts`);
+  },
+
+  /** Update quiz status (claimed, active, etc.) */
+  async update(id: string, data: { isClaimed?: boolean; claimedBy?: string; isActive?: boolean }): Promise<QuizResponse> {
+    return api.patch<QuizResponse>(`/quizzes/${id}`, data);
   },
 };

@@ -23,12 +23,18 @@ export interface UserStats {
   // Teacher stats
   totalQuizzes?: number;
   activeQuizzes?: number;
+  totalEarnings?: number;
 }
 
 export interface CreateUserRequest {
   publicKey: string;
   name?: string;
   role: 'TEACHER' | 'STUDENT';
+}
+
+export interface UpdateUserRequest {
+  name?: string;
+  role?: string;
 }
 
 export const userService = {
@@ -40,6 +46,22 @@ export const userService = {
   /** Create a new user */
   async create(data: CreateUserRequest): Promise<UserProfile> {
     return api.post<UserProfile>('/users', data);
+  },
+
+  /** Update user profile */
+  async update(publicKey: string, data: UpdateUserRequest): Promise<UserProfile> {
+    return api.patch<UserProfile>(`/users/${publicKey}`, data);
+  },
+
+  /** Store teacher mnemonic for auto-approve */
+  async storeMnemonic(publicKey: string, mnemonic: string): Promise<{ success: boolean }> {
+    return api.post<{ success: boolean }>(`/users/${publicKey}/mnemonic`, { mnemonic });
+  },
+
+  /** Check if teacher has stored mnemonic */
+  async hasMnemonic(publicKey: string): Promise<boolean> {
+    const res = await api.get<{ hasMnemonic: boolean }>(`/users/${publicKey}/has-mnemonic`);
+    return res.hasMnemonic;
   },
 
   /** Get user statistics */

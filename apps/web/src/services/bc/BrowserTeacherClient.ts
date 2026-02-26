@@ -7,7 +7,7 @@ import { Computer } from '@bitcoin-computer/lib'
 import type { QuizData } from '@/types'
 import { MODULE_SPECS, hasModuleSpecs } from '@/config/env'
 import { TeacherHelper } from '@quiz-app/contracts'
-import { BrowserQuizClient } from './BrowserQuizClient'
+import { BrowserQuizClient, QuizDTO } from './BrowserQuizClient'
 import { withComputerLock } from './txUtils'
 
 export interface TeacherDTO {
@@ -39,9 +39,9 @@ export class BrowserTeacherClient {
     return withComputerLock(this.computer, async () => {
       const teacher = await this.teacherHelper.createTeacher(name, publicKey)
       return {
-        ...(teacher as any),
+        ...(teacher as unknown as TeacherDTO),
         createdAt: Date.now(),
-      } as TeacherDTO
+      }
     })
   }
 
@@ -50,21 +50,21 @@ export class BrowserTeacherClient {
     const teacherIds = await this.computer.query({ mod: MODULE_SPECS.teacherMod, publicKey })
 
     if (teacherIds.length > 0) {
-      const teacher = (await this.computer.sync(teacherIds[0])) as Record<string, any>
+      const teacher = await this.computer.sync(teacherIds[0]) as TeacherDTO
       return {
         ...teacher,
         createdAt: teacher.createdAt ?? Date.now(),
-      } as TeacherDTO
+      }
     }
 
     return this.createTeacher(name, publicKey)
   }
 
-  async createQuiz(quizData: QuizData): Promise<any> {
+  async createQuiz(quizData: QuizData): Promise<QuizDTO> {
     return await this.quizClient.createQuiz(quizData)
   }
 
-  async getTeacherQuizzes(teacherPublicKey: string): Promise<any[]> {
+  async getTeacherQuizzes(teacherPublicKey: string): Promise<QuizDTO[]> {
     return await this.quizClient.getQuizzesByTeacher(teacherPublicKey)
   }
 }

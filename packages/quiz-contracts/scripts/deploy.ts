@@ -34,7 +34,7 @@ if (network === 'regtest') {
   const address = computer.getAddress()
   console.log(` - Using address: ${address}`)
   console.log(' - Please ensure your regtest wallet is funded')
-  console.log(' - You can fund it manually using: npm run fund')
+  console.log(' - You can fund it manually using: npm run fund:wallet')
 }
 
 const { balance } = await computer.getBalance()

@@ -1,38 +1,52 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { useSessionStore, useWalletStore } from '@/stores'
-import { useTeacherQuizzes } from '@/features/quizzes'
+import { useTeacherQuizzes, deactivateQuiz } from '@/features/quizzes'
 import { QuizGrid } from '@/features/quizzes'
-import { listQuizzesByTeacher } from '@/features/quizzes/quizzes.service'
 import { useQuizClient } from '@/hooks/useClients'
 import { getAccessRequests } from '@/features/access/access.service'
 import { formatSatoshis } from '@/services'
+import { LoginModal } from '@/common-components/LoginModal'
+import { userService } from '@/services/backend'
 
 export default function TeacherPage() {
-  const { userId, setRole } = useSessionStore()
+  const { userId, userName, setRole } = useSessionStore()
   const { isConnected, publicKey } = useWalletStore()
   const { quizzes, loading, refresh } = useTeacherQuizzes(userId || '')
   const quizClient = useQuizClient()
   const [pendingRequests, setPendingRequests] = useState(0)
   const [totalAttempts, setTotalAttempts] = useState(0)
-  const [processingRewards, setProcessingRewards] = useState(false)
   const [withdrawableAmount, setWithdrawableAmount] = useState(0)
   const [withdrawableCount, setWithdrawableCount] = useState(0)
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawResult, setWithdrawResult] = useState<string | null>(null)
   const [deactivatingQuizId, setDeactivatingQuizId] = useState<string | null>(null)
+  const [showLogin, setShowLogin] = useState(false)
+
+  // Show LoginModal if user hasn't set a name
+  useEffect(() => {
+    if (!userName) setShowLogin(true)
+  }, [userName])
 
   useEffect(() => {
-    async function fetchData() {
-      setRole('teacher')
-      console.log('👍👍Fetching quizzes for teacher with userId:', userId)
-      const data = await listQuizzesByTeacher(quizClient, userId || '')
-      console.log('Fetched quizzes:', data)
-    }
-    fetchData()
-  }, [setRole, quizClient, userId])
+    setRole('teacher')
+  }, [setRole])
+
+  // Auto-store teacher mnemonic for on-demand access token creation
+  const mnemonicStored = useRef(false)
+  useEffect(() => {
+    if (!publicKey || mnemonicStored.current) return
+    const mnemonic = typeof window !== 'undefined' ? localStorage.getItem('BIP_39_KEY') : null
+    if (!mnemonic) return
+    mnemonicStored.current = true
+    userService.hasMnemonic(publicKey).then(has => {
+      if (!has) {
+        userService.storeMnemonic(publicKey, mnemonic).catch(() => {})
+      }
+    }).catch(() => {})
+  }, [publicKey])
 
   // Fetch pending access request count
   useEffect(() => {
@@ -52,54 +66,24 @@ export default function TeacherPage() {
 
   // Derive Total Attempts from quiz.attemptCount (set from attemptedStudents.length)
   useEffect(() => {
-    if (!quizzes.length) {
-      console.log('📊 [Teacher] No quizzes to count attempts for')
-      return
-    }
+    if (!quizzes.length) return
     let total = 0
     for (const quiz of quizzes) {
-      total += (quiz as any).attemptCount || 0
+      total += quiz.attemptCount || 0
     }
-    console.log('📊 [Teacher] Total attempts from quiz objects:', total)
     setTotalAttempts(total)
   }, [quizzes])
 
-  // Auto-process rewards for unclaimed quizzes (teacher-side)
-  useEffect(() => {
-    if (!publicKey || !quizzes.length || processingRewards) return
-    const unclaimedQuizzes = quizzes.filter(q => !(q as any).isClaimed && (q as any).isActive)
-    if (unclaimedQuizzes.length === 0) return
+  // NOTE: Reward processing is now automatic (server-side via AutoRewardService).
+  // When a student answers correctly, the API processes the reward using the
+  // teacher's stored mnemonic. Teachers only need to withdraw entry-fee payments.
 
-    async function processRewards() {
-      setProcessingRewards(true)
-      try {
-        for (const quiz of unclaimedQuizzes) {
-          try {
-            const winner = await quizClient.processQuizRewards(quiz._id)
-            if (winner) {
-              console.log(`🏆 Processed reward for quiz "${quiz.title}" → winner: ${winner}`)
-            }
-          } catch (err) {
-            console.warn(`⚠️ Failed to process rewards for quiz ${quiz._id}:`, err)
-          }
-        }
-        // Refresh quiz list to show updated state
-        refresh()
-      } finally {
-        setProcessingRewards(false)
-      }
-    }
-    processRewards()
-  // Run only once when quizzes first load
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publicKey, quizzes.length])
-
-  // Fetch withdrawable entry fee payments
+  // Fetch withdrawable entry fee payments (exclude reward payments)
   useEffect(() => {
     if (!publicKey) return
     const fetchPayments = async () => {
       try {
-        const payments = await quizClient.getOwnedPayments(publicKey)
+        const payments = await quizClient.getOwnedPayments(publicKey, { excludeRewardPayments: true })
         const total = payments.reduce((s, p) => s + p._satoshis, 0)
         setWithdrawableAmount(total)
         setWithdrawableCount(payments.length)
@@ -108,7 +92,7 @@ export default function TeacherPage() {
       }
     }
     fetchPayments()
-  }, [publicKey, quizClient, processingRewards])
+  }, [publicKey, quizClient])
 
   const handleWithdrawAll = async () => {
     setWithdrawing(true)
@@ -122,8 +106,9 @@ export default function TeacherPage() {
       } else {
         setWithdrawResult('No payments to withdraw')
       }
-    } catch (err) {
-      setWithdrawResult(`Withdraw failed: ${(err as any)?.message}`)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      setWithdrawResult(`Withdraw failed: ${message}`)
     } finally {
       setWithdrawing(false)
     }
@@ -132,8 +117,7 @@ export default function TeacherPage() {
   const handleDeactivateQuiz = async (quizId: string) => {
     setDeactivatingQuizId(quizId)
     try {
-      await quizClient.deactivateQuiz(quizId)
-      console.log('✅ Quiz deactivated:', quizId)
+      await deactivateQuiz(quizClient, quizId)
       refresh()
     } catch (err) {
       console.error('Failed to deactivate quiz:', err)
@@ -142,10 +126,11 @@ export default function TeacherPage() {
     }
   }
 
-  console.log('Teacher Dashboard - Quizzes:', quizzes)
   if (!isConnected) {
     return (
-      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-8">
+      <>
+        {showLogin && <LoginModal onClose={() => setShowLogin(false)} required={!userName} />}
+        <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-8">
         <div className="max-w-md mx-auto text-center">
           <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
             <span className="text-4xl">🔒</span>
@@ -162,11 +147,14 @@ export default function TeacherPage() {
           </Link>
         </div>
       </div>
+      </>
     )
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] p-6 md:p-8">
+    <>
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} required={!userName} />}
+      <div className="min-h-[calc(100vh-4rem)] p-6 md:p-8">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
         <div>
@@ -205,7 +193,7 @@ export default function TeacherPage() {
               </div>
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Active Quizzes</h3>
             </div>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">{quizzes.filter(q => (q as any).isActive).length}</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">{quizzes.filter(q => q.isActive).length}</p>
           </div>
           <div className="relative overflow-hidden rounded-2xl bg-white/70 dark:bg-white/5 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 p-6">
             <div className="absolute top-0 right-0 w-20 h-20 bg-purple-500/10 rounded-full blur-2xl -translate-y-4 translate-x-4"></div>
@@ -218,18 +206,6 @@ export default function TeacherPage() {
             <p className="text-3xl font-bold text-gray-900 dark:text-white">{totalAttempts}</p>
           </div>
         </div>
-
-        {/* Reward Processing Indicator */}
-        {processingRewards && (
-          <div className="rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200/50 dark:border-indigo-500/20 p-4 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center">
-              <span className="animate-spin text-lg">⚙️</span>
-            </div>
-            <p className="text-sm text-indigo-700 dark:text-indigo-300">
-              Processing rewards for unclaimed quizzes... (automatic)
-            </p>
-          </div>
-        )}
 
         {/* Withdraw Entry Fees */}
         {withdrawableCount > 0 && (
@@ -329,5 +305,6 @@ export default function TeacherPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }
