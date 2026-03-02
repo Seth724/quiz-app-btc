@@ -5,9 +5,9 @@
  *   import { authService, quizService, attemptService } from '@/services/backend'
  */
 
-export { api, setToken, clearToken } from './api';
+export { api, setTokens, clearTokens, hasAuthToken } from './api';
 export { authService } from './auth.service';
-export type { LoginRequest, LoginResponse, AuthUser } from './auth.service';
+export type { SignupRequest, LoginRequest, AuthResponse, AuthUser, ConnectWalletRequest } from './auth.service';
 
 export { quizService } from './quiz.service';
 export type { QuizResponse, QuizListResponse, CreateQuizRequest } from './quiz.service';

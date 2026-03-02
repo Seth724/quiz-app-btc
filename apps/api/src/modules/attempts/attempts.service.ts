@@ -59,16 +59,33 @@ export class AttemptsService {
     return attempt;
   }
 
-  async create(createAttemptDto: CreateAttemptDto) {
-    // Ensure student user exists (upsert)
-    await this.prisma.user.upsert({
+  async create(createAttemptDto: CreateAttemptDto, authenticatedUserId?: string) {
+    // Verify the student user exists and has a linked wallet
+    let student = await this.prisma.user.findUnique({
       where: { publicKey: createAttemptDto.studentPubKey },
-      update: {},
-      create: {
-        publicKey: createAttemptDto.studentPubKey,
-        role: 'STUDENT',
-      },
     });
+
+    if (!student && authenticatedUserId) {
+      // Auto-link: the wallet publicKey isn't in the DB yet, but the user is
+      // authenticated via JWT. Link the publicKey to their account.
+      this.logger.log(
+        `Auto-linking publicKey ${createAttemptDto.studentPubKey.substring(0, 12)}... to user ${authenticatedUserId}`,
+      );
+      try {
+        student = await this.prisma.user.update({
+          where: { id: authenticatedUserId },
+          data: { publicKey: createAttemptDto.studentPubKey },
+        });
+      } catch (err) {
+        this.logger.warn(`Failed to auto-link wallet: ${err}`);
+      }
+    }
+
+    if (!student) {
+      throw new NotFoundException(
+        `No registered user found with publicKey ${createAttemptDto.studentPubKey}. User must sign up and connect wallet first.`,
+      );
+    }
 
     const attempt = await this.prisma.attempt.create({
       data: {

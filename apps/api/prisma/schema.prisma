@@ -13,17 +13,34 @@ datasource db {
 
 model User {
   id                 String   @id @default(auto()) @map("_id") @db.ObjectId
-  publicKey          String   @unique
-  name               String?
-  role               String   // "TEACHER" | "STUDENT"
+  name               String
+  email              String   @unique
+  password           String
+  publicKey          String?  @unique // Blockchain public key — set when wallet is connected
+  role               String   @default("STUDENT") // "TEACHER" | "STUDENT"
   encryptedMnemonic  String?  // Stored teacher mnemonic for auto-approve (base64 encoded)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  quizzesCreated Quiz[]
-  attempts       Attempt[]
+  refreshTokens  RefreshToken[]
+  quizzesCreated  Quiz[]
+  attempts        Attempt[]
 
   @@map("users")
+}
+
+model RefreshToken {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  token      String   @unique
+  userId     String   @db.ObjectId
+  expiryDate DateTime
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiryDate])
+  @@map("refresh_tokens")
 }
 
 model Quiz {

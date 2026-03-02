@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useSessionStore, useWalletStore } from '@/stores'
 import { useTeacherQuizzes, deactivateQuiz } from '@/features/quizzes'
 import { QuizGrid } from '@/features/quizzes'
@@ -9,12 +10,16 @@ import { useQuizClient } from '@/hooks/useClients'
 import { getAccessRequests } from '@/features/access/access.service'
 import { formatSatoshis } from '@/services'
 import { LoginModal } from '@/common-components/LoginModal'
-import { userService } from '@/services/backend'
+import { SignupModal } from '@/common-components/SignupModal'
+import { userService, hasAuthToken } from '@/services/backend'
+
+type AuthModal = 'login' | 'signup' | null
 
 export default function TeacherPage() {
-  const { userId, userName, setRole } = useSessionStore()
+  const router = useRouter()
+  const { userId, userName, role, setRole } = useSessionStore()
   const { isConnected, publicKey } = useWalletStore()
-  const { quizzes, loading, refresh } = useTeacherQuizzes(userId || '')
+  const { quizzes, loading, refresh } = useTeacherQuizzes(publicKey || '')
   const quizClient = useQuizClient()
   const [pendingRequests, setPendingRequests] = useState(0)
   const [totalAttempts, setTotalAttempts] = useState(0)
@@ -23,21 +28,29 @@ export default function TeacherPage() {
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawResult, setWithdrawResult] = useState<string | null>(null)
   const [deactivatingQuizId, setDeactivatingQuizId] = useState<string | null>(null)
-  const [showLogin, setShowLogin] = useState(false)
+  const [authModal, setAuthModal] = useState<AuthModal>(null)
 
-  // Show LoginModal if user hasn't set a name
+  // Show LoginModal if user isn't authenticated (no JWT token or no userName)
+  const isAuthenticated = typeof window !== 'undefined' && hasAuthToken()
   useEffect(() => {
-    if (!userName) setShowLogin(true)
-  }, [userName])
+    if (!userName || !isAuthenticated) setAuthModal('login')
+  }, [userName, isAuthenticated])
+
+  // Redirect students away from teacher dashboard
+  useEffect(() => {
+    if (userName && isAuthenticated && role === 'student') {
+      router.replace('/student')
+    }
+  }, [userName, isAuthenticated, role, router])
 
   useEffect(() => {
-    setRole('teacher')
-  }, [setRole])
+    if (!role || role === 'teacher') setRole('teacher')
+  }, [setRole, role])
 
   // Auto-store teacher mnemonic for on-demand access token creation
   const mnemonicStored = useRef(false)
   useEffect(() => {
-    if (!publicKey || mnemonicStored.current) return
+    if (!publicKey || mnemonicStored.current || !hasAuthToken()) return
     const mnemonic = typeof window !== 'undefined' ? localStorage.getItem('BIP_39_KEY') : null
     if (!mnemonic) return
     mnemonicStored.current = true
@@ -129,7 +142,8 @@ export default function TeacherPage() {
   if (!isConnected) {
     return (
       <>
-        {showLogin && <LoginModal onClose={() => setShowLogin(false)} required={!userName} />}
+        {authModal === 'login' && <LoginModal onClose={() => setAuthModal(null)} onSwitchToSignup={() => setAuthModal('signup')} required />}
+      {authModal === 'signup' && <SignupModal onClose={() => setAuthModal(null)} onSwitchToLogin={() => setAuthModal('login')} />}
         <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-8">
         <div className="max-w-md mx-auto text-center">
           <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
@@ -153,7 +167,8 @@ export default function TeacherPage() {
 
   return (
     <>
-      {showLogin && <LoginModal onClose={() => setShowLogin(false)} required={!userName} />}
+      {authModal === 'login' && <LoginModal onClose={() => setAuthModal(null)} onSwitchToSignup={() => setAuthModal('signup')} required />}
+      {authModal === 'signup' && <SignupModal onClose={() => setAuthModal(null)} onSwitchToLogin={() => setAuthModal('login')} />}
       <div className="min-h-[calc(100vh-4rem)] p-6 md:p-8">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}

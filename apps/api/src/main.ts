@@ -1,7 +1,8 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { AppLogger } from './common/logger';
 
 // Enable BigInt JSON serialization globally
 interface BigIntWithJSON {
@@ -12,7 +13,9 @@ interface BigIntWithJSON {
 };
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: new AppLogger(),
+  });
 
   // Global validation pipe
   app.useGlobalPipes(
@@ -43,16 +46,17 @@ async function bootstrap() {
     .addTag('attempts')
     .addTag('leaderboard')
     .addTag('users')
+    .addTag('access-requests')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  SwaggerModule.setup('api/docs', app, document);
 
   const port = process.env.PORT || 3002;
   await app.listen(port);
 
-  console.log(`🚀 API running on: http://localhost:${port}`);
-  console.log(`📚 Swagger docs: http://localhost:${port}/api`);
+  Logger.log(`🚀 API running on: http://localhost:${port}`, 'Bootstrap');
+  Logger.log(`📚 Swagger docs: http://localhost:${port}/api/docs`, 'Bootstrap');
 }
 
 bootstrap();

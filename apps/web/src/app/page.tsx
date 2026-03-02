@@ -1,16 +1,29 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useWallet } from '@/hooks'
 import { truncatePublicKey } from '@/lib'
 import { useSessionStore } from '@/stores'
+import { hasAuthToken } from '@/services/backend'
 import { LoginModal } from '@/common-components/LoginModal'
+import { SignupModal } from '@/common-components/SignupModal'
+
+type AuthModal = 'login' | 'signup' | null
 
 export default function HomePage() {
+  const router = useRouter()
   const { isConnected, publicKey } = useWallet()
-  const { userName, setRole } = useSessionStore()
-  const [showLogin, setShowLogin] = useState(false)
+  const { userName, role, setRole } = useSessionStore()
+  const [authModal, setAuthModal] = useState<AuthModal>(null)
+
+  // Auto-redirect logged-in users to their role dashboard
+  useEffect(() => {
+    if (typeof window !== 'undefined' && hasAuthToken() && userName && role) {
+      router.replace(role === 'teacher' ? '/teacher' : '/student')
+    }
+  }, [userName, role, router])
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-8 relative overflow-hidden">
@@ -56,7 +69,7 @@ export default function HomePage() {
               )}
               {!userName && (
                 <button
-                  onClick={() => setShowLogin(true)}
+                  onClick={() => setAuthModal('login')}
                   className="ml-2 text-xs px-3 py-1 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-medium hover:bg-indigo-200 dark:hover:bg-indigo-500/30 transition-colors"
                 >
                   Set Name
@@ -71,11 +84,20 @@ export default function HomePage() {
           {/* Teacher Card */}
           <Link
             href="/teacher"
-            onClick={() => {
+            onClick={(e) => {
+              // If already logged in as student, block teacher access
+              if (userName && role === 'student') {
+                e.preventDefault()
+                return
+              }
               setRole('teacher')
-              if (!userName) setShowLogin(true)
+              if (!userName) setAuthModal('login')
             }}
-            className="group relative bg-white/70 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-8 text-center border border-gray-200/50 dark:border-gray-700/50 hover:border-indigo-300 dark:hover:border-indigo-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1"
+            className={`group relative bg-white/70 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-8 text-center border transition-all duration-300 hover:-translate-y-1 ${
+              userName && role === 'student'
+                ? 'border-gray-200/30 dark:border-gray-700/30 opacity-50 cursor-not-allowed'
+                : 'border-gray-200/50 dark:border-gray-700/50 hover:border-indigo-300 dark:hover:border-indigo-500/50 hover:shadow-xl hover:shadow-indigo-500/10'
+            }`}
           >
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <div className="relative">
@@ -86,17 +108,31 @@ export default function HomePage() {
               <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
                 Create quizzes, set rewards, and track student progress on-chain
               </p>
+              {userName && role === 'student' && (
+                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400 font-medium">
+                  You are signed in as a Student
+                </p>
+              )}
             </div>
           </Link>
 
           {/* Student Card */}
           <Link
             href="/student"
-            onClick={() => {
+            onClick={(e) => {
+              // If already logged in as teacher, block student access
+              if (userName && role === 'teacher') {
+                e.preventDefault()
+                return
+              }
               setRole('student')
-              if (!userName) setShowLogin(true)
+              if (!userName) setAuthModal('login')
             }}
-            className="group relative bg-white/70 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-8 text-center border border-gray-200/50 dark:border-gray-700/50 hover:border-emerald-300 dark:hover:border-emerald-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-500/10 hover:-translate-y-1"
+            className={`group relative bg-white/70 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-8 text-center border transition-all duration-300 hover:-translate-y-1 ${
+              userName && role === 'teacher'
+                ? 'border-gray-200/30 dark:border-gray-700/30 opacity-50 cursor-not-allowed'
+                : 'border-gray-200/50 dark:border-gray-700/50 hover:border-emerald-300 dark:hover:border-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/10'
+            }`}
           >
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-500/5 to-teal-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <div className="relative">
@@ -107,6 +143,11 @@ export default function HomePage() {
               <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
                 Browse quizzes, earn LTC rewards, and climb the leaderboard
               </p>
+              {userName && role === 'teacher' && (
+                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400 font-medium">
+                  You are signed in as a Teacher
+                </p>
+              )}
             </div>
           </Link>
         </div>
@@ -129,7 +170,18 @@ export default function HomePage() {
         </div>
       </div>
 
-      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
+      {authModal === 'login' && (
+        <LoginModal
+          onClose={() => setAuthModal(null)}
+          onSwitchToSignup={() => setAuthModal('signup')}
+        />
+      )}
+      {authModal === 'signup' && (
+        <SignupModal
+          onClose={() => setAuthModal(null)}
+          onSwitchToLogin={() => setAuthModal('login')}
+        />
+      )}
     </div>
   )
 }

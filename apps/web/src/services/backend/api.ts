@@ -3,38 +3,101 @@
  *
  * Single place to change the backend URL.
  * All service files in this folder import { api } from './api'.
+ *
+ * Features:
+ * - Automatic JWT Bearer token injection
+ * - Automatic token refresh on 401 responses
+ * - Consistent error handling
  */
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002/api';
 
-/** Key used to persist the JWT in localStorage */
-const TOKEN_KEY = 'quiz_app_token';
+/** Keys used to persist tokens in localStorage */
+const ACCESS_TOKEN_KEY = 'quiz_app_token';
+const REFRESH_TOKEN_KEY = 'quiz_app_refresh_token';
 
-function getToken(): string | null {
+// ── Token Management ──────────────────────────────────
+
+function getAccessToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
-export function setToken(token: string) {
-  if (typeof window !== 'undefined') localStorage.setItem(TOKEN_KEY, token);
+function getRefreshToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
 }
 
-export function clearToken() {
-  if (typeof window !== 'undefined') localStorage.removeItem(TOKEN_KEY);
+export function setTokens(accessToken: string, refreshToken: string) {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  }
 }
+
+export function clearTokens() {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+  }
+}
+
+/** Check whether a JWT access-token is currently stored. */
+export function hasAuthToken(): boolean {
+  if (typeof window === 'undefined') return false;
+  return !!localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+// ── Token Refresh Logic ───────────────────────────────
+
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefreshToken(): Promise<boolean> {
+  // Deduplicate concurrent refresh attempts
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return false;
+
+    try {
+      const res = await fetch(`${BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!res.ok) return false;
+
+      const data = await res.json();
+      setTokens(data.accessToken, data.refreshToken);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+// ── Fetch Wrapper ─────────────────────────────────────
 
 /**
  * Lightweight fetch wrapper. Automatically:
  * - prepends BASE_URL
  * - sets Content-Type
  * - attaches Bearer token (if available)
+ * - retries once with refreshed token on 401
  */
 async function request<T = unknown>(
   endpoint: string,
   options: RequestInit = {},
+  _isRetry = false,
 ): Promise<T> {
   const url = `${BASE_URL}${endpoint}`;
-  const token = getToken();
+  const token = getAccessToken();
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -46,6 +109,16 @@ async function request<T = unknown>(
   }
 
   const res = await fetch(url, { ...options, headers });
+
+  // On 401, try refreshing the token once
+  if (res.status === 401 && !_isRetry) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      return request<T>(endpoint, options, true);
+    }
+    // Refresh failed — clear tokens, throw
+    clearTokens();
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ message: 'Request failed' }));

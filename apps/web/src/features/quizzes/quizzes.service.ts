@@ -9,7 +9,7 @@
 
 import type { QuizData } from '@/types'
 import { BrowserTeacherClient, BrowserQuizClient } from '@/services/bc'
-import { quizService, type QuizResponse } from '@/services/backend'
+import { quizService, authService, type QuizResponse } from '@/services/backend'
 
 export interface Quiz {
   _id: string
@@ -49,6 +49,12 @@ export async function createQuiz(
   teacherClient: BrowserTeacherClient,
   params: CreateQuizParams
 ): Promise<Quiz> {
+  // Pre-check: ensure user is authenticated before spending blockchain resources
+  const hasToken = typeof window !== 'undefined' && localStorage.getItem('quiz_app_token')
+  if (!hasToken) {
+    throw new Error('You must be logged in to create a quiz. Please sign in first.')
+  }
+
   if (params.options.length !== 4) {
     throw new Error('Must have exactly 4 options')
   }
@@ -69,7 +75,29 @@ export async function createQuiz(
   const quiz = await teacherClient.createQuiz(quizData)
   console.log('✅ Quiz created on blockchain with ID:', quiz._id)
 
-  // Sync to DB (fire-and-forget — blockchain is the source of truth)
+  const teacherPubKey = quiz.teacherPublicKey || quiz._owners?.[0] || ''
+
+  // Ensure wallet is synced to the authenticated API user before DB insert.
+  // The DB has a foreign-key from Quiz.teacherPubKey → User.publicKey,
+  // so the user record MUST have this publicKey before we can create the quiz row.
+  if (teacherPubKey) {
+    try {
+      const mnemonic = typeof window !== 'undefined' ? localStorage.getItem('BIP_39_KEY') : null
+      await authService.connectWallet({
+        publicKey: teacherPubKey,
+        mnemonic: mnemonic || undefined,
+      })
+      console.log('✅ Wallet synced to API user before DB insert')
+    } catch (err) {
+      // 409 = already linked — that's fine
+      const msg = err instanceof Error ? err.message : ''
+      if (!msg.includes('already linked') && !msg.includes('409')) {
+        console.warn('⚠️ Wallet sync failed:', err)
+      }
+    }
+  }
+
+  // Sync to DB
   try {
     await quizService.create({
       id: quiz._id,
@@ -81,11 +109,17 @@ export async function createQuiz(
       rewardAmount: params.rewardAmount,
       entryFee: params.entryFee,
       paymentTxId: quiz.paymentTxId || quiz._id,
-      teacherPubKey: quiz.teacherPublicKey || quiz._owners?.[0] || '',
+      teacherPubKey,
     })
     console.log('✅ Quiz synced to database')
   } catch (error) {
-    console.warn('⚠️ DB sync failed (blockchain op succeeded):', error)
+    console.error('❌ DB sync failed (blockchain op succeeded):', error)
+    // Surface the error so the user knows the quiz isn't in the DB
+    throw new Error(
+      `Quiz created on blockchain (${quiz._id}) but failed to save to database: ${
+        error instanceof Error ? error.message : 'unknown error'
+      }. Please try re-syncing from the teacher dashboard.`
+    )
   }
 
   return quiz as Quiz

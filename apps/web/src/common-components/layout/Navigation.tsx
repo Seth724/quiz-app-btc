@@ -5,14 +5,26 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useWalletStore, useSessionStore } from '@/stores'
 import { truncatePublicKey } from '@/lib'
+import { authService } from '@/services/backend'
 
 export function Navigation() {
   const pathname = usePathname()
-  const { isConnected, publicKey } = useWalletStore()
-  const { role, userName } = useSessionStore()
+  const router = useRouter()
+  const { isConnected, publicKey, disconnect: disconnectWallet } = useWalletStore()
+  const { role, userName, reset } = useSessionStore()
+
+  const handleLogout = async () => {
+    // 1. Revoke refresh token on the server (best-effort)
+    await authService.logout()
+    // 2. Clear frontend stores
+    reset()
+    disconnectWallet()
+    // 3. Redirect to home
+    router.push('/')
+  }
 
   const navLinks = [
     { href: '/', label: 'Home', icon: '🏠', show: true },
@@ -56,18 +68,29 @@ export function Navigation() {
             </div>
           </div>
 
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
             {isConnected && publicKey ? (
-              <Link href="/profile" className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/30 border border-emerald-200/50 dark:border-emerald-700/50 hover:border-emerald-300 dark:hover:border-emerald-600/50 transition-all">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                {userName ? (
-                  <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">{userName}</span>
-                ) : (
-                  <span className="text-sm font-mono text-emerald-700 dark:text-emerald-300">
-                    {truncatePublicKey(publicKey, 6, 4)}
-                  </span>
+              <>
+                <Link href="/profile" className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/30 border border-emerald-200/50 dark:border-emerald-700/50 hover:border-emerald-300 dark:hover:border-emerald-600/50 transition-all">
+                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                  {userName ? (
+                    <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">{userName}</span>
+                  ) : (
+                    <span className="text-sm font-mono text-emerald-700 dark:text-emerald-300">
+                      {truncatePublicKey(publicKey, 6, 4)}
+                    </span>
+                  )}
+                </Link>
+                {userName && (
+                  <button
+                    onClick={handleLogout}
+                    className="px-3 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all duration-200"
+                    title="Sign out"
+                  >
+                    🚪 Logout
+                  </button>
                 )}
-              </Link>
+              </>
             ) : (
               <Link
                 href="/wallet"

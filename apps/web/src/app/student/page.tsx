@@ -2,16 +2,21 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useSessionStore, useWalletStore } from '@/stores'
 import { getAllQuizzes, type Quiz } from '@/features/quizzes'
 import { QuizGrid } from '@/features/quizzes'
 import { useAttemptClient, useQuizClient } from '@/hooks'
 import { formatSatoshis } from '@/services'
-import { attemptService } from '@/services/backend'
+import { attemptService, hasAuthToken, authService } from '@/services/backend'
 import { LoginModal } from '@/common-components/LoginModal'
+import { SignupModal } from '@/common-components/SignupModal'
+
+type AuthModal = 'login' | 'signup' | null
 
 export default function StudentPage() {
-  const { userName, setRole } = useSessionStore()
+  const router = useRouter()
+  const { userName, role, setRole } = useSessionStore()
   const { isConnected, publicKey } = useWalletStore()
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [loading, setLoading] = useState(true)
@@ -24,16 +29,44 @@ export default function StudentPage() {
   const [paymentRefreshKey, setPaymentRefreshKey] = useState(0)
   const attemptClient = useAttemptClient()
   const quizClient = useQuizClient()
-  const [showLogin, setShowLogin] = useState(false)
+  const [authModal, setAuthModal] = useState<AuthModal>(null)
 
   useEffect(() => {
-    setRole('student')
-  }, [setRole])
+    if (!role || role === 'student') setRole('student')
+  }, [setRole, role])
 
-  // Show LoginModal if user hasn't set a name
+  // Show LoginModal if user isn't authenticated (no JWT token or no userName)
+  const isAuthenticated = typeof window !== 'undefined' && hasAuthToken()
   useEffect(() => {
-    if (!userName) setShowLogin(true)
-  }, [userName])
+    if (!userName || !isAuthenticated) setAuthModal('login')
+  }, [userName, isAuthenticated])
+
+  // Redirect teachers away from student dashboard
+  useEffect(() => {
+    if (userName && isAuthenticated && role === 'teacher') {
+      router.replace('/teacher')
+    }
+  }, [userName, isAuthenticated, role, router])
+
+  // Auto-sync wallet publicKey to the API user record on page load
+  // This ensures the DB has the wallet publicKey even if the WalletConnect
+  // form was bypassed (e.g. wallet reconnected from localStorage)
+  useEffect(() => {
+    if (!isAuthenticated || !publicKey) return
+    const syncWallet = async () => {
+      try {
+        const mnemonic = typeof window !== 'undefined' ? localStorage.getItem('BIP_39_KEY') : null
+        await authService.connectWallet({
+          publicKey,
+          mnemonic: mnemonic || undefined,
+        })
+        console.log('✅ Wallet auto-synced to API on student page load')
+      } catch {
+        // Ignore — already linked or no token
+      }
+    }
+    syncWallet()
+  }, [isAuthenticated, publicKey])
 
   useEffect(() => {
     const fetchQuizzes = async () => {
@@ -135,7 +168,8 @@ export default function StudentPage() {
   if (!isConnected) {
     return (
       <>
-        {showLogin && <LoginModal onClose={() => setShowLogin(false)} required={!userName} />}
+        {authModal === 'login' && <LoginModal onClose={() => setAuthModal(null)} onSwitchToSignup={() => setAuthModal('signup')} required />}
+        {authModal === 'signup' && <SignupModal onClose={() => setAuthModal(null)} onSwitchToLogin={() => setAuthModal('login')} />}
         <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-8">
         <div className="max-w-md mx-auto text-center">
           <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
@@ -159,7 +193,8 @@ export default function StudentPage() {
 
   return (
     <>
-      {showLogin && <LoginModal onClose={() => setShowLogin(false)} required={!userName} />}
+      {authModal === 'login' && <LoginModal onClose={() => setAuthModal(null)} onSwitchToSignup={() => setAuthModal('signup')} required />}
+      {authModal === 'signup' && <SignupModal onClose={() => setAuthModal(null)} onSwitchToLogin={() => setAuthModal('login')} />}
       <div className="min-h-[calc(100vh-4rem)] p-6 md:p-8">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}

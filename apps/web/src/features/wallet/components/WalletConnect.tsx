@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 import { useWalletStore } from '@/stores'
 import { connectWallet, generateMnemonic, getWalletInfo } from '../wallet.service'
 import { createComputerFromStorage } from '@/services'
+import { authService } from '@/services/backend'
 import type { Chain, Network } from '@/types'
 import { useSessionStore } from '@/stores'
 
@@ -53,6 +54,21 @@ export function WalletConnect({ onConnect, redirectTo }: WalletConnectProps) {
         publicKey: info.publicKey,
         address: info.address,
       })
+
+      // Sync wallet publicKey to the authenticated user in the DB
+      // (required so the backend can link quizzes to the teacher)
+      const hasToken = typeof window !== 'undefined' && localStorage.getItem('quiz_app_token')
+      if (hasToken) {
+        try {
+          await authService.connectWallet({
+            publicKey: info.publicKey,
+            mnemonic: mnemonic.trim(),
+          })
+          console.log('✅ Wallet synced to API user record')
+        } catch (err) {
+          console.warn('⚠️ Failed to sync wallet to API (user may not be logged in):', err)
+        }
+      }
 
       onConnect?.()
       

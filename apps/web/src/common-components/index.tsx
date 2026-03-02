@@ -18,5 +18,6 @@ export { Button } from "./Button";
 export { AppCard } from "./AppCard";
 export { AppLoader } from "./AppLoader";
 export { LoginModal } from "./LoginModal";
+export { SignupModal } from "./SignupModal";
 export * from "./layout";
 export * from "./bc";

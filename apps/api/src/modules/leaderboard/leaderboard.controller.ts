@@ -1,7 +1,9 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { LeaderboardService } from './leaderboard.service';
+import { Public } from '../../common/decorators';
 
+@Public()
 @ApiTags('leaderboard')
 @Controller('leaderboard')
 export class LeaderboardController {

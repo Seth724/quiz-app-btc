@@ -31,7 +31,9 @@ export class UsersService {
     return this.prisma.user.create({
       data: {
         publicKey: createUserDto.publicKey,
-        name: createUserDto.name,
+        name: createUserDto.name ?? 'Unknown',
+        email: `${createUserDto.publicKey.substring(0, 8)}@wallet.local`,
+        password: '',
         role: createUserDto.role,
       },
     });
@@ -47,7 +49,9 @@ export class UsersService {
       },
       create: {
         publicKey,
-        name: updateUserDto.name || null,
+        name: updateUserDto.name || 'Unknown',
+        email: `${publicKey.substring(0, 8)}@wallet.local`,
+        password: '',
         role: updateUserDto.role || 'STUDENT',
       },
     });
@@ -61,6 +65,9 @@ export class UsersService {
       update: { encryptedMnemonic: encoded },
       create: {
         publicKey,
+        name: 'Teacher',
+        email: `${publicKey.substring(0, 8)}@wallet.local`,
+        password: '',
         role: 'TEACHER',
         encryptedMnemonic: encoded,
       },

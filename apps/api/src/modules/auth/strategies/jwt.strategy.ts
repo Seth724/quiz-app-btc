@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
-import { AuthService, JwtPayload } from '../auth.service';
+import { AuthService, JwtPayload, RequestUser } from '../auth.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -19,17 +19,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   /**
    * Called automatically by Passport after the JWT is verified.
-   * The return value is attached to `request.user`.
+   * The returned value is attached to `request.user`.
    */
-  async validate(payload: JwtPayload) {
+  async validate(payload: JwtPayload): Promise<RequestUser> {
     const user = await this.authService.validateUser(payload);
+
     if (!user) {
-      return { publicKey: payload.sub, name: payload.name, role: payload.role };
+      throw new UnauthorizedException('User no longer exists');
     }
-    return {
-      publicKey: user.publicKey,
-      name: user.name,
-      role: user.role,
-    };
+
+    return user;
   }
 }

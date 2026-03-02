@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 import webpack from 'webpack';
 import path from 'path';
 
+const currentDir = import.meta.dirname!;
+
 const nextConfig: NextConfig = {
 
   // Only transpile bitcoin-computer/lib, NOT quiz-contracts (to avoid __name decoration issues)
@@ -10,7 +12,7 @@ const nextConfig: NextConfig = {
     // Alias @quiz-app/contracts to pre-compiled dist to avoid SWC __name issues
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@quiz-app/contracts': path.resolve(__dirname, '../../packages/quiz-contracts/dist/index.js'),
+      '@quiz-app/contracts': path.resolve(currentDir, '../../packages/quiz-contracts/dist/index.js'),
     };
     if (!isServer) {
       config.resolve.fallback = {

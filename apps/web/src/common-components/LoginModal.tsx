@@ -1,6 +1,6 @@
 /**
- * Login Modal — prompts user for a display name before entering the app.
- * Calls the NestJS auth endpoint to create/update a user and get a JWT.
+ * Login Modal — prompts user for email/password to authenticate.
+ * Calls the NestJS auth endpoint to login and get JWT tokens.
  */
 
 'use client'
@@ -12,31 +12,48 @@ import { useWalletStore } from '@/stores'
 
 interface LoginModalProps {
   onClose: () => void
-  required?: boolean // If true, the "Skip for now" button is hidden
+  onSwitchToSignup?: () => void
+  required?: boolean
 }
 
-export function LoginModal({ onClose, required = false }: LoginModalProps) {
-  const { role, setUser } = useSessionStore()
-  const { publicKey } = useWalletStore()
-  const [name, setName] = useState('')
+export function LoginModal({ onClose, onSwitchToSignup, required = false }: LoginModalProps) {
+  const { setUser, setRole } = useSessionStore()
+  const { publicKey: walletPublicKey } = useWalletStore()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name.trim()) {
-      setError('Please enter a display name')
+    if (!email.trim() || !password) {
+      setError('Please enter email and password')
       return
     }
     setLoading(true)
     setError(null)
     try {
       const res = await authService.login({
-        name: name.trim(),
-        publicKey: publicKey || undefined,
-        role: role === 'teacher' ? 'TEACHER' : 'STUDENT',
+        email: email.trim(),
+        password,
       })
-      setUser(res.user.publicKey, res.user.name || name.trim())
+      setRole(res.user.role === 'TEACHER' ? 'teacher' : 'student')
+      setUser(res.user.id, res.user.name)
+
+      // Auto-sync wallet to API if already connected in browser
+      if (walletPublicKey && !res.user.publicKey) {
+        try {
+          const mnemonic = typeof window !== 'undefined' ? localStorage.getItem('BIP_39_KEY') : null
+          await authService.connectWallet({
+            publicKey: walletPublicKey,
+            mnemonic: mnemonic || undefined,
+          })
+          console.log('✅ Wallet auto-synced to API on login')
+        } catch (err) {
+          console.warn('⚠️ Wallet auto-sync failed on login:', err)
+        }
+      }
+
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
@@ -52,24 +69,38 @@ export function LoginModal({ onClose, required = false }: LoginModalProps) {
           <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
             <span className="text-3xl">👋</span>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome!</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome Back!</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {required ? 'Please enter a display name to continue' : 'Enter a display name to get started'}
+            Sign in to your account
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Display Name
+              Email
             </label>
             <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your name"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email"
               className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-gray-900 dark:text-white placeholder-gray-400"
               autoFocus
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-gray-900 dark:text-white placeholder-gray-400"
               required
             />
           </div>
@@ -88,9 +119,22 @@ export function LoginModal({ onClose, required = false }: LoginModalProps) {
                 <span className="animate-spin">⏳</span> Signing in...
               </span>
             ) : (
-              'Continue'
+              'Sign In'
             )}
           </button>
+
+          {onSwitchToSignup && (
+            <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              Don&apos;t have an account?{' '}
+              <button
+                type="button"
+                onClick={onSwitchToSignup}
+                className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+              >
+                Sign Up
+              </button>
+            </p>
+          )}
 
           {!required && (
             <button
