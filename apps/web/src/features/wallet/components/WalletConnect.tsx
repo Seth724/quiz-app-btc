@@ -48,16 +48,31 @@ export function WalletConnect({ onConnect, redirectTo }: WalletConnectProps) {
       const computer = createComputerFromStorage()
       const info = await getWalletInfo(computer)
 
-      setUser(computer.getPublicKey(), computer.getAddress())
       // Update wallet store
       storeConnect({
         publicKey: info.publicKey,
         address: info.address,
       })
 
+      // Only set userName if user is already authenticated (has JWT token)
+      // Otherwise, fetch user data from backend to get the actual display name
+      const hasToken = typeof window !== 'undefined' && localStorage.getItem('quiz_app_token')
+      if (hasToken) {
+        try {
+          const me = await authService.me()
+          setUser(me.id, me.name)
+        } catch (err) {
+          console.warn('⚠️ Failed to fetch user data:', err)
+          // Fallback: use public key as ID, no name set
+          setUser(info.publicKey, null)
+        }
+      } else {
+        // Not authenticated - just set the public key, no name
+        setUser(info.publicKey, null)
+      }
+
       // Sync wallet publicKey to the authenticated user in the DB
       // (required so the backend can link quizzes to the teacher)
-      const hasToken = typeof window !== 'undefined' && localStorage.getItem('quiz_app_token')
       if (hasToken) {
         try {
           await authService.connectWallet({

@@ -69,6 +69,16 @@ export class AuthService {
 
     this.logger.log(`User registered: ${user.email} (${user.role})`);
 
+    // Update leaderboard entry name if user has a publicKey
+    if (user.publicKey) {
+      await this.prisma.leaderboardEntry.updateMany({
+        where: { publicKey: user.publicKey },
+        data: { name },
+      }).catch(() => {
+        // Ignore if no leaderboard entry exists yet
+      });
+    }
+
     return this.generateAuthResponse(user);
   }
 
@@ -90,6 +100,16 @@ export class AuthService {
     }
 
     this.logger.log(`User logged in: ${user.email}`);
+
+    // Update leaderboard entry name if user has a publicKey
+    if (user.publicKey) {
+      await this.prisma.leaderboardEntry.updateMany({
+        where: { publicKey: user.publicKey },
+        data: { name: user.name },
+      }).catch(() => {
+        // Ignore if no leaderboard entry exists yet
+      });
+    }
 
     return this.generateAuthResponse(user);
   }
@@ -121,6 +141,16 @@ export class AuthService {
     });
 
     this.logger.log(`Wallet connected for user ${user.email}: ${dto.publicKey.substring(0, 12)}...`);
+
+    // Update leaderboard entry name if user has a name
+    if (user.publicKey && user.name) {
+      await this.prisma.leaderboardEntry.updateMany({
+        where: { publicKey: user.publicKey },
+        data: { name: user.name },
+      }).catch(() => {
+        // Ignore if no leaderboard entry exists yet
+      });
+    }
 
     return {
       publicKey: user.publicKey,

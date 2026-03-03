@@ -40,8 +40,7 @@ export class UsersService {
   }
 
   async update(publicKey: string, updateUserDto: UpdateUserDto) {
-    // Upsert: create the user if they don't exist yet
-    return this.prisma.user.upsert({
+    const user = await this.prisma.user.upsert({
       where: { publicKey },
       update: {
         ...(updateUserDto.name !== undefined && { name: updateUserDto.name }),
@@ -55,6 +54,18 @@ export class UsersService {
         role: updateUserDto.role || 'STUDENT',
       },
     });
+
+    // Update leaderboard entry name if user updated their name
+    if (updateUserDto.name && user.publicKey) {
+      await this.prisma.leaderboardEntry.updateMany({
+        where: { publicKey: user.publicKey },
+        data: { name: user.name },
+      }).catch(() => {
+        // Ignore if no leaderboard entry exists yet
+      });
+    }
+
+    return user;
   }
 
   async storeMnemonic(publicKey: string, mnemonic: string) {
