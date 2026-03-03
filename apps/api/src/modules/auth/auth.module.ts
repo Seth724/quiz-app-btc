@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { APP_CONFIG, AppConfigType } from '../../config';
 
 @Module({
   imports: [
@@ -14,10 +15,13 @@ import { PrismaModule } from '../../prisma/prisma.module';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET', 'quiz-app-jwt-secret-change-in-production'),
-        signOptions: { expiresIn: '1h' },
-      }),
+      useFactory: (config: ConfigService) => {
+        const appConfig = config.get<AppConfigType>(APP_CONFIG.KEY);
+        return {
+          secret: appConfig?.jwtSecret || 'quiz-app-jwt-secret-change-in-production',
+          signOptions: { expiresIn: appConfig?.jwtExpiry || '7d' },
+        };
+      },
     }),
   ],
   controllers: [AuthController],

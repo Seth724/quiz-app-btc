@@ -64,11 +64,11 @@ export function WalletConnect({ onConnect, redirectTo }: WalletConnectProps) {
         } catch (err) {
           console.warn('⚠️ Failed to fetch user data:', err)
           // Fallback: use public key as ID, no name set
-          setUser(info.publicKey, null)
+          setUser(info.publicKey, '')
         }
       } else {
         // Not authenticated - just set the public key, no name
-        setUser(info.publicKey, null)
+        setUser(info.publicKey, '')
       }
 
       // Sync wallet publicKey to the authenticated user in the DB

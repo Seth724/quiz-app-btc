@@ -26,7 +26,7 @@ export default function TeacherNotificationsPage() {
   const [error, setError] = useState<string | null>(null)
   const [approvingId, setApprovingId] = useState<string | null>(null)
 
-  const fetchNotifications = useCallback(async () => {
+  const  fetchNotifications = useCallback(async () => {
     if (!publicKey) return
     try {
       setLoading(true)

@@ -3,6 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthService, JwtPayload, RequestUser } from '../auth.service';
+import { APP_CONFIG, AppConfigType } from '../../../config';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -13,7 +14,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET', 'quiz-app-jwt-secret-change-in-production'),
+      secretOrKey: configService.get<AppConfigType>(APP_CONFIG.KEY)?.jwtSecret || 'quiz-app-jwt-secret-change-in-production',
     });
   }
 
