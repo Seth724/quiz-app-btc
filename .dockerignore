@@ -1,0 +1,57 @@
+# Dependencies (will be installed inside container)
+node_modules
+**/node_modules
+
+# Build outputs
+.next
+**/.next
+**/dist
+**/.turbo
+.turbo
+
+# Git
+.git
+.github
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs
+
+# Root environment files (handled via docker-compose env_file)
+# Note: apps/web/.env is NOT excluded — Next.js needs it at build time
+/.env
+/.env.local
+/.env.production
+/.env.development
+/.env.api
+/.env.web
+/.env.bcn
+/.env.bcn.template
+
+# Documentation
+*.md
+!README.md
+LICENSE
+
+# Test files
+test-results.json
+coverage
+**/.mocharc.json
+
+# Generated Prisma client (will be regenerated)
+apps/api/generated
+
+# Docker files
+docker-compose*.yml
+Dockerfile

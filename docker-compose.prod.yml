@@ -1,0 +1,205 @@
+# Production Docker Compose for QuizApp with Bitcoin Computer
+#
+# DEPLOYMENT (on GCP VPS):
+#   1. Clone repo:  git clone <repo-url> /opt/quizapp && cd /opt/quizapp
+#   2. Copy env:    cp .env.bcn.template .env.bcn  (edit if needed)
+#   3. Ensure .env.api and .env.web are present
+#   4. Build:       docker compose -f docker-compose.prod.yml build
+#   5. Start:       docker compose -f docker-compose.prod.yml up -d
+#   6. Deploy contracts: (after BCN is healthy)
+#   7. Update .env.web and .env.api with contract mod specs, then restart
+
+services:
+  # ───────────────────────────────────────
+  # Bitcoin Computer Local Node Stack
+  # ───────────────────────────────────────
+
+  bcn-db:
+    image: postgres:15
+    container_name: quiz-bcn-db
+    restart: always
+    environment:
+      POSTGRES_USER: bcn
+      POSTGRES_PASSWORD: bcn
+      POSTGRES_DB: bcn
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U bcn']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - '5432:5432'
+    networks:
+      - bcn-network
+    volumes:
+      - bcn-db-data:/var/lib/postgresql/data
+
+  bcn-node:
+    image: bcdb/litecoind-regtest:0.21.2.2
+    container_name: quiz-bitcoin-node
+    restart: always
+    ports:
+      - '19332:19332'
+      - '19444:19444'
+      - '28332:28332'
+    volumes:
+      - bcn-blockchain-data:/home/litecoin/.litecoin
+      - ./bcn-setup/litecoin.conf:/home/litecoin/.litecoin/litecoin.conf:ro
+    networks:
+      - bcn-network
+
+  bcn:
+    image: bcdb/bcn:latest
+    container_name: quiz-bcn
+    env_file: .env.bcn
+    restart: always
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:1031/ || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    command: npm run start:bcn
+    working_dir: /dist/packages/node
+    ports:
+      - '1031:1031'
+    environment:
+      - BCN_CHAIN=LTC
+      - BCN_NETWORK=regtest
+      - BCN_ENV=dev
+      - BCN_URL=http://bcn:1031
+      - BCN_ZMQ_URL=tcp://bcn-node:28332
+      - BITCOIN_RPC_HOST=bcn-node
+      - BITCOIN_RPC_PORT=19332
+      - BITCOIN_RPC_PROTOCOL=http
+      - BITCOIN_RPC_USER=bcn-admin
+      - BITCOIN_RPC_PASSWORD=kH4nU5Okm6-uyC0_mA5ztVNacJqZbYd_KGLl6mx722A=
+      - POSTGRES_PORT=5432
+      - POSTGRES_HOST=bcn-db
+      - POSTGRES_USER=bcn
+      - POSTGRES_PASSWORD=bcn
+      - POSTGRES_DB=bcn
+    depends_on:
+      bcn-db:
+        condition: service_healthy
+      bcn-node:
+        condition: service_started
+    networks:
+      - bcn-network
+    volumes:
+      - bcn-logs:/dist/packages/node/logs
+
+  bcn-sync:
+    image: bcdb/bcn:latest
+    container_name: quiz-bcn-sync
+    env_file: .env.bcn
+    restart: always
+    command: npm run start:sync
+    working_dir: /dist/packages/node
+    environment:
+      - BCN_CHAIN=LTC
+      - BCN_NETWORK=regtest
+      - BCN_ENV=dev
+      - BCN_URL=http://bcn:1031
+      - BCN_ZMQ_URL=tcp://bcn-node:28332
+      - BCN_WORKER_ID=1
+      - BCN_NUM_WORKERS=1
+      - BITCOIN_RPC_HOST=bcn-node
+      - BITCOIN_RPC_PORT=19332
+      - BITCOIN_RPC_PROTOCOL=http
+      - BITCOIN_RPC_USER=bcn-admin
+      - BITCOIN_RPC_PASSWORD=kH4nU5Okm6-uyC0_mA5ztVNacJqZbYd_KGLl6mx722A=
+      - POSTGRES_PORT=5432
+      - POSTGRES_HOST=bcn-db
+      - POSTGRES_USER=bcn
+      - POSTGRES_PASSWORD=bcn
+      - POSTGRES_DB=bcn
+    depends_on:
+      bcn-db:
+        condition: service_healthy
+      bcn:
+        condition: service_healthy
+    networks:
+      - bcn-network
+    volumes:
+      - bcn-logs:/dist/packages/node/logs
+
+  # ───────────────────────────────────────
+  # QuizApp API (NestJS + Prisma + MongoDB)
+  # ───────────────────────────────────────
+
+  quiz-api:
+    container_name: quiz-api
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: always
+    env_file: .env.api
+    ports:
+      - '3002:3002'
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - BLOCKCHAIN_URL=http://bcn:1031
+      - BLOCKCHAIN_CHAIN=LTC
+      - BLOCKCHAIN_NETWORK=regtest
+    depends_on:
+      bcn:
+        condition: service_healthy
+    networks:
+      - bcn-network
+      - quiz-network
+    volumes:
+      - api-logs:/app/logs
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:3002/api/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ───────────────────────────────────────
+  # QuizApp Web (Next.js Standalone)
+  # ───────────────────────────────────────
+
+  quiz-web:
+    container_name: quiz-web
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3002/api}
+        NEXT_PUBLIC_CHAIN: ${NEXT_PUBLIC_CHAIN:-LTC}
+        NEXT_PUBLIC_NETWORK: ${NEXT_PUBLIC_NETWORK:-regtest}
+        NEXT_PUBLIC_URL: ${NEXT_PUBLIC_URL:-http://localhost:1031}
+        NEXT_PUBLIC_TEACHER_MOD_SPEC: ${NEXT_PUBLIC_TEACHER_MOD_SPEC:-}
+        NEXT_PUBLIC_STUDENT_MOD_SPEC: ${NEXT_PUBLIC_STUDENT_MOD_SPEC:-}
+        NEXT_PUBLIC_QUIZ_MOD_SPEC: ${NEXT_PUBLIC_QUIZ_MOD_SPEC:-}
+        NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC: ${NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC:-}
+        NEXT_PUBLIC_PAYMENT_MOD_SPEC: ${NEXT_PUBLIC_PAYMENT_MOD_SPEC:-}
+        NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC: ${NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC:-}
+        NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC: ${NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC:-}
+    restart: always
+    env_file: .env.web
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      quiz-api:
+        condition: service_healthy
+    networks:
+      - bcn-network
+      - quiz-network
+
+networks:
+  bcn-network:
+    driver: bridge
+  quiz-network:
+    driver: bridge
+
+volumes:
+  bcn-db-data:
+  bcn-blockchain-data:
+  bcn-logs:
+  api-logs:
