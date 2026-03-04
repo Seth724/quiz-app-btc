@@ -74,13 +74,18 @@ const BalanceDisplay = ({
   </div>
 )
 
+interface PaymentWrapper {
+  _rev: string
+  [key: string]: unknown
+}
+
 const Withdraw = ({
   computer,
   paymentsWrapper: payments,
   onSuccess,
 }: {
   computer: Computer
-  paymentsWrapper: any[]
+  paymentsWrapper: PaymentWrapper[]
   onSuccess?: () => Promise<void>
 }) => {
   const { showSnackBar } = UtilsContext.useUtilsComponents()

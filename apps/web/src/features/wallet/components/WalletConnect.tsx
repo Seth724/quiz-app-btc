@@ -12,6 +12,7 @@ import { createComputerFromStorage } from '@/services'
 import { authService } from '@/services/backend'
 import type { Chain, Network } from '@/types'
 import { useSessionStore } from '@/stores'
+import { CHAIN, NETWORK, BASE_URL } from '@/config/env'
 
 interface WalletConnectProps {
   onConnect?: () => void
@@ -23,9 +24,9 @@ export function WalletConnect({ onConnect, redirectTo }: WalletConnectProps) {
   const {setUser} = useSessionStore()
   const { connect: storeConnect, updateConfig } = useWalletStore()
   const [mnemonic, setMnemonic] = useState('')
-  const [chain, setChain] = useState<Chain>('LTC')
-  const [network, setNetwork] = useState<Network>('regtest')
-  const [url, setUrl] = useState('http://localhost:1031')
+  const [chain, setChain] = useState<Chain>(CHAIN)
+  const [network, setNetwork] = useState<Network>(NETWORK)
+  const [url, setUrl] = useState(BASE_URL)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,12 +47,18 @@ export function WalletConnect({ onConnect, redirectTo }: WalletConnectProps) {
 
       // Get wallet info
       const computer = createComputerFromStorage()
+      if (!computer) {
+        throw new Error('Failed to create wallet computer. Check your configuration.')
+      }
       const info = await getWalletInfo(computer)
 
       // Update wallet store
       storeConnect({
         publicKey: info.publicKey,
         address: info.address,
+        chain,
+        network,
+        url,
       })
 
       // Only set userName if user is already authenticated (has JWT token)

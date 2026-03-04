@@ -6,7 +6,7 @@ import { jsonMap, strip, toObject } from './common/utils'
 import { useUtilsComponents } from './UtilsContext'
 import { ComputerContext } from './ComputerContext'
 
-export type Class = new (...args: any) => any
+export type Class = new (...args: unknown[]) => unknown
 
 export type UserQuery<T extends Class> = Partial<{
   mod: string
@@ -21,7 +21,11 @@ export type UserQuery<T extends Class> = Partial<{
   }
 }>
 
-function HomePageCard({ content }: any) {
+interface HomePageCardProps {
+  content: () => React.ReactNode
+}
+
+function HomePageCard({ content }: HomePageCardProps) {
   return (
     <div className="block w-72 p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700">
       <pre className="font-normal overflow-auto text-gray-700 dark:text-gray-400 text-xs">
@@ -39,8 +43,8 @@ function ValueComponent({ rev, computer }: { rev: string; computer: Computer }) 
   useEffect(() => {
     const fetch = async () => {
       try {
-        const synced: any = await computer.sync(rev)
-        setValue(toObject(jsonMap(strip)(synced)))
+        const synced = await computer.sync(rev)
+        setValue(toObject(jsonMap(strip)(synced as any)))
       } catch (err) {
         if (err instanceof Error) setMsgError(`Error: ${err.message}`)
       }
@@ -79,7 +83,7 @@ function ValueComponent({ rev, computer }: { rev: string; computer: Computer }) 
   )
 }
 
-function FromRevs({ revs, computer }: { revs: string[]; computer: any }) {
+function FromRevs({ revs, computer }: { revs: string[]; computer: Computer }) {
   return (
     <div className="flex flex-wrap flex-col max-h-[75vh] gap-4 mb-4 mt-4">
       {revs.map((rev) => (
@@ -96,7 +100,14 @@ function FromRevs({ revs, computer }: { revs: string[]; computer: any }) {
   )
 }
 
-function Pagination({ isPrevAvailable, handlePrev, isNextAvailable, handleNext }: any) {
+interface PaginationProps {
+  isPrevAvailable: boolean
+  handlePrev: () => void
+  isNextAvailable: boolean
+  handleNext: () => void
+}
+
+function Pagination({ isPrevAvailable, handlePrev, isNextAvailable, handleNext }: PaginationProps) {
   return (
     <nav className="flex items-center justify-between" aria-label="Table navigation">
       <ul className="inline-flex items-center -space-x-px">
@@ -200,7 +211,6 @@ export function GalleryWithPagination<T extends Class>(q: UserQuery<T>) {
       <FromRevs revs={revs} computer={computer} />
       {!(pageNum === 0 && revs && revs.length === 0) && (
         <Pagination
-          revs={revs}
           isPrevAvailable={isPrevAvailable}
           handlePrev={handlePrev}
           isNextAvailable={isNextAvailable}

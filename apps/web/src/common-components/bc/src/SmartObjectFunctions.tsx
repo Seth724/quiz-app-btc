@@ -1,5 +1,24 @@
 import { SmartObjectFunction } from './SmartObjectFunction'
 
+interface FunctionResult {
+  _rev?: string
+  res?: {
+    toString: () => string
+  }
+}
+
+interface SmartObjectFunctionsProps {
+  smartObject: {
+    _id: string
+    _rev: string
+  }
+  functionsExist: boolean
+  options: string[]
+  setFunctionResult: React.Dispatch<React.SetStateAction<FunctionResult | string>>
+  setShow: React.Dispatch<React.SetStateAction<boolean>>
+  setModalTitle: React.Dispatch<React.SetStateAction<string>>
+}
+
 export const SmartObjectFunctions = ({
   smartObject,
   functionsExist,
@@ -7,14 +26,7 @@ export const SmartObjectFunctions = ({
   setFunctionResult,
   setShow,
   setModalTitle,
-}: {
-  smartObject: any
-  functionsExist: boolean
-  options: string[]
-  setFunctionResult: React.Dispatch<any>
-  setShow: any
-  setModalTitle: React.Dispatch<React.SetStateAction<string>>
-}) => {
+}: SmartObjectFunctionsProps) => {
   if (!functionsExist) return <></>
   return (
     <>

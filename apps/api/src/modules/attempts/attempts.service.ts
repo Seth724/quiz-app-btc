@@ -1,16 +1,12 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAttemptDto } from './dto/create-attempt.dto';
-import { AutoRewardService } from './auto-reward.service';
 
 @Injectable()
 export class AttemptsService {
   private readonly logger = new Logger(AttemptsService.name);
 
-  constructor(
-    private prisma: PrismaService,
-    private autoRewardService: AutoRewardService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   async findAll(studentPubKey?: string) {
     const where = studentPubKey ? { studentPubKey } : {};
@@ -119,24 +115,10 @@ export class AttemptsService {
       BigInt(createAttemptDto.rewardEarned),
     );
 
-    // Auto-process reward if answer is correct
-    if (createAttemptDto.isCorrect) {
-      // Fire-and-forget: don't block the API response
-      this.autoRewardService
-        .processReward(createAttemptDto.quizId, createAttemptDto.studentPubKey)
-        .then(result => {
-          if (result.status === 'success') {
-            this.logger.log(`Auto-reward processed for quiz ${createAttemptDto.quizId}`);
-          } else if (result.status === 'already_claimed') {
-            this.logger.log(`Quiz ${createAttemptDto.quizId} already claimed`);
-          } else {
-            this.logger.warn(`Auto-reward issue for quiz ${createAttemptDto.quizId}: ${result.error}`);
-          }
-        })
-        .catch(err => {
-          this.logger.error(`Auto-reward failed for quiz ${createAttemptDto.quizId}:`, err);
-        });
-    }
+    // NOTE: Reward processing (addAttemptedStudent, claimReward, transferPayment)
+    // is now handled client-side in the web app via BrowserQuizClient.autoProcessReward().
+    // The frontend calls POST /attempts/auto-reward-data to get the teacher mnemonic,
+    // performs the blockchain operations, then updates the quiz via PATCH /quizzes/:id.
 
     return attempt;
   }

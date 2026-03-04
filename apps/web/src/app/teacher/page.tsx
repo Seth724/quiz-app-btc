@@ -87,13 +87,13 @@ export default function TeacherPage() {
     setTotalAttempts(total)
   }, [quizzes])
 
-  // NOTE: Reward processing is now automatic (server-side via AutoRewardService).
-  // When a student answers correctly, the API processes the reward using the
+  // NOTE: Reward processing is now automatic (client-side via BrowserQuizClient.autoProcessReward()).
+  // When a student answers correctly, the frontend processes the reward using the
   // teacher's stored mnemonic. Teachers only need to withdraw entry-fee payments.
 
   // Fetch withdrawable entry fee payments (exclude reward payments)
   useEffect(() => {
-    if (!publicKey) return
+    if (!publicKey || !quizClient) return
     const fetchPayments = async () => {
       try {
         const payments = await quizClient.getOwnedPayments(publicKey, { excludeRewardPayments: true })
@@ -108,6 +108,7 @@ export default function TeacherPage() {
   }, [publicKey, quizClient])
 
   const handleWithdrawAll = async () => {
+    if (!quizClient) return
     setWithdrawing(true)
     setWithdrawResult(null)
     try {

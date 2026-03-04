@@ -5,15 +5,16 @@
 
 import { Computer } from '@bitcoin-computer/lib'
 import type { QuizData } from '@/types'
-import { MODULE_SPECS, hasModuleSpecs } from '@/config/env'
+import { MODULE_SPECS, hasModuleSpecs, BLOCKCHAIN_CONFIG } from '@/config/env'
 import { PaymentHelper, QuizHelper, TeacherHelper } from '@quiz-app/contracts'
 import { withComputerLock } from './txUtils'
 import { MineBlocks } from '../utils/mineblock'
 import { BrowserAttemptClient } from './BrowserAttemptClient'
+import { CHAIN, NETWORK, BASE_URL } from '@/config/env'
 
-const url = 'http://localhost:1031'
-const chain = process.env.NEXT_PUBLIC_BCN_CHAIN || 'LTC'
-const network = process.env.NEXT_PUBLIC_BCN_NETWORK || 'regtest'
+const url = BASE_URL
+const chain = CHAIN
+const network = NETWORK
 
 /** Safely extract an error message from an unknown catch value */
 function errMsg(err: unknown): string {
@@ -67,6 +68,96 @@ export class BrowserQuizClient {
     this.paymentHelper = new PaymentHelper(computer, MODULE_SPECS.paymentMod)
     this.quizHelper = new QuizHelper(computer, MODULE_SPECS.quizMod)
     this.teacherHelper = new TeacherHelper(computer, MODULE_SPECS.teacherMod, MODULE_SPECS.paymentMod)
+  }
+
+  // ─────────────────────────────────────────────
+  // AUTO-REWARD: Server-stored mnemonic flow
+  // ─────────────────────────────────────────────
+
+  /**
+   * Auto-process reward: Create a Computer from teacher's mnemonic and
+   * process the reward on-chain. Used when teacher has stored their mnemonic
+   * for auto-reward. Blockchain operations handled client-side for clean architecture.
+   *
+   * Steps:
+   *   1. Add student to quiz's attempted list (QuizHelper)
+   *   2. Claim the reward for the winner (QuizHelper)
+   *   3. Transfer the payment object to the winner (PaymentHelper)
+   */
+  static async autoProcessReward(params: {
+    mnemonic: string
+    quizId: string
+    winnerPublicKey: string
+    paymentTxId: string
+  }): Promise<{ status: string; error?: string }> {
+    if (!hasModuleSpecs()) {
+      throw new Error('Module specs not deployed. Please run deployment script first.')
+    }
+
+    const computer = new Computer({
+      mnemonic: params.mnemonic,
+      chain: BLOCKCHAIN_CONFIG.chain,
+      network: BLOCKCHAIN_CONFIG.network,
+      url: BLOCKCHAIN_CONFIG.url,
+    })
+
+    // On regtest, ensure the teacher's wallet has enough balance
+    if (BLOCKCHAIN_CONFIG.network === 'regtest') {
+      try {
+        const balance = await computer.getBalance()
+        const bal = typeof balance === 'object' && balance !== null
+          ? (balance as { balance?: bigint }).balance ?? BigInt(0)
+          : BigInt(balance as number)
+        if (bal < BigInt(100000)) {
+          console.log('💰 [AutoReward] Teacher wallet low on regtest, funding via faucet...')
+          await computer.faucet(1e8)
+          await MineBlocks.mine(
+            BLOCKCHAIN_CONFIG.url,
+            BLOCKCHAIN_CONFIG.chain,
+            BLOCKCHAIN_CONFIG.network,
+            1
+          )
+        }
+      } catch (fundErr) {
+        console.warn('⚠️ [AutoReward] Failed to check/fund teacher wallet:', fundErr)
+      }
+    }
+
+    const quizHelper = new QuizHelper(computer, MODULE_SPECS.quizMod)
+    const paymentHelper = new PaymentHelper(computer, MODULE_SPECS.paymentMod)
+
+    console.log('🏆 [AutoReward] Processing reward for quiz:', params.quizId,
+      'winner:', params.winnerPublicKey.substring(0, 8) + '...')
+
+    // Step 1: Add student to attempted list
+    try {
+      await quizHelper.addAttemptedStudent(params.quizId, params.winnerPublicKey)
+      console.log('✅ [AutoReward] Added student to attempted list')
+    } catch (err) {
+      // May fail if already added — that's OK
+      console.warn('[AutoReward] addAttemptedStudent warning (may be duplicate):', errMsg(err))
+    }
+
+    // Step 2: Claim reward for the winner
+    try {
+      await quizHelper.claimReward(params.quizId, params.winnerPublicKey)
+      console.log('✅ [AutoReward] Reward claimed for:', params.winnerPublicKey.substring(0, 8) + '...')
+    } catch (err) {
+      console.error('❌ [AutoReward] claimReward failed:', errMsg(err))
+      return { status: 'error', error: `claimReward failed: ${errMsg(err)}` }
+    }
+
+    // Step 3: Transfer payment to winner
+    try {
+      await paymentHelper.transferPaymentById(params.paymentTxId, params.winnerPublicKey)
+      console.log('✅ [AutoReward] Payment transferred to:', params.winnerPublicKey.substring(0, 8) + '...')
+    } catch (err) {
+      console.error('❌ [AutoReward] Payment transfer failed:', errMsg(err))
+      return { status: 'error', error: `Payment transfer failed: ${errMsg(err)}` }
+    }
+
+    console.log('✅ [AutoReward] Reward fully processed for quiz:', params.quizId)
+    return { status: 'success' }
   }
 
   async createQuiz(quizData: QuizData): Promise<QuizDTO> {
@@ -158,7 +249,7 @@ export class BrowserQuizClient {
 
   /**
    * LEGACY/FALLBACK: Process rewards for a quiz (teacher-side).
-   * Normally rewards are auto-processed server-side by AutoRewardService.
+   * Normally rewards are auto-processed client-side via autoProcessReward().
    * This method is kept as a manual fallback if auto-reward fails.
    */
   async processQuizRewards(quizId: string): Promise<string | null> {
@@ -232,7 +323,7 @@ export class BrowserQuizClient {
 
   /**
    * LEGACY/FALLBACK: Process rewards for ALL teacher's quizzes.
-   * Normally rewards are auto-processed server-side by AutoRewardService.
+   * Normally rewards are auto-processed client-side via autoProcessReward().
    */
   async processAllQuizRewards(teacherPublicKey: string): Promise<void> {
     try {

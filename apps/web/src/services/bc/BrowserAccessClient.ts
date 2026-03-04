@@ -6,7 +6,7 @@
  */
 
 import { Computer, Transaction } from '@bitcoin-computer/lib'
-import { MODULE_SPECS, hasModuleSpecs } from '@/config/env'
+import { MODULE_SPECS, hasModuleSpecs, BLOCKCHAIN_CONFIG } from '@/config/env'
 import {
   QuizAccessHelper,
   QuizAccessSaleHelper,
@@ -15,6 +15,7 @@ import {
   Payment,
 } from '@quiz-app/contracts'
 import { withComputerLock } from './txUtils'
+import { MineBlocks } from '../utils/mineblock'
 
 /** Shape of a synced QuizAccess token */
 interface SyncedAccess {
@@ -74,6 +75,77 @@ export class BrowserAccessClient {
     this.accessHelper = new QuizAccessHelper(computer, MODULE_SPECS.quizAccessMod)
     this.saleHelper = new QuizAccessSaleHelper(computer, MODULE_SPECS.quizAccessSaleMod)
     this.paymentHelper = new PaymentHelper(computer, MODULE_SPECS.paymentMod)
+  }
+
+  // ─────────────────────────────────────────────
+  // AUTO-APPROVE: Server-stored mnemonic flow
+  // ─────────────────────────────────────────────
+
+  /**
+   * Auto-approve: Create a Computer from teacher's mnemonic and mint + create offer.
+   * Used when teacher has stored their mnemonic for auto-approve.
+   * Blockchain operations handled client-side for clean architecture.
+   */
+  static async autoMintAndCreateOffer(params: {
+    mnemonic: string
+    quizId: string
+    entryFee: bigint
+  }): Promise<MintOfferResult> {
+    if (!hasModuleSpecs()) {
+      throw new Error('Module specs not deployed. Please run deployment script first.')
+    }
+
+    const computer = new Computer({
+      mnemonic: params.mnemonic,
+      chain: BLOCKCHAIN_CONFIG.chain,
+      network: BLOCKCHAIN_CONFIG.network,
+      url: BLOCKCHAIN_CONFIG.url,
+    })
+
+    // On regtest, ensure the teacher's wallet has enough balance to mint
+    if (BLOCKCHAIN_CONFIG.network === 'regtest') {
+      try {
+        const balance = await computer.getBalance()
+        const bal = typeof balance === 'object' && balance !== null
+          ? (balance as { balance?: bigint }).balance ?? BigInt(0)
+          : BigInt(balance as number)
+        if (bal < BigInt(100000)) {
+          console.log('💰 [AutoApprove] Teacher wallet low on regtest, funding via faucet...')
+          await computer.faucet(1e8)
+          // Mine a block to confirm the faucet tx
+          await MineBlocks.mine(
+            BLOCKCHAIN_CONFIG.url,
+            BLOCKCHAIN_CONFIG.chain,
+            BLOCKCHAIN_CONFIG.network,
+            1
+          )
+        }
+      } catch (fundErr) {
+        console.warn('⚠️ [AutoApprove] Failed to check/fund teacher wallet:', fundErr)
+      }
+    }
+
+    const accessHelper = new QuizAccessHelper(computer, MODULE_SPECS.quizAccessMod)
+    const saleHelper = new QuizAccessSaleHelper(computer, MODULE_SPECS.quizAccessSaleMod)
+
+    console.log('🏭 [AutoApprove] Minting QuizAccess token for quiz:', params.quizId)
+
+    // Step 1: Mint a 1-unit QuizAccess token
+    const accessToken = await accessHelper.createQuizAccess(params.quizId, BigInt(1))
+    console.log('✅ [AutoApprove] QuizAccess minted:', accessToken._id)
+
+    // Step 2: Create a partially-signed offer tx
+    const mock = new PaymentMock(params.entryFee)
+    const offerEncoded = await saleHelper.createOfferTx(accessToken, mock)
+    const offerTxHex = offerEncoded.tx.toHex()
+
+    console.log('✅ [AutoApprove] Offer tx created, hex length:', offerTxHex.length)
+
+    return {
+      accessTokenId: accessToken._id,
+      accessTokenRev: accessToken._rev,
+      offerTxHex,
+    }
   }
 
   // ─────────────────────────────────────────────

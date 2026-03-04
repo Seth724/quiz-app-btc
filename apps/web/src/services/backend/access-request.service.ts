@@ -19,6 +19,14 @@ export interface AccessRequestData {
   updatedAt: string;
 }
 
+export interface AutoApproveData {
+  status: string;
+  mnemonic?: string;
+  quizId?: string;
+  entryFee?: string;
+  error?: string;
+}
+
 export const accessRequestService = {
   /** List access requests with optional filters */
   async list(filters?: {
@@ -63,5 +71,10 @@ export const accessRequestService = {
     },
   ): Promise<AccessRequestData> {
     return api.patch<AccessRequestData>(`/access-requests/${id}`, data);
+  },
+
+  /** Get auto-approve data (teacher mnemonic + request info) for frontend blockchain processing */
+  async getAutoApproveData(id: string): Promise<AutoApproveData> {
+    return api.post<AutoApproveData>(`/access-requests/${id}/auto-approve`);
   },
 };

@@ -102,6 +102,10 @@ export default function StudentPage() {
       }
 
       try {
+        if (!attemptClient) {
+          console.warn('Attempt client not connected')
+          return
+        }
         const { getStudentAttempts } = await import('@/features/attempts')
         const attempts = await getStudentAttempts(attemptClient, publicKey)
         const completed = attempts.filter(a => a.selectedAnswer !== undefined && a.selectedAnswer >= 0)
@@ -124,7 +128,7 @@ export default function StudentPage() {
 
   // Fetch withdrawable payment objects (refresh on focus and periodically)
   useEffect(() => {
-    if (!publicKey) return
+    if (!publicKey || !quizClient) return
     const fetchPayments = async () => {
       try {
         const payments = await quizClient.getOwnedPayments(publicKey)

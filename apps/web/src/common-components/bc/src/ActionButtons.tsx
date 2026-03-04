@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 // Props interface for the button components
 interface ActionButtonProps {
   text: string
-  onClick: (...args: any[]) => Promise<void> | void
+  onClick: (...args: unknown[]) => Promise<void> | void
   disabled?: boolean
   className?: string
 }
@@ -38,7 +38,7 @@ export const PrimaryActionButton = ({
 }: ActionButtonProps) => {
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleClick = async (...args: any[]) => {
+  const handleClick = async (...args: unknown[]) => {
     if (isLoading || disabled) return
     setIsLoading(true)
     try {
@@ -70,7 +70,7 @@ export const SecondaryActionButton = ({
 }: ActionButtonProps) => {
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleClick = async (...args: any[]) => {
+  const handleClick = async (...args: unknown[]) => {
     if (isLoading || disabled) return
     setIsLoading(true)
     try {

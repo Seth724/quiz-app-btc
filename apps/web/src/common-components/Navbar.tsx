@@ -4,6 +4,7 @@ import { Modal, Auth, useUtilsComponents, Drawer } from "./index";
 import { useEffect, useState } from "react";
 import { initFlowbite } from "flowbite";
 import { Chain, Network } from "../types/common";
+import { CHAIN, NETWORK } from "@/config/env";
 
 const modalTitle = "Connect to Node";
 const modalId = "unsupported-config-modal";
@@ -95,18 +96,17 @@ function SignInItem() {
 }
 
 export function NotLoggedMenu() {
-  const [dropDownLabel, setDropDownLabel] = useState<string>("LTC");
+  const [dropDownLabel, setDropDownLabel] = useState<string>(formatChainAndNetwork(CHAIN, NETWORK) || `r${CHAIN}`);
   const { showSnackBar } = useUtilsComponents();
 
   useEffect(() => {
     initFlowbite();
 
     const { chain, network } = Auth.defaultConfiguration();
-    // default to LTC regtest
     setDropDownLabel(
       formatChainAndNetwork(chain, network)
         ? formatChainAndNetwork(chain, network)
-        : formatChainAndNetwork("LTC", "regtest")
+        : formatChainAndNetwork(CHAIN, NETWORK)
     );
   }, []);
 
@@ -114,11 +114,11 @@ export function NotLoggedMenu() {
     try {
       localStorage.setItem("CHAIN", chain);
       localStorage.setItem("NETWORK", network);
-      // default to LTC regtest
+      // Use env defaults as fallback
       setDropDownLabel(
         formatChainAndNetwork(chain, network)
           ? formatChainAndNetwork(chain, network)
-          : formatChainAndNetwork("LTC", "regtest")
+          : formatChainAndNetwork(CHAIN, NETWORK)
       );
       // eslint-disable-next-line react-hooks/immutability
       window.location.href = "/";

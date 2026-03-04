@@ -5,13 +5,17 @@
  *
  * Flow:
  * 1. Student requests access → stored in DB via NestJS API
- * 2. Teacher approves → mints QuizAccess + creates offer tx → stored in DB
+ * 2. Auto-approve if teacher has stored mnemonic:
+ *    a. Frontend gets teacher mnemonic from API
+ *    b. Frontend mints QuizAccess + creates offer tx (BrowserAccessClient)
+ *    c. Frontend updates DB with offer details
  * 3. Student finalizes → deserializes offer tx, creates Payment, broadcasts atomic swap
  */
 
 'use client'
 
 import type { BrowserAccessClient } from '@/services/bc/BrowserAccessClient'
+import { BrowserAccessClient as BrowserAccessClientClass } from '@/services/bc/BrowserAccessClient'
 import { accessRequestService, type AccessRequestData } from '@/services/backend'
 
 export type { AccessRequestData }
@@ -21,7 +25,9 @@ export type { AccessRequestData }
 // ─────────────────────────────────────────────
 
 /**
- * Student requests access to a quiz
+ * Student requests access to a quiz.
+ * If the teacher has a stored mnemonic, auto-approve is attempted:
+ * the frontend gets the mnemonic, performs blockchain ops, and updates the DB.
  */
 export async function requestAccess(params: {
   quizId: string
@@ -30,7 +36,38 @@ export async function requestAccess(params: {
   teacherPublicKey: string
   entryFee: string
 }): Promise<AccessRequestData> {
-  return accessRequestService.create(params)
+  const request = await accessRequestService.create(params)
+
+  // Try auto-approve if request is pending
+  if (request.status === 'pending') {
+    try {
+      const data = await accessRequestService.getAutoApproveData(request.id)
+      if (data.status === 'available' && data.mnemonic) {
+        console.log('🏭 [Access] Auto-approving request:', request.id)
+
+        // Perform blockchain operations client-side
+        const result = await BrowserAccessClientClass.autoMintAndCreateOffer({
+          mnemonic: data.mnemonic,
+          quizId: data.quizId || request.quizId,
+          entryFee: BigInt(data.entryFee || request.entryFee || '0'),
+        })
+
+        // Update the access request in DB with blockchain results
+        const updated = await accessRequestService.update(request.id, {
+          status: 'approved',
+          offerTxHex: result.offerTxHex,
+          accessTokenId: result.accessTokenId,
+        })
+
+        console.log('✅ [Access] Auto-approved request:', request.id)
+        return updated
+      }
+    } catch (err) {
+      console.warn('⚠️ [Access] Auto-approve failed, request remains pending:', err)
+    }
+  }
+
+  return request
 }
 
 /**

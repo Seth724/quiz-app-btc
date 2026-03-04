@@ -9,7 +9,7 @@ interface SnackBarProps {
 export function SnackBar(props: SnackBarProps) {
   const { message, success, hideSnackBar } = props
 
-  const closeMessage = (evt: any) => {
+  const closeMessage = (evt: React.MouseEvent) => {
     evt.preventDefault()
     hideSnackBar()
   }

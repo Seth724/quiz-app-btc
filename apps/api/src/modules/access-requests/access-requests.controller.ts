@@ -46,30 +46,17 @@ export class AccessRequestsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Post()
-  @ApiOperation({ summary: 'Create a new access request (auto-approves if teacher has stored mnemonic)' })
+  @ApiOperation({ summary: 'Create a new access request' })
   async create(@Body() dto: CreateAccessRequestDto) {
-    const request = await this.service.create(dto);
-
-    // Auto-approve if teacher has a stored mnemonic
-    if (request.status === 'pending') {
-      const hasKey = await this.autoAccessService.hasMnemonic(dto.teacherPublicKey);
-      if (hasKey) {
-        const result = await this.autoAccessService.autoApprove(request.id);
-        if (result.status === 'approved') {
-          return this.service.findOne(request.id);
-        }
-      }
-    }
-
-    return request;
+    return this.service.create(dto);
   }
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Post(':id/auto-approve')
-  @ApiOperation({ summary: 'Auto-approve an access request using stored teacher mnemonic' })
+  @ApiOperation({ summary: 'Get auto-approve data for frontend blockchain processing' })
   async autoApprove(@Param('id') id: string) {
-    return this.autoAccessService.autoApprove(id);
+    return this.autoAccessService.getAutoApproveData(id);
   }
 
   @UseGuards(JwtAuthGuard)

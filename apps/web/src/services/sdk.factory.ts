@@ -3,9 +3,18 @@
  */
 
 import { Computer } from '@bitcoin-computer/lib'
-import type { ComputerConfig, Chain, Network } from '@/types'
+import type { Chain, Network } from '@/types'
+import { CHAIN, NETWORK, BASE_URL } from '@/config/env'
 
 export interface SDKFactoryConfig {
+  chain: Chain
+  network: Network
+  url: string
+  mnemonic?: string
+  path?: string
+}
+
+export interface ComputerConfig {
   chain: Chain
   network: Network
   url: string
@@ -35,17 +44,27 @@ export function createComputerInstance(config: SDKFactoryConfig): Computer {
 }
 
 /**
- * Create Computer from localStorage (for bc components)
+ * Create Computer from localStorage (for bc components).
+ * Falls back to environment-configured defaults if localStorage values are missing.
+ * Returns null if no mnemonic is available (wallet not connected).
  */
-export function createComputerFromStorage(): Computer {
-  const mnemonic = typeof window !== 'undefined' ? localStorage.getItem('BIP_39_KEY') : null
-  const chain = typeof window !== 'undefined' ? (localStorage.getItem('CHAIN') as Chain) : 'LTC'
-  const network = typeof window !== 'undefined' ? (localStorage.getItem('NETWORK') as Network) : 'regtest'
-  const url = typeof window !== 'undefined' ? localStorage.getItem('URL') : 'http://localhost:1031'
-  const path = typeof window !== 'undefined' ? localStorage.getItem('PATH') : undefined
+export function createComputerFromStorage(): Computer | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
 
-  const config: ComputerConfig = { chain: chain as Chain, network: network as Network, url: url || 'http://localhost:1031' }
-  if (mnemonic) config.mnemonic = mnemonic
+  const mnemonic = localStorage.getItem('BIP_39_KEY')
+  if (!mnemonic) {
+    // No wallet connected yet — return null so callers can handle gracefully
+    return null
+  }
+
+  const chain = (localStorage.getItem('CHAIN') as Chain | null) || CHAIN
+  const network = (localStorage.getItem('NETWORK') as Network | null) || NETWORK
+  const url = localStorage.getItem('URL') || BASE_URL
+  const path = localStorage.getItem('PATH')
+
+  const config: ComputerConfig = { chain, network, url, mnemonic }
   if (path) config.path = path
 
   return new Computer(config)

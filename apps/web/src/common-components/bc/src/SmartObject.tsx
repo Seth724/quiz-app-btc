@@ -48,7 +48,11 @@ function ObjectValueCard({ content, id }: { content: string; id?: string }) {
   return <Card content={formattedContent} id={`property-${id}-value`} />
 }
 
-const SmartObjectValues = ({ smartObject }: any) => {
+interface SmartObjectValuesProps {
+  smartObject: Record<string, unknown>
+}
+
+const SmartObjectValues = ({ smartObject }: SmartObjectValuesProps) => {
   if (!smartObject) return <></>
   return (
     <>
@@ -64,7 +68,13 @@ const SmartObjectValues = ({ smartObject }: any) => {
   )
 }
 
-function MetaData({ smartObject, prev, next }: any) {
+interface MetaDataProps {
+  smartObject: Record<string, unknown>
+  prev?: string
+  next?: string
+}
+
+function MetaData({ smartObject, prev, next }: MetaDataProps) {
   const [isVisible, setIsVisible] = useState(false)
 
   const toggleVisibility = () => {
@@ -220,7 +230,7 @@ function Component({ title }: { title?: string }) {
 
   const [modalTitle, setModalTitle] = useState('')
 
-  const setShow: any = (flag: boolean) => {
+  const setShow = (flag: boolean) => {
     if (flag) {
       Modal.get(modalId).show()
     } else {

@@ -8,6 +8,23 @@ import { Transaction as BCTransaction } from '@bitcoin-computer/lib'
 import { Card } from './Card'
 import { ComputerContext } from './ComputerContext'
 
+interface VinInput {
+  txid: string
+  vout: number
+  scriptSig?: {
+    asm: string
+  }
+}
+
+interface VoutOutput {
+  n: number
+  value: string | number
+  scriptPubKey: {
+    type: string
+    asm: string
+  }
+}
+
 function ExpressionCard({ content, env }: { content: string; env: { [s: string]: string } }) {
   const entries = Object.entries(env)
   let formattedContent: React.ReactNode = content
@@ -131,7 +148,7 @@ export function TransactionComponent() {
           </tr>
         </thead>
         <tbody>
-          {rpcTxnData?.vin?.map((input: any, ind: any) => (
+          {rpcTxnData?.vin?.map((input: VinInput, ind: number) => (
             <tr
               key={`${input.txid}|${ind}`}
               className="bg-white border-b dark:bg-gray-800 dark:border-gray-700"
@@ -185,7 +202,7 @@ export function TransactionComponent() {
           </tr>
         </thead>
         <tbody>
-          {rpcTxnData?.vout?.map((output: any) => (
+          {rpcTxnData?.vout?.map((output: VoutOutput) => (
             <tr key={output.n} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
               <td className="px-6 py-4 break-all">
                 <Link

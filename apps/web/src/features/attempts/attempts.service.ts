@@ -3,11 +3,13 @@
  * NOTE: Each attempt is for ONE question. Answer is either correct or wrong.
  *
  * Strategy: Blockchain for writes, sync to DB, DB-first for reads.
+ * Auto-reward: If correct answer, frontend processes reward via BrowserQuizClient.autoProcessReward().
  */
 
 'use client'
 
 import type { BrowserAttemptClient } from '@/services/bc/BrowserAttemptClient'
+import { BrowserQuizClient } from '@/services/bc/BrowserQuizClient'
 import { attemptService, quizService } from '@/services/backend'
 
 export interface Attempt {
@@ -32,11 +34,15 @@ export interface SubmitAttemptParams {
  * Submit quiz attempt
  * 1. Submit on blockchain
  * 2. Sync to DB (also updates leaderboard automatically)
+ * 3. If correct, auto-process reward client-side via BrowserQuizClient.autoProcessReward()
  */
 export async function submitAttempt(
-  attemptClient: BrowserAttemptClient,
+  attemptClient: BrowserAttemptClient | null,
   params: SubmitAttemptParams
 ): Promise<Attempt> {
+  if (!attemptClient) {
+    throw new Error('Wallet not connected. Please connect your wallet first.')
+  }
   const attempt = await attemptClient.submitAttempt(
     params.quizId,
     params.selectedAnswer,
@@ -56,15 +62,43 @@ export async function submitAttempt(
     })
     console.log('✅ Attempt synced to database')
 
-    // If correct, also mark quiz as claimed in DB
+    // If correct, auto-process reward client-side
     if (attempt.isCorrect) {
       try {
+        const rewardData = await attemptService.getAutoRewardData(
+          params.quizId,
+          attempt.studentPublicKey || ''
+        )
+
+        if (rewardData.status === 'available' && rewardData.mnemonic && rewardData.paymentTxId) {
+          console.log('🏆 [AutoReward] Processing reward client-side...')
+          const result = await BrowserQuizClient.autoProcessReward({
+            mnemonic: rewardData.mnemonic,
+            quizId: params.quizId,
+            winnerPublicKey: attempt.studentPublicKey || '',
+            paymentTxId: rewardData.paymentTxId,
+          })
+
+          if (result.status === 'success') {
+            console.log('✅ [AutoReward] Reward processed successfully')
+          } else {
+            console.warn('⚠️ [AutoReward] Reward processing issue:', result.error)
+          }
+        } else if (rewardData.status === 'already_claimed') {
+          console.log('ℹ️ [AutoReward] Quiz already claimed')
+        } else {
+          console.warn('⚠️ [AutoReward] Cannot auto-process reward:', rewardData.error || rewardData.status)
+        }
+
+        // Mark quiz as claimed in DB
         await quizService.update(params.quizId, {
           isClaimed: true,
           claimedBy: attempt.studentPublicKey || '',
         })
         console.log('✅ Quiz marked as claimed in DB')
-      } catch { /* ignore */ }
+      } catch (rewardErr) {
+        console.warn('⚠️ Auto-reward failed:', rewardErr)
+      }
     }
   } catch (error) {
     console.warn('⚠️ DB attempt sync failed:', error)

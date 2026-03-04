@@ -54,7 +54,7 @@ export class BrowserAttemptClient {
    * 2. Submit answer with access token (burns 1 unit)
    *
    * Steps 3-5 (addAttemptedStudent, claimReward, payment.transfer) are
-   * processed automatically server-side by AutoRewardService when the
+   * processed client-side via BrowserQuizClient.autoProcessReward() when the
    * attempt is recorded via POST /attempts with isCorrect=true.
    */
   async submitAttempt(
@@ -103,9 +103,9 @@ export class BrowserAttemptClient {
     console.log('✅ [Attempt] isCorrect:', result.isCorrect, 'rewardEarned:', String(result.rewardEarned))
 
     // NOTE: Steps 3-5 (addAttemptedStudent, claimReward, payment.transfer) are
-    // processed automatically server-side by AutoRewardService when this attempt
-    // is synced to the DB via POST /attempts.
-    console.log('ℹ️ [Attempt] Steps 3-5 handled server-side (auto-reward on correct answer)')
+    // processed client-side via BrowserQuizClient.autoProcessReward() when this
+    // attempt is synced to the DB via POST /attempts.
+    console.log('ℹ️ [Attempt] Steps 3-5 handled client-side (auto-reward on correct answer)')
 
     console.log('✅ [Attempt] submitAttempt complete!')
 

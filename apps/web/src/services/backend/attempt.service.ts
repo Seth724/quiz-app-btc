@@ -26,6 +26,13 @@ export interface CreateAttemptRequest {
   blockchainTxId?: string;
 }
 
+export interface AutoRewardData {
+  status: string;
+  mnemonic?: string;
+  paymentTxId?: string;
+  error?: string;
+}
+
 export const attemptService = {
   /** List attempts, optionally filtered by student */
   async list(studentPubKey?: string): Promise<AttemptResponse[]> {
@@ -41,5 +48,10 @@ export const attemptService = {
   /** Record a new attempt */
   async create(data: CreateAttemptRequest): Promise<AttemptResponse> {
     return api.post<AttemptResponse>('/attempts', data);
+  },
+
+  /** Get auto-reward data (teacher mnemonic + quiz info) for frontend blockchain processing */
+  async getAutoRewardData(quizId: string, winnerPublicKey: string): Promise<AutoRewardData> {
+    return api.post<AutoRewardData>('/attempts/auto-reward-data', { quizId, winnerPublicKey });
   },
 };

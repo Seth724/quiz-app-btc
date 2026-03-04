@@ -4,14 +4,32 @@ import { isValidRev, sleep } from './common/utils'
 import { UtilsContext } from './UtilsContext'
 import { ComputerContext } from './ComputerContext'
 
-export const getErrorMessage = (error: any): string => {
-  if (
-    error?.response?.data?.error ===
-    'mandatory-script-verify-flag-failed (Operation not valid with the current stack size)'
-  )
-    return 'You are not authorized to make changes to this smart object'
-  if (error?.response?.data?.error) return error?.response?.data?.error
-  return error.message ? error.message : 'Error occurred'
+interface SmartObject {
+  _id: string
+  _rev: string
+}
+
+interface ErrorResponse {
+  response?: {
+    data?: {
+      error?: string
+    }
+  }
+  message?: string
+}
+
+export const getErrorMessage = (error: unknown): string => {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const err = error as ErrorResponse
+    if (
+      err.response?.data?.error ===
+      'mandatory-script-verify-flag-failed (Operation not valid with the current stack size)'
+    )
+      return 'You are not authorized to make changes to this smart object'
+    if (err.response?.data?.error) return err.response.data.error
+  }
+  if (error instanceof Error && error.message) return error.message
+  return 'Error occurred'
 }
 
 const getValueForType = (type: string, stringValue: string) => {
@@ -38,7 +56,11 @@ export const getParameterNames = (fn: string) => {
   return match ? match[0].replace(/[()]/gi, '').replace(/\s/gi, '').split(',') : []
 }
 
-const getParameters = (params: string[], fnName: string, formState: any) =>
+interface FormState {
+  [key: string]: string
+}
+
+const getParameters = (params: string[], fnName: string, formState: FormState) =>
   params.map((param) => {
     const key = `${fnName}-${param}`
     const paramValue = getValueForType(formState[`${key}--types`], formState[key])
@@ -47,6 +69,13 @@ const getParameters = (params: string[], fnName: string, formState: any) =>
     if (typeof paramValue === 'string') return `'${paramValue}'`
     return paramValue
   })
+
+interface FunctionResult {
+  _rev?: string
+  res?: {
+    toString: () => string
+  }
+}
 
 export const SmartObjectFunction = ({
   smartObject,
@@ -57,18 +86,18 @@ export const SmartObjectFunction = ({
   setModalTitle,
   funcName,
 }: {
-  smartObject: any
+  smartObject: SmartObject
   functionsExist: boolean
   options: string[]
-  setFunctionResult: React.Dispatch<any>
-  setShow: any
+  setFunctionResult: React.Dispatch<React.SetStateAction<FunctionResult | string>>
+  setShow: React.Dispatch<React.SetStateAction<boolean>>
   setModalTitle: React.Dispatch<React.SetStateAction<string>>
   funcName: string
 }) => {
   const parameterList = getParameterNames(Object.getPrototypeOf(smartObject)[funcName]).filter(
     (val) => val,
   )
-  const [formState, setFormState] = useState<any>(
+  const [formState, setFormState] = useState<FormState>(
     Object.fromEntries(
       parameterList.flatMap((key) => [
         [`${funcName}-${key}`, ''],
@@ -79,17 +108,22 @@ export const SmartObjectFunction = ({
   const { showLoader } = UtilsContext.useUtilsComponents()
   const computer = useContext(ComputerContext)
 
-  const handleMethodCall = async (event: any, smartObj: any, fnName: string, params: string[]) => {
+  const handleMethodCall = async (
+    event: React.FormEvent,
+    smartObj: SmartObject,
+    fnName: string,
+    params: string[],
+  ) => {
     event.preventDefault()
     showLoader(true)
     try {
-      const revMap: any = {}
+      const revMap: Record<string, string> = {}
 
       // Create Rev Map to pass smart objects as params
       params.forEach((param) => {
         const key = `${fnName}-${param}`
         const paramValue = getValueForType(formState[`${key}--types`], formState[key])
-        if (isValidRev(paramValue)) {
+        if (isValidRev(paramValue) && typeof paramValue === 'string') {
           revMap[param] = paramValue
         }
       })
@@ -105,8 +139,8 @@ export const SmartObjectFunction = ({
       setFunctionResult({ _rev: rev })
       setModalTitle('Success')
       setShow(true)
-    } catch (error: any) {
-      setFunctionResult(getErrorMessage(error))
+    } catch (error) {
+      setFunctionResult(getErrorMessage(error as Error))
       setModalTitle('Error!')
       setShow(true)
     } finally {
@@ -114,7 +148,7 @@ export const SmartObjectFunction = ({
     }
   }
 
-  const updateForm = (e: any, key: string) => {
+  const updateForm = (e: React.ChangeEvent<HTMLInputElement>, key: string) => {
     e.preventDefault()
     const value = { ...formState }
     value[key] = e.target.value

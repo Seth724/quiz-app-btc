@@ -15,6 +15,11 @@ export function useWalletInfo() {
   const [error, setError] = useState<string | null>(null)
 
   const refresh = async () => {
+    if (!computer) {
+      setWalletInfo(null)
+      setLoading(false)
+      return
+    }
     try {
       setLoading(true)
       setError(null)
@@ -30,7 +35,7 @@ export function useWalletInfo() {
   useEffect(() => {
     refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Remove computer from dependencies since it's memoized
+  }, [computer]) // Re-fetch when computer becomes available
 
   return {
     walletInfo,

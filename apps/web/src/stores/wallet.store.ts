@@ -6,71 +6,66 @@ import type { Chain, Network } from '@/types'
 import { STORAGE_KEYS } from '@/config'
 
 interface WalletState {
-  // Wallet data
   publicKey: string | null
   address: string | null
   path: string | null
-  
-  // Blockchain config
-  chain: Chain
-  network: Network
-  url: string
-  
-  // Module specs (cached from config or deployment)
-  moduleSpecs: {
-    teacherMod?: string
-    studentMod?: string
-    quizMod?: string
-    attemptMod?: string
-    paymentMod?: string
-    quizAccessMod?: string
-    quizAccessSaleMod?: string
-  }
-  
-  // Connection state
+  chain: Chain | null
+  network: Network | null
+  url: string | null
+  moduleSpecs: Record<string, string>
   isConnected: boolean
-  
-  // Actions
   connect: (data: {
     publicKey: string
     address: string
+    chain: Chain
+    network: Network
+    url: string
     path?: string
   }) => void
   disconnect: () => void
-  updateConfig: (config: { chain?: Chain; network?: Network; url?: string }) => void
-  setModuleSpecs: (specs: Partial<WalletState['moduleSpecs']>) => void
+  updateConfig: (config: Partial<{
+    chain: Chain
+    network: Network
+    url: string
+    path: string
+  }>) => void
+  setModuleSpecs: (specs: Record<string, string>) => void
 }
 
 export const useWalletStore = create<WalletState>()(
   persist(
     (set) => ({
-      // Initial state
+      // Initial state — no hardcoded values
       publicKey: null,
       address: null,
       path: null,
-      chain: 'LTC',
-      network: 'regtest',
-      url: 'http://localhost:1031',
+      chain: null,
+      network: null,
+      url: null,
       moduleSpecs: {},
       isConnected: false,
-      
+
       // Actions
       connect: (data) => {
         if (typeof window !== 'undefined') {
-          // Store wallet info in localStorage to sync with computer instance
           const mnemonic = localStorage.getItem('BIP_39_KEY')
           if (mnemonic) {
-            localStorage.setItem('CHAIN', 'LTC')
-            localStorage.setItem('NETWORK', 'regtest')
-            localStorage.setItem('URL', 'http://localhost:1031')
+            localStorage.setItem('CHAIN', data.chain)
+            localStorage.setItem('NETWORK', data.network)
+            localStorage.setItem('URL', data.url)
+            if (data.path) {
+              localStorage.setItem('PATH', data.path)
+            }
           }
         }
-        
         set({
           publicKey: data.publicKey,
           address: data.address,
-          path: data.path,
-          isConnected: true
+          chain: data.chain,
+          network: data.network,
+          url: data.url,
+          path: data.path || null,
+          isConnected: true,
         })
       },
 
@@ -82,27 +77,30 @@ export const useWalletStore = create<WalletState>()(
           localStorage.removeItem('URL')
           localStorage.removeItem('PATH')
         }
-        
         set({
           publicKey: null,
           address: null,
           path: null,
-          isConnected: false
+          chain: null,
+          network: null,
+          url: null,
+          isConnected: false,
         })
       },
-      
-      updateConfig: (config) => set((state) => ({
-        chain: config.chain ?? state.chain,
-        network: config.network ?? state.network,
-        url: config.url ?? state.url
-      })),
-      
-      setModuleSpecs: (specs) => set((state) => ({
-        moduleSpecs: { ...state.moduleSpecs, ...specs }
-      }))
+
+      updateConfig: (config) => {
+        set((state) => ({
+          ...state,
+          ...config,
+        }))
+      },
+
+      setModuleSpecs: (specs) => {
+        set({ moduleSpecs: specs })
+      },
     }),
     {
-      name: STORAGE_KEYS.WALLET
+      name: STORAGE_KEYS.WALLET,
     }
   )
 )

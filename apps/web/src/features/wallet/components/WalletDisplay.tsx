@@ -19,6 +19,7 @@ export function WalletDisplay() {
   const [funding, setFunding] = useState(false)
 
   const handleFund = async () => {
+    if (!computer) return
     try {
       setFunding(true)
       await fundWallet(computer)

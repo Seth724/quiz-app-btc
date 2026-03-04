@@ -1,10 +1,8 @@
 /**
  * App Configuration — Centralized environment-based configuration
  *
- * Usage:
- *   import { appConfig, APP_CONFIG } from './config';
- *   // or inject via ConfigModule:
- *   @Inject(APP_CONFIG.KEY) config: AppConfigType
+ * All values MUST come from environment variables.
+ * No hardcoded fallbacks — fail fast if not configured.
  */
 
 import { registerAs } from '@nestjs/config';
@@ -34,14 +32,24 @@ export interface AppConfigType {
   nodeEnv: string;
 }
 
-export const appConfig = registerAs(APP_CONFIG.KEY, (): AppConfigType => ({
-  port: parseInt(process.env.PORT || '3002', 10),
-  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  jwtSecret: process.env.JWT_SECRET || 'quiz-app-secret',
-  jwtExpiry: process.env.JWT_EXPIRY || '7d',
-  databaseUrl: process.env.DATABASE_URL || '',
-  bcNodeUrl: process.env.BC_NODE_URL || 'http://localhost:1031',
-  chain: process.env.CHAIN || 'LTC',
-  network: process.env.NETWORK || 'regtest',
-  nodeEnv: process.env.NODE_ENV || 'development',
-}));
+export const appConfig = registerAs(APP_CONFIG.KEY, (): AppConfigType => {
+  const required = (key: string): string => {
+    const value = process.env[key];
+    if (!value) {
+      throw new Error(`Missing required environment variable: ${key}`);
+    }
+    return value;
+  };
+
+  return {
+    port: parseInt(required('PORT'), 10),
+    corsOrigin: required('CORS_ORIGIN'),
+    jwtSecret: required('JWT_SECRET'),
+    jwtExpiry: process.env.JWT_EXPIRY || '7d',
+    databaseUrl: required('DATABASE_URL'),
+    bcNodeUrl: required('BLOCKCHAIN_URL'),
+    chain: required('BLOCKCHAIN_CHAIN'),
+    network: required('BLOCKCHAIN_NETWORK'),
+    nodeEnv: process.env.NODE_ENV || 'development',
+  };
+});

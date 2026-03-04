@@ -1,35 +1,24 @@
 /**
  * Auto-Access Service
  *
- * Creates access tokens server-side using stored teacher mnemonics.
- * This eliminates the need for teachers to be online to approve access requests.
+ * Provides data needed for auto-approval of access requests.
+ * The actual blockchain operations (minting QuizAccess tokens,
+ * creating offer transactions) are performed client-side in the
+ * web app (services/bc/BrowserAccessClient).
+ *
+ * This service handles only database operations:
+ *   - Checking if a teacher has a stored mnemonic
+ *   - Returning the mnemonic + request data for frontend processing
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class AutoAccessService {
   private readonly logger = new Logger(AutoAccessService.name);
 
-  constructor(
-    private prisma: PrismaService,
-    private configService: ConfigService,
-  ) {}
-
-  /**
-   * Store a teacher's mnemonic (base64 encoded) for auto-approve functionality.
-   */
-  async storeMnemonic(publicKey: string, mnemonic: string): Promise<boolean> {
-    const encoded = Buffer.from(mnemonic).toString('base64');
-    await this.prisma.user.update({
-      where: { publicKey },
-      data: { encryptedMnemonic: encoded },
-    });
-    this.logger.log(`Stored mnemonic for teacher: ${publicKey.substring(0, 8)}...`);
-    return true;
-  }
+  constructor(private prisma: PrismaService) {}
 
   /**
    * Check if a teacher has a stored mnemonic for auto-approve.
@@ -43,14 +32,15 @@ export class AutoAccessService {
   }
 
   /**
-   * Auto-approve an access request by creating access tokens server-side.
-   * Uses the teacher's stored mnemonic to create a Computer instance,
-   * mint a QuizAccess token, and create a partially-signed offer tx.
+   * Get auto-approve data for an access request.
+   * Returns the teacher's mnemonic and request details needed
+   * for the frontend to perform blockchain operations.
    */
-  async autoApprove(accessRequestId: string): Promise<{
+  async getAutoApproveData(accessRequestId: string): Promise<{
     status: string;
-    offerTxHex?: string;
-    accessTokenId?: string;
+    mnemonic?: string;
+    quizId?: string;
+    entryFee?: string;
     error?: string;
   }> {
     // 1. Load the access request
@@ -75,61 +65,13 @@ export class AutoAccessService {
 
     const mnemonic = Buffer.from(teacher.encryptedMnemonic, 'base64').toString('utf-8');
 
-    // 3. Create Computer + helpers and mint access token
-    try {
-      const chain = this.configService.get('BLOCKCHAIN_CHAIN', 'LTC');
-      const network = this.configService.get('BLOCKCHAIN_NETWORK', 'regtest');
-      const url = this.configService.get('BLOCKCHAIN_URL', 'http://localhost:1031');
-      const quizAccessMod = this.configService.get('NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC', '');
-      const quizAccessSaleMod = this.configService.get('NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC', '');
+    this.logger.log(`Returning auto-approve data for request ${accessRequestId}`);
 
-      if (!quizAccessMod || !quizAccessSaleMod) {
-        return { status: 'error', error: 'Module specs not configured on server' };
-      }
-
-      // Dynamic import to avoid issues with ESM/CJS
-      const { Computer } = await import('@bitcoin-computer/lib');
-      const { QuizAccessHelper, QuizAccessSaleHelper, PaymentMock } = await import('@quiz-app/contracts');
-
-      const computer = new Computer({ mnemonic, chain, network, url });
-      const accessHelper = new QuizAccessHelper(computer, quizAccessMod);
-      const saleHelper = new QuizAccessSaleHelper(computer, quizAccessSaleMod);
-
-      this.logger.log(`Auto-approving request ${accessRequestId} for quiz ${request.quizId}`);
-
-      // Step a: Mint a 1-unit QuizAccess token
-      const accessToken = await accessHelper.createQuizAccess(request.quizId, BigInt(1));
-      this.logger.log(`Minted QuizAccess: ${accessToken._id}`);
-
-      // Step b: Create a partially-signed offer tx
-      const entryFee = BigInt(request.entryFee || '0');
-      const mock = new PaymentMock(entryFee);
-      const offerEncoded = await saleHelper.createOfferTx(accessToken, mock);
-      const offerTxHex = offerEncoded.tx.toHex();
-
-      // 4. Update the access request with the offer
-      await this.prisma.accessRequest.update({
-        where: { id: accessRequestId },
-        data: {
-          status: 'approved',
-          offerTxHex,
-          accessTokenId: accessToken._id,
-        },
-      });
-
-      this.logger.log(`Auto-approved request ${accessRequestId}, offerTxHex length: ${offerTxHex.length}`);
-
-      return {
-        status: 'approved',
-        offerTxHex,
-        accessTokenId: accessToken._id,
-      };
-    } catch (err) {
-      this.logger.error(`Auto-approve failed for ${accessRequestId}:`, err);
-      return {
-        status: 'error',
-        error: err instanceof Error ? err.message : 'Unknown error during auto-approve',
-      };
-    }
+    return {
+      status: 'available',
+      mnemonic,
+      quizId: request.quizId,
+      entryFee: request.entryFee || '0',
+    };
   }
 }

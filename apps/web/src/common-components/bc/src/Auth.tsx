@@ -1,4 +1,4 @@
-import { Dispatch, useEffect, useRef, useState } from 'react'
+import { Dispatch, RefObject, useEffect, useRef, useState } from 'react'
 import { Computer } from '@bitcoin-computer/lib'
 import { initFlowbite } from 'flowbite'
 import { HiRefresh } from 'react-icons/hi'
@@ -303,7 +303,16 @@ function PathInput({ path, setPath }: { path: string; setPath: Dispatch<string> 
   )
 }
 
-function LoginButton({ mnemonic, chain, network, path, url, urlInputRef }: any) {
+interface LoginButtonProps {
+  mnemonic: string
+  chain: TBCChain | undefined
+  network: Network | undefined
+  path: string
+  url: string | undefined
+  urlInputRef: RefObject<HTMLInputElement | null>
+}
+
+function LoginButton({ mnemonic, chain, network, path, url, urlInputRef }: LoginButtonProps) {
   const { showSnackBar } = useUtilsComponents()
 
   const login = (e: React.MouseEvent<HTMLButtonElement>) => {

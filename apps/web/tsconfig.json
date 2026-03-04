@@ -30,6 +30,7 @@
       ],
       "@bitcoin-computer/lib": ["../../node_modules/@bitcoin-computer/lib"],
       "@bitcoin-computer/lib/*": ["../../node_modules/@bitcoin-computer/lib/*"],
+      "@quiz-app/contracts": ["../../packages/quiz-contracts/dist/src/index.js"],
       "@/common-components/*": [
         "./src/common-components/*"
       ],

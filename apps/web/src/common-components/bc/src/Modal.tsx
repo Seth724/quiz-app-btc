@@ -23,23 +23,37 @@ export const toggleModal = (id: string) => {
   getModal(id).toggle()
 }
 
-export const ShowModalButton = ({ id, text }: any) => (
+interface ModalButtonProps {
+  id: string
+  text: string
+}
+
+export const ShowModalButton = ({ id, text }: ModalButtonProps) => (
   <button data-modal-target={id} data-modal-show={id} type="button">
     {text}
   </button>
 )
 
-export const HideModalButton = ({ id, text }: any) => (
+export const HideModalButton = ({ id, text }: ModalButtonProps) => (
   <button data-modal-target={id} data-modal-hide={id} type="button">
     {text}
   </button>
 )
 
-export const ToggleModalButton = ({ id, text }: any) => (
+export const ToggleModalButton = ({ id, text }: ModalButtonProps) => (
   <button data-modal-target={id} data-modal-toggle={id} type="button">
     {text}
   </button>
 )
+
+interface ModalComponentProps {
+  title: string
+  content: (data?: unknown) => React.ReactNode
+  id: string
+  contentData?: unknown
+  onClickClose?: () => void
+  hideClose?: boolean
+}
 
 export const ModalComponent = ({
   title,
@@ -48,14 +62,7 @@ export const ModalComponent = ({
   id,
   onClickClose,
   hideClose,
-}: {
-  title: string
-  content: any
-  id: string
-  contentData?: any
-  onClickClose?: () => void
-  hideClose?: boolean
-}) => (
+}: ModalComponentProps) => (
   <div
     id={id}
     tabIndex={-1}

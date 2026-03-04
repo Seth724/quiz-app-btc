@@ -7,6 +7,7 @@ import { Drawer } from "./Drawer";
 import { useUtilsComponents } from "./UtilsContext";
 import { ComputerContext } from "./ComputerContext";
 import { bigIntToStr } from "./common/utils";
+import { CHAIN } from "@/config/env";
 
 const Balance = ({
   computer,

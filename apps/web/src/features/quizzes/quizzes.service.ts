@@ -46,9 +46,13 @@ export interface CreateQuizParams {
  * 2. Sync to DB
  */
 export async function createQuiz(
-  teacherClient: BrowserTeacherClient,
+  teacherClient: BrowserTeacherClient | null,
   params: CreateQuizParams
 ): Promise<Quiz> {
+  if (!teacherClient) {
+    throw new Error('Wallet not connected. Please connect your wallet first.')
+  }
+
   // Pre-check: ensure user is authenticated before spending blockchain resources
   const hasToken = typeof window !== 'undefined' && localStorage.getItem('quiz_app_token')
   if (!hasToken) {
@@ -129,7 +133,7 @@ export async function createQuiz(
  * Get quiz by ID — try DB first, fallback to blockchain
  */
 export async function getQuiz(
-  quizClient: BrowserQuizClient,
+  quizClient: BrowserQuizClient | null,
   quizId: string
 ): Promise<Quiz | null> {
   // Try DB first (fast)
@@ -137,6 +141,8 @@ export async function getQuiz(
     const dbQuiz = await quizService.getById(quizId)
     if (dbQuiz) return dbQuizToQuiz(dbQuiz)
   } catch { /* DB miss — fall through */ }
+
+  if (!quizClient) return null
 
   // Fallback to blockchain (slow)
   try {
@@ -152,7 +158,7 @@ export async function getQuiz(
  * List quizzes by teacher — DB-first
  */
 export async function listQuizzesByTeacher(
-  quizClient: BrowserQuizClient,
+  quizClient: BrowserQuizClient | null,
   teacherPublicKey: string
 ): Promise<Quiz[]> {
   // Try DB first
@@ -160,6 +166,8 @@ export async function listQuizzesByTeacher(
     const res = await quizService.list({ teacherPubKey: teacherPublicKey, take: 100 })
     if (res.data.length > 0) return res.data.map(dbQuizToQuiz)
   } catch { /* fall through */ }
+
+  if (!quizClient) return []
 
   // Fallback to blockchain
   try {
@@ -175,9 +183,12 @@ export async function listQuizzesByTeacher(
  * Deactivate quiz
  */
 export async function deactivateQuiz(
-  quizClient: BrowserQuizClient,
+  quizClient: BrowserQuizClient | null,
   quizId: string
 ): Promise<void> {
+  if (!quizClient) {
+    throw new Error('Wallet not connected. Please connect your wallet first.')
+  }
   try {
     await quizClient.deactivateQuiz(quizId)
     try { await quizService.update(quizId, { isActive: false }) } catch { /* ignore */ }
@@ -191,10 +202,11 @@ export async function deactivateQuiz(
  * Check if student can attempt quiz
  */
 export async function canAttemptQuiz(
-  quizClient: BrowserQuizClient,
+  quizClient: BrowserQuizClient | null,
   quizId: string,
   studentPublicKey: string
 ): Promise<boolean> {
+  if (!quizClient) return false
   try {
     return await quizClient.canStudentAttempt(quizId, studentPublicKey)
   } catch {
