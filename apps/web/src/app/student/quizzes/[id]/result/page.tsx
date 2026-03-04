@@ -21,7 +21,7 @@ export default function QuizResultPage() {
 
   useEffect(() => {
     const fetchAttempt = async () => {
-      if (attemptId) {
+      if (attemptId && attemptClient) {
         try {
           setLoading(true)
           const data = await getAttempt(attemptClient, attemptId)

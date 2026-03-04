@@ -153,6 +153,9 @@ export default function StudentPage() {
     setWithdrawing(true)
     setWithdrawResult(null)
     try {
+      if (!quizClient) {
+        throw new Error('Quiz client not connected')
+      }
       const result = await quizClient.withdrawAllPayments()
       if (result.count > 0) {
         setWithdrawResult(`Successfully withdrew ${formatSatoshis(result.totalWithdrawn)} LTC from ${result.count} payment(s)`)

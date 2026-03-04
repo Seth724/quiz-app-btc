@@ -125,10 +125,11 @@ export async function completeAccessRequest(
  * Check if student has access to quiz (on-chain check)
  */
 export async function hasAccess(
-  accessClient: BrowserAccessClient,
+  accessClient: BrowserAccessClient | null,
   studentId: string,
   quizId: string
 ): Promise<boolean> {
+  if (!accessClient) return false
   try {
     return await accessClient.checkAccess(studentId, quizId)
   } catch (error) {
@@ -140,10 +141,11 @@ export async function hasAccess(
  * Get access token ID for student-quiz pair
  */
 export async function getAccessTokenId(
-  accessClient: BrowserAccessClient,
+  accessClient: BrowserAccessClient | null,
   studentId: string,
   quizId: string
 ): Promise<string | null> {
+  if (!accessClient) return null
   try {
     return await accessClient.getAccessTokenId(studentId, quizId)
   } catch {

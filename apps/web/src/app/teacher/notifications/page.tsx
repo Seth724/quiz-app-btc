@@ -53,6 +53,10 @@ export default function TeacherNotificationsPage() {
       setApprovingId(notification.id)
       setError(null)
 
+      if (!accessClient) {
+        throw new Error('Access client not connected')
+      }
+
       console.log('🔐 [Teacher] Approving access request:', notification.id)
       console.log('🔐 [Teacher] Quiz:', notification.quizId, 'Student:', notification.studentPublicKey)
 

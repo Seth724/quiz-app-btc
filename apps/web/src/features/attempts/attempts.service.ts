@@ -111,9 +111,10 @@ export async function submitAttempt(
  * Get attempt by ID
  */
 export async function getAttempt(
-  attemptClient: BrowserAttemptClient,
+  attemptClient: BrowserAttemptClient | null,
   attemptId: string
 ): Promise<Attempt | null> {
+  if (!attemptClient) return null
   try {
     const attempt = await attemptClient.getAttempt(attemptId)
     return attempt

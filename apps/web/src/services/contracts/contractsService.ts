@@ -18,7 +18,7 @@ import { createComputerFromStorage } from '../sdk.factory'
 /**
  * Get Computer instance from storage (same as wallet)
  */
-export function getComputer(): Computer {
+export function getComputer(): Computer | null {
   return createComputerFromStorage()
 }
 
@@ -39,49 +39,53 @@ export function resetComputer(): void {
 /**
  * Get quiz-contracts helpers
  */
-export function getTeacherHelper(computer?: Computer): TeacherHelper {
-  return new TeacherHelper(computer || getComputer())
+export function getTeacherHelper(computer?: Computer | null): TeacherHelper {
+  if (!computer) throw new Error('Computer instance required')
+  return new TeacherHelper(computer)
 }
 
-export function getStudentHelper(computer?: Computer): StudentHelper {
-  return new StudentHelper(computer || getComputer())
+export function getStudentHelper(computer?: Computer | null): StudentHelper {
+  if (!computer) throw new Error('Computer instance required')
+  return new StudentHelper(computer)
 }
 
-export function getQuizHelper(computer?: Computer): QuizHelper {
-  return new QuizHelper(computer || getComputer())
+export function getQuizHelper(computer?: Computer | null): QuizHelper {
+  if (!computer) throw new Error('Computer instance required')
+  return new QuizHelper(computer)
 }
 
-export function getAccessHelper(computer?: Computer): QuizAccessHelper {
-  const comp = computer || getComputer()
-  return new QuizAccessHelper(comp, MODULE_SPECS.quizAccessMod)
+export function getAccessHelper(computer?: Computer | null): QuizAccessHelper {
+  if (!computer) throw new Error('Computer instance required')
+  return new QuizAccessHelper(computer, MODULE_SPECS.quizAccessMod)
 }
 
-export function getSaleHelper(computer?: Computer): QuizAccessSaleHelper {
-  const comp = computer || getComputer()
-  return new QuizAccessSaleHelper(comp, MODULE_SPECS.quizAccessSaleMod)
+export function getSaleHelper(computer?: Computer | null): QuizAccessSaleHelper {
+  if (!computer) throw new Error('Computer instance required')
+  return new QuizAccessSaleHelper(computer, MODULE_SPECS.quizAccessSaleMod)
 }
 
-export function getPaymentHelper(computer?: Computer): PaymentHelper {
-  const comp = computer || getComputer()
-  return new PaymentHelper(comp, MODULE_SPECS.paymentMod)
+export function getPaymentHelper(computer?: Computer | null): PaymentHelper {
+  if (!computer) throw new Error('Computer instance required')
+  return new PaymentHelper(computer, MODULE_SPECS.paymentMod)
 }
 
-export function getAttemptHelper(computer?: Computer): AttemptHelper {
-  return new AttemptHelper(computer || getComputer())
+export function getAttemptHelper(computer?: Computer | null): AttemptHelper {
+  if (!computer) throw new Error('Computer instance required')
+  return new AttemptHelper(computer)
 }
 
 /**
  * Get all helpers at once
  */
-export function getAllHelpers(computer?: Computer) {
-  const comp = computer || getComputer()
+export function getAllHelpers(computer?: Computer | null) {
+  if (!computer) throw new Error('Computer instance required')
   return {
-    teacher: getTeacherHelper(comp),
-    student: getStudentHelper(comp),
-    quiz: getQuizHelper(comp),
-    access: getAccessHelper(comp),
-    sale: getSaleHelper(comp),
-    payment: getPaymentHelper(comp),
-    attempt: getAttemptHelper(comp),
+    teacher: getTeacherHelper(computer),
+    student: getStudentHelper(computer),
+    quiz: getQuizHelper(computer),
+    access: getAccessHelper(computer),
+    sale: getSaleHelper(computer),
+    payment: getPaymentHelper(computer),
+    attempt: getAttemptHelper(computer),
   }
 }

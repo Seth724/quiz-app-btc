@@ -32,6 +32,10 @@ export function WithdrawButton({ payments, address, onSuccess }: WithdrawButtonP
         throw new Error('No payments to withdraw')
       }
 
+      if (!quizClient) {
+        throw new Error('Wallet not connected')
+      }
+
       const result = await quizClient.withdrawAllPayments()
       console.log(`Withdrawn ${result.totalWithdrawn} sats from ${result.count} payments`)
 

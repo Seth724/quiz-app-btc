@@ -44,6 +44,11 @@ export default function QuizDetailPage() {
 
     try {
       // 0. Check if student has already attempted this quiz
+      if (!attemptClient) {
+        console.warn('Attempt client not connected')
+        setFlowState('no-request')
+        return
+      }
       const alreadyAttempted = await attemptClient.hasStudentAttemptedQuiz(quizId, publicKey)
       if (alreadyAttempted) {
         setFlowState('already-attempted')
@@ -139,6 +144,10 @@ export default function QuizDetailPage() {
       setFinalizing(true)
       setFlowState('finalizing')
       setError(null)
+
+      if (!accessClient) {
+        throw new Error('Access client not connected')
+      }
 
       console.log('💳 [Student] Finalizing purchase for quiz:', quiz._id)
 
