@@ -47,7 +47,7 @@ services:
       - '28332:28332'
     volumes:
       - bcn-blockchain-data:/home/litecoin/.litecoin
-      - ./bcn-setup/litecoin.conf:/home/litecoin/.litecoin/litecoin.conf:ro
+      - ./bcn-setup/litecoin.conf:/home/litecoin/.litecoin/litecoin.conf
     networks:
       - bcn-network
 
