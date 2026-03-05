@@ -292,23 +292,33 @@ quiz-web          running (healthy)
 
 ## 8. Deploy Smart Contracts
 
-After the BCN node is running, deploy the smart contracts:
+After the BCN node is running and healthy, deploy the smart contracts:
 
 ```bash
 cd /opt/quizapp
 
-# Install dependencies locally (needed for contract deployment script)
+# Install dependencies locally (needed for contract deployment scripts)
 npm ci
 
 # Build contracts
 npm run build -w packages/quiz-contracts
 
-# Fund the deployment wallet first
-npx ts-node packages/quiz-contracts/scripts/fund-wallet.ts
+# Fund the deployment wallet (uses npm script which runs tsx)
+npm run fund:wallet -w packages/quiz-contracts
 
 # Deploy contracts
-npx ts-node packages/quiz-contracts/scripts/deploy.ts
+npm run deploy -w packages/quiz-contracts
 ```
+
+> **If `fund:wallet` fails with `getaddrinfo EAI_AGAIN bcn-node`:**
+> The faucet tries to reach the litecoin RPC via Docker-internal hostname.
+> Fund manually using litecoin-cli inside Docker instead:
+> ```bash
+> # First, run fund:wallet to see the wallet address (it prints it before failing)
+> npm run fund:wallet -w packages/quiz-contracts
+> # Copy the address from the output, then mine 101 blocks to it:
+> docker exec quiz-bitcoin-node litecoin-cli -regtest generatetoaddress 101 YOUR_WALLET_ADDRESS
+> ```
 
 The deploy script will output module spec hashes. Copy them and update both env files:
 

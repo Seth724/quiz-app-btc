@@ -12,8 +12,8 @@ const nextConfig: NextConfig = {
   // Skip TS errors during build (pre-existing type mismatches with @bitcoin-computer/lib)
   typescript: { ignoreBuildErrors: true },
 
-  // Only transpile bitcoin-computer/lib, NOT quiz-contracts (to avoid __name decoration issues)
-  transpilePackages: ['@bitcoin-computer/lib'],
+  // Do NOT transpile @bitcoin-computer/lib — it ships pre-compiled browser/node bundles.
+  // Re-transpiling its obfuscated code via SWC breaks computed method names like getOUTXOs.
   webpack: (config, { isServer }) => {
     // Alias @quiz-app/contracts to pre-compiled dist to avoid SWC __name issues
     config.resolve.alias = {
