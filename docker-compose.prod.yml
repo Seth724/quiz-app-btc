@@ -50,35 +50,6 @@ services:
     networks:
       - bcn-network
 
-  # One-shot: push Prisma schema to PostgreSQL (creates tables)
-  bcn-migrate:
-    image: bcdb/bcn:latest
-    container_name: quiz-bcn-migrate
-    working_dir: /dist/packages/node
-    command: >
-      sh -c '
-        echo "=== BCN Database Migration ===" &&
-        SCHEMA=$(find /dist -name "schema.prisma" -type f 2>/dev/null | head -1) &&
-        if [ -n "$SCHEMA" ]; then
-          echo "Found Prisma schema at: $SCHEMA" &&
-          cd "$(dirname "$SCHEMA")/.." &&
-          npx prisma db push --schema "$SCHEMA" --accept-data-loss --skip-generate 2>&1 &&
-          echo "Database tables created successfully."
-        else
-          echo "No Prisma schema found. Checking for SQL files..." &&
-          find /dist -name "*.sql" -type f 2>/dev/null | head -20 &&
-          echo "Manual schema creation may be needed."
-        fi
-      '
-    environment:
-      - DATABASE_URL=postgresql://bcn:bcn@bcn-db:5432/bcn
-    depends_on:
-      bcn-db:
-        condition: service_healthy
-    networks:
-      - bcn-network
-    restart: "no"
-
   bcn:
     image: bcdb/bcn:latest
     container_name: quiz-bcn
@@ -110,13 +81,12 @@ services:
       - POSTGRES_USER=bcn
       - POSTGRES_PASSWORD=bcn
       - POSTGRES_DB=bcn
+      - DATABASE_URL=postgresql://bcn:bcn@bcn-db:5432/bcn
     depends_on:
       bcn-db:
         condition: service_healthy
       bcn-node:
         condition: service_started
-      bcn-migrate:
-        condition: service_completed_successfully
     networks:
       - bcn-network
     volumes:
@@ -147,13 +117,12 @@ services:
       - POSTGRES_USER=bcn
       - POSTGRES_PASSWORD=bcn
       - POSTGRES_DB=bcn
+      - DATABASE_URL=postgresql://bcn:bcn@bcn-db:5432/bcn
     depends_on:
       bcn-db:
         condition: service_healthy
       bcn:
         condition: service_healthy
-      bcn-migrate:
-        condition: service_completed_successfully
     networks:
       - bcn-network
     volumes:

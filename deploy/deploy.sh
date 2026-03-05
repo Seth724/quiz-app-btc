@@ -82,10 +82,6 @@ docker compose -f docker-compose.prod.yml up -d bcn-db bcn-node
 echo "  Waiting for bcn-db to be healthy..."
 timeout 60 bash -c 'until docker compose -f docker-compose.prod.yml ps bcn-db | grep -q healthy; do sleep 2; done' || true
 
-echo "  Running BCN database migration..."
-docker compose -f docker-compose.prod.yml up bcn-migrate
-echo "  Migration complete."
-
 docker compose -f docker-compose.prod.yml up -d bcn bcn-sync
 
 echo "  Waiting for BCN to be healthy..."
