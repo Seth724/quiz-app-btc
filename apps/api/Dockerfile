@@ -109,4 +109,4 @@ EXPOSE 3002
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:3002/api/health || exit 1
 
-CMD ["node", "apps/api/dist/main.js"]
+CMD ["node", "apps/api/dist/src/main.js"]
