@@ -3,11 +3,13 @@
 # DEPLOYMENT (on GCP VPS):
 #   1. Clone repo:  git clone <repo-url> /opt/quizapp && cd /opt/quizapp
 #   2. Copy env:    cp .env.bcn.template .env.bcn  (edit if needed)
-#   3. Ensure .env.api and .env.web are present
-#   4. Build:       docker compose -f docker-compose.prod.yml build
-#   5. Start:       docker compose -f docker-compose.prod.yml up -d
-#   6. Deploy contracts: (after BCN is healthy)
-#   7. Update .env.web and .env.api with contract mod specs, then restart
+#   3. Copy env:    cp .env.api.template .env.api  (edit with your values)
+#   4. Copy env:    cp .env.web.template .env.web  (edit with your VPS public IP)
+#   5. Build web:   set -a && source .env.web && set +a && docker compose -f docker-compose.prod.yml build quiz-web
+#      NOTE: Must load .env.web into shell env before build (NEXT_PUBLIC_* vars are baked at build time)
+#   6. Start all:   docker compose -f docker-compose.prod.yml up -d
+#   7. Deploy contracts: (after BCN is healthy)
+#   8. Update .env.web and .env.api with contract mod specs, then rebuild web
 
 services:
   # ───────────────────────────────────────
@@ -48,6 +50,35 @@ services:
     networks:
       - bcn-network
 
+  # One-shot: push Prisma schema to PostgreSQL (creates tables)
+  bcn-migrate:
+    image: bcdb/bcn:latest
+    container_name: quiz-bcn-migrate
+    working_dir: /dist/packages/node
+    command: >
+      sh -c '
+        echo "=== BCN Database Migration ===" &&
+        SCHEMA=$(find /dist -name "schema.prisma" -type f 2>/dev/null | head -1) &&
+        if [ -n "$SCHEMA" ]; then
+          echo "Found Prisma schema at: $SCHEMA" &&
+          cd "$(dirname "$SCHEMA")/.." &&
+          npx prisma db push --schema "$SCHEMA" --accept-data-loss --skip-generate 2>&1 &&
+          echo "Database tables created successfully."
+        else
+          echo "No Prisma schema found. Checking for SQL files..." &&
+          find /dist -name "*.sql" -type f 2>/dev/null | head -20 &&
+          echo "Manual schema creation may be needed."
+        fi
+      '
+    environment:
+      - DATABASE_URL=postgresql://bcn:bcn@bcn-db:5432/bcn
+    depends_on:
+      bcn-db:
+        condition: service_healthy
+    networks:
+      - bcn-network
+    restart: "no"
+
   bcn:
     image: bcdb/bcn:latest
     container_name: quiz-bcn
@@ -84,6 +115,8 @@ services:
         condition: service_healthy
       bcn-node:
         condition: service_started
+      bcn-migrate:
+        condition: service_completed_successfully
     networks:
       - bcn-network
     volumes:
@@ -119,6 +152,8 @@ services:
         condition: service_healthy
       bcn:
         condition: service_healthy
+      bcn-migrate:
+        condition: service_completed_successfully
     networks:
       - bcn-network
     volumes:
@@ -167,11 +202,14 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      # IMPORTANT: Build args read from shell environment. Load .env.web first:
+      #   set -a && source .env.web && set +a
+      # Or use: docker compose --env-file .env.web build quiz-web
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3002/api}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
         NEXT_PUBLIC_CHAIN: ${NEXT_PUBLIC_CHAIN:-LTC}
         NEXT_PUBLIC_NETWORK: ${NEXT_PUBLIC_NETWORK:-regtest}
-        NEXT_PUBLIC_URL: ${NEXT_PUBLIC_URL:-http://localhost:1031}
+        NEXT_PUBLIC_URL: ${NEXT_PUBLIC_URL}
         NEXT_PUBLIC_TEACHER_MOD_SPEC: ${NEXT_PUBLIC_TEACHER_MOD_SPEC:-}
         NEXT_PUBLIC_STUDENT_MOD_SPEC: ${NEXT_PUBLIC_STUDENT_MOD_SPEC:-}
         NEXT_PUBLIC_QUIZ_MOD_SPEC: ${NEXT_PUBLIC_QUIZ_MOD_SPEC:-}
