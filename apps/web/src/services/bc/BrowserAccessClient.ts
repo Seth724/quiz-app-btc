@@ -231,6 +231,23 @@ export class BrowserAccessClient {
       console.log('  AccessToken _rev (post-swap):', accessToken?._rev)
       console.log('  Returning accessTokenId:', accessTokenId)
 
+      // Mine a block on regtest so the swap (including the teacher's entry-fee
+      // Payment) is confirmed. Without this, getOUTXOs returns 0 for the teacher
+      // after a browser refresh because the entry-fee Payment is unconfirmed.
+      if (BLOCKCHAIN_CONFIG.network === 'regtest') {
+        try {
+          await MineBlocks.mine(
+            BLOCKCHAIN_CONFIG.url,
+            BLOCKCHAIN_CONFIG.chain,
+            BLOCKCHAIN_CONFIG.network,
+            1
+          )
+          console.log('⛏️ [Student] Mined 1 block to confirm swap transaction')
+        } catch (mineErr) {
+          console.warn('⚠️ [Student] Failed to mine block (entry fee may not be visible after refresh):', mineErr)
+        }
+      }
+
       return {
         txId,
         accessTokenId,

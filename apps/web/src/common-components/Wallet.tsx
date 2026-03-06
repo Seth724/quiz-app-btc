@@ -24,7 +24,14 @@ const Balance = ({
     try {
       if (computer) {
         showLoader(true);
-        const publicKey = computer.getPublicKey();
+        // getPublicKey() may return a Buffer at runtime despite the string type declaration;
+        // cast through unknown to avoid TypeScript narrowing to never.
+        const publicKeyRaw = computer.getPublicKey() as unknown;
+        const publicKey = typeof publicKeyRaw === 'string'
+          ? publicKeyRaw
+          : Buffer.isBuffer(publicKeyRaw)
+            ? (publicKeyRaw as Buffer).toString('hex')
+            : String(publicKeyRaw);
         const dust = computer.db.wallet.getDustThreshold(false);
         const balances: bigint[] = await Promise.all(
           modSpecs.map(async (mod) => {

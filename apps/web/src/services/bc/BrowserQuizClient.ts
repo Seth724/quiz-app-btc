@@ -156,6 +156,24 @@ export class BrowserQuizClient {
       return { status: 'error', error: `Payment transfer failed: ${errMsg(err)}` }
     }
 
+    // Step 4: Mine a block on regtest so all reward transactions are confirmed.
+    // Without this, getOUTXOs only sees confirmed UTXOs and returns 0 after a
+    // browser refresh, making the student's reward invisible until the next
+    // external block is mined.
+    if (BLOCKCHAIN_CONFIG.network === 'regtest') {
+      try {
+        await MineBlocks.mine(
+          BLOCKCHAIN_CONFIG.url,
+          BLOCKCHAIN_CONFIG.chain,
+          BLOCKCHAIN_CONFIG.network,
+          1
+        )
+        console.log('⛏️ [AutoReward] Mined 1 block to confirm reward transactions')
+      } catch (mineErr) {
+        console.warn('⚠️ [AutoReward] Failed to mine block (payments may not be visible after refresh):', mineErr)
+      }
+    }
+
     console.log('✅ [AutoReward] Reward fully processed for quiz:', params.quizId)
     return { status: 'success' }
   }
