@@ -17,9 +17,9 @@ This package contains the core smart contracts that power the Quiz App decentral
 
 | Technology | Purpose |
 |------------|---------|
-| **Bitcoin Computer** | Blockchain abstraction layer for LTC/BTC |
+| **Bitcoin Computer 0.26** | Blockchain abstraction layer for LTC/BTC |
 | **TypeScript** | Type-safe contract development |
-| **Mocha + Chai** | Testing framework |
+| **Mocha 11 + Chai 5** | Testing framework |
 | **Node.js** | Runtime environment |
 
 ---
@@ -30,27 +30,27 @@ This package contains the core smart contracts that power the Quiz App decentral
 
 Manages teacher accounts, permissions, and quiz creation.
 
-**Methods:**
-- `createQuiz(quizData)` - Create a new quiz
-- `updateQuiz(quizId, updates)` - Update existing quiz
-- `deleteQuiz(quizId)` - Delete a quiz
-- `withdrawFees(quizId)` - Withdraw accumulated entry fees
-- `getTeacherQuizzes(teacherId)` - Get all quizzes by teacher
+**File:** `src/teacher.ts`
+
+**Key Methods:**
+- `create(quizData)` - Create a new quiz
+- `update(quizId, updates)` - Update existing quiz
+- `withdraw(quizId)` - Withdraw accumulated entry fees
+- `getQuizzes(teacherId)` - Get all quizzes by teacher
 
 ```typescript
-import { Teacher } from './src/teacher'
+import { Teacher } from './teacher'
 
-const teacher = new Teacher(moduleSpec)
+const teacher = new Teacher(computer, teacherModSpec)
 
 // Create a new quiz
-const quiz = await teacher.createQuiz({
+const quiz = await teacher.create({
   title: 'Bitcoin Basics',
   questionText: 'What does BTC stand for?',
   options: ['Bitcoin', 'Block Token', 'Binary Coin', 'Digital Cash'],
   correctAnswer: 0,
   rewardAmount: 10000n, // 10,000 satoshis
   entryFee: 1000n,     // 1,000 satoshis
-  teacher: teacherPublicKey,
 })
 ```
 
@@ -58,30 +58,24 @@ const quiz = await teacher.createQuiz({
 
 ### Student Contract
 
-Manages student accounts, enrollment, and quiz interactions.
+Manages student accounts and quiz interactions.
 
-**Methods:**
-- `registerStudent(studentData)` - Register new student
-- `purchaseAccess(quizId, price)` - Purchase quiz access token
-- `submitAttempt(quizId, answers)` - Submit quiz attempt
-- `getStudentAttempts(studentId)` - Get all attempts by student
-- `getStudentStats(studentId)` - Get student statistics
+**File:** `src/student.ts`
+
+**Key Methods:**
+- `register(studentData)` - Register new student
+- `attempt(quizId, answers)` - Submit quiz attempt
+- `getAttempts(studentId)` - Get all attempts by student
+- `getStats(studentId)` - Get student statistics
 
 ```typescript
-import { Student } from './src/student'
+import { Student } from './student'
 
-const student = new Student(moduleSpec)
-
-// Purchase access token via atomic swap
-const access = await student.purchaseAccess({
-  quizId: quizModuleId,
-  buyer: studentPublicKey,
-  price: 1000n,
-})
+const student = new Student(computer, studentModSpec)
 
 // Submit quiz attempt
-const attempt = await student.submitAttempt({
-  quizId: quizModuleId,
+const attempt = await student.attempt({
+  quizId: quiz.moduleId,
   answers: [0, 1, 2, 1, 0],
   student: studentPublicKey,
 })
@@ -93,148 +87,126 @@ const attempt = await student.submitAttempt({
 
 Defines quiz structure, questions, and state management.
 
-**Methods:**
+**File:** `src/quiz.ts`
+
+**Key Methods:**
 - `create(quizData)` - Create quiz
 - `update(updates)` - Update quiz details
-- `setStatus(status)` - Set quiz status (DRAFT, ACTIVE, CLOSED)
 - `getDetails()` - Get quiz details
 - `getQuestions()` - Get quiz questions
-- `getCorrectAnswers()` - Get correct answers (teacher only)
 
 ```typescript
-import { Quiz } from './src/quiz'
+import { Quiz } from './quiz'
 
-const quiz = new Quiz(moduleSpec)
+const quiz = new Quiz(computer, quizModSpec)
 
 // Get quiz details
 const details = await quiz.getDetails()
 console.log('Quiz:', details.title)
 console.log('Reward:', details.rewardAmount, 'satoshis')
-console.log('Entry Fee:', details.entryFee, 'satoshis')
-
-// Update quiz status
-await quiz.setStatus('ACTIVE')
 ```
 
 ---
 
-### Quiz Attempt Contract
+### QuizAttempt Contract
 
 Handles quiz attempt tracking and validation.
 
-**Methods:**
+**File:** `src/attempt.ts`
+
+**Key Methods:**
 - `create(attemptData)` - Create new attempt
 - `validate(answers)` - Validate answers
 - `getScore()` - Calculate score
 - `isCorrect()` - Check if passed
-- `distributeReward()` - Distribute reward if correct
 
 ```typescript
-import { Attempt } from './src/attempt'
+import { QuizAttempt } from './attempt'
 
-const attempt = new Attempt(moduleSpec)
+const attempt = new QuizAttempt(computer, attemptModSpec)
 
-// Create and validate attempt
+// Create attempt
 const result = await attempt.create({
-  quizId: quizModuleId,
+  quizId: quiz.moduleId,
   student: studentPublicKey,
   answers: [0, 1, 2, 1, 0],
 })
-
-// Get score
-const score = await attempt.getScore()
-console.log('Score:', score, '%')
-
-// Check if passed
-const passed = await attempt.isCorrect()
-if (passed) {
-  await attempt.distributeReward()
-}
 ```
 
 ---
 
 ### Payment Contract
 
-Manages payment processing, withdrawals, and fee distribution.
+Manages payment processing, transfers, and withdrawals.
 
-**Methods:**
-- `processPayment(paymentData)` - Process payment
+**File:** `src/payment.ts`
+
+**Key Methods:**
+- `transfer(from, to, amount)` - Transfer funds
 - `withdraw(amount, recipient)` - Withdraw funds
 - `getBalance(address)` - Get balance
-- `getTransactionHistory(address)` - Get transaction history
-- `distributeFees(recipients)` - Distribute fees
+- `getTransactions(address)` - Get transaction history
 
 ```typescript
-import { Payment } from './src/payment'
+import { Payment } from './payment'
 
-const payment = new Payment(moduleSpec)
+const payment = new Payment(computer, paymentModSpec)
 
-// Process payment for quiz access
-const tx = await payment.processPayment({
+// Transfer entry fee from student to teacher
+const tx = await payment.transfer({
   from: studentPublicKey,
   to: teacherPublicKey,
   amount: 1000n,
-  quizId: quizModuleId,
-})
-
-// Withdraw accumulated fees
-const withdrawal = await payment.withdraw({
-  amount: 50000n,
-  recipient: teacherPublicKey,
-  quizId: quizModuleId,
 })
 ```
 
 ---
 
-### Quiz Access Token Contract
+### QuizAccess Contract
 
 NFT-like tokens that grant quiz access.
 
-**Methods:**
+**File:** `src/quiz-access.ts`
+
+**Key Methods:**
 - `mint(quizId, owner)` - Mint access token
 - `transfer(tokenId, to)` - Transfer token
-- `burn(tokenId)` - Burn token
 - `getTokenOwner(tokenId)` - Get token owner
 - `getTokensByOwner(owner)` - Get all tokens by owner
 
 ```typescript
-import { QuizAccess } from './src/quiz-access'
+import { QuizAccess } from './quiz-access'
 
-const access = new QuizAccess(moduleSpec)
+const access = new QuizAccess(computer, accessModSpec)
 
 // Mint access token after payment
 const token = await access.mint({
-  quizId: quizModuleId,
+  quizId: quiz.moduleId,
   owner: studentPublicKey,
 })
-
-// Check ownership
-const owner = await access.getTokenOwner(token.moduleId)
-console.log('Token owner:', owner)
 ```
 
 ---
 
-### Quiz Access Sale Contract
+### QuizAccessSale Contract
 
 Handles atomic swap sales of access tokens.
 
-**Methods:**
-- `createSale(tokenId, price)` - Create sale listing
-- `cancelSale(saleId)` - Cancel sale
-- `purchase(saleId)` - Purchase token
+**File:** `src/quiz-access-sale.ts`
+
+**Key Methods:**
+- `create(tokenId, price)` - Create sale listing
+- `cancel(saleId)` - Cancel sale
+- `purchase(saleId)` - Purchase via atomic swap
 - `getSale(saleId)` - Get sale details
-- `getSalesByQuiz(quizId)` - Get all sales for quiz
 
 ```typescript
-import { QuizAccessSale } from './src/quiz-access-sale'
+import { QuizAccessSale } from './quiz-access-sale'
 
-const sale = new QuizAccessSale(moduleSpec)
+const sale = new QuizAccessSale(computer, saleModSpec)
 
 // Create sale listing
-const saleListing = await sale.createSale({
+const saleListing = await sale.create({
   tokenId: accessTokenId,
   price: 1000n,
   seller: sellerPublicKey,
@@ -251,42 +223,55 @@ const result = await sale.purchase({
 
 ## Helpers
 
-### QuizHelper
+Utility classes for common operations:
 
-Utility functions for quiz management.
+| Helper | File | Purpose |
+|--------|------|---------|
+| **TeacherHelper** | `helpers/teacher-helper.ts` | Teacher quiz operations |
+| **StudentHelper** | `helpers/student-helper.ts` | Student operations |
+| **QuizHelper** | `helpers/quiz-helper.ts` | Quiz utilities |
+| **AttemptHelper** | `helpers/attempt-helper.ts` | Attempt validation |
+| **PaymentHelper** | `helpers/payment-helper.ts` | Payment utilities |
+| **QuizAccessHelper** | `helpers/quiz-access-helper.ts` | Access token utilities |
+| **QuizAccessSaleHelper** | `helpers/quiz-access-sale-helper.ts` | Sale operations |
+| **LeaderboardHelper** | `helpers/leaderboard-helper.ts` | Leaderboard calculations |
+
+### Example: TeacherHelper
 
 ```typescript
-import { QuizHelper } from './src/helpers/quiz-helper'
+import { TeacherHelper } from './helpers/teacher-helper'
 
-// Validate quiz data
-const isValid = QuizHelper.validateQuizData(quizData)
-
-// Calculate reward distribution
-const distribution = QuizHelper.calculateRewardDistribution(
-  totalFees,
-  rewardAmount,
-  teacherShare
+// Create quiz using helper
+const quiz = await TeacherHelper.createQuiz(
+  computer,
+  teacherModSpec,
+  quizData
 )
 
-// Generate quiz module spec
-const spec = QuizHelper.generateModuleSpec(quizData)
+// Withdraw fees
+const withdrawal = await TeacherHelper.withdrawFees(
+  computer,
+  teacherModSpec,
+  quizId
+)
 ```
 
-### PaymentHelper
-
-Payment processing utilities.
+### Example: LeaderboardHelper
 
 ```typescript
-import { PaymentHelper } from './src/helpers/payment-helper'
+import { LeaderboardHelper } from './helpers/leaderboard-helper'
 
-// Format satoshis to readable format
-const formatted = PaymentHelper.formatSats(10000n) // "10,000 sats"
+// Calculate rewards for quiz
+const rewards = await LeaderboardHelper.calculateRewards(
+  computer,
+  quizId
+)
 
-// Calculate entry fee with platform cut
-const fees = PaymentHelper.calculateFees(entryFee, platformPercentage)
-
-// Validate payment transaction
-const isValid = PaymentHelper.validatePayment(tx, expectedAmount)
+// Get quiz results
+const results: QuizResult[] = await LeaderboardHelper.getQuizResults(
+  computer,
+  quizId
+)
 ```
 
 ---
@@ -302,15 +287,11 @@ npm install
 ### 2. Set Up Environment
 
 ```bash
-# Copy environment template
+# Copy environment template from root
 cp ../../.env.bcn.template .env
-
-# Edit with your configuration
-# - Blockchain connection details
-# - Wallet keys for deployment
 ```
 
-### 3. Compile Contracts
+### 3. Build Contracts
 
 ```bash
 npm run build
@@ -322,13 +303,17 @@ npm run build
 # Run all tests
 npm test
 
-# Run specific test file
-npm test -- test/teacher.test.ts
+# Run specific test
+npm run test:teacher
+npm run test:student
+npm run test:quiz
+npm run test:attempt
+npm run test:payment
 
-# Run tests in watch mode
-npm run test:watch
+# Run integration tests
+npm run test:integration
 
-# Run tests with coverage
+# Run with coverage
 npm run test:cov
 ```
 
@@ -338,16 +323,8 @@ npm run test:cov
 # Deploy all contracts
 npm run deploy
 
-# Deploy specific contract
-npm run deploy:teacher
-npm run deploy:student
-npm run deploy:quiz
-
-# Deploy to regtest (local)
-npm run deploy:regtest
-
-# Deploy to testnet
-npm run deploy:testnet
+# Fund wallet first (if needed)
+npm run fund:wallet
 ```
 
 ---
@@ -358,14 +335,19 @@ npm run deploy:testnet
 
 ```
 test/
-├── teacher.test.ts       # Teacher contract tests
-├── student.test.ts       # Student contract tests
-├── quiz.test.ts          # Quiz contract tests
-├── attempt.test.ts       # Attempt contract tests
-├── payment.test.ts       # Payment contract tests
-├── access.test.ts        # Access token tests
-├── access-sale.test.ts   # Access sale tests
-└── integration.test.ts   # Integration tests
+├── teacher.test.ts           # Teacher contract tests
+├── student.test.ts           # Student contract tests
+├── quiz.test.ts              # Quiz contract tests
+├── quiz-attempt.test.ts      # Attempt contract tests
+├── payment.test.ts           # Payment contract tests
+├── payment-transfer.test.ts  # Transfer tests
+├── payment-withdrawal.test.ts# Withdrawal tests
+├── quiz-access.test.ts       # Access token tests
+├── quiz-access-sale.test.ts  # Access sale tests
+├── quiz-attempt-swap.test.ts # Swap mechanism tests
+├── integration.test.ts       # Integration tests
+├── comprehensive-flow.test.ts # End-to-end flow tests
+└── leaderboard-system.test.ts # Leaderboard tests
 ```
 
 ### Example Test
@@ -378,7 +360,7 @@ describe('Teacher Contract', () => {
   let teacher: Teacher
 
   beforeEach(async () => {
-    teacher = new Teacher(teacherModuleSpec)
+    teacher = new Teacher(computer, teacherModSpec)
   })
 
   it('should create a quiz', async () => {
@@ -391,13 +373,13 @@ describe('Teacher Contract', () => {
       entryFee: 1000n,
     }
 
-    const quiz = await teacher.createQuiz(quizData)
+    const quiz = await teacher.create(quizData)
     expect(quiz).to.exist
     expect(quiz.title).to.equal('Test Quiz')
   })
 
   it('should withdraw accumulated fees', async () => {
-    const withdrawal = await teacher.withdrawFees(quizId)
+    const withdrawal = await teacher.withdraw(quizId)
     expect(withdrawal.txId).to.exist
     expect(withdrawal.amount).to.be.greaterThan(0n)
   })
@@ -410,29 +392,29 @@ describe('Teacher Contract', () => {
 
 ### Module Specifications
 
-After deployment, you'll receive module specifications to add to your environment:
+After deployment, you'll receive module specs to add to your environment:
 
 ```env
-NEXT_PUBLIC_TEACHER_MOD=<deployed-module-id>
-NEXT_PUBLIC_STUDENT_MOD=<deployed-module-id>
-NEXT_PUBLIC_QUIZ_MOD=<deployed-module-id>
-NEXT_PUBLIC_QUIZ_ATTEMPT_MOD=<deployed-module-id>
-NEXT_PUBLIC_PAYMENT_MOD=<deployed-module-id>
-NEXT_PUBLIC_QUIZ_ACCESS_MOD=<deployed-module-id>
-NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD=<deployed-module-id>
+# .env.api and .env.web
+NEXT_PUBLIC_TEACHER_MOD_SPEC=<module-spec>
+NEXT_PUBLIC_STUDENT_MOD_SPEC=<module-spec>
+NEXT_PUBLIC_QUIZ_MOD_SPEC=<module-spec>
+NEXT_PUBLIC_QUIZ_ATTEMPT_MOD_SPEC=<module-spec>
+NEXT_PUBLIC_PAYMENT_MOD_SPEC=<module-spec>
+NEXT_PUBLIC_QUIZ_ACCESS_MOD_SPEC=<module-spec>
+NEXT_PUBLIC_QUIZ_ACCESS_SALE_MOD_SPEC=<module-spec>
 ```
 
-### Deployment Script
+### Deploy Script
 
 ```bash
-# Full deployment with funding
-npm run deploy:full
+# Full deployment
+npm run deploy
 
 # This will:
-# 1. Deploy all contracts
-# 2. Fund wallets with test coins
+# 1. Build contracts
+# 2. Deploy all contracts to blockchain
 # 3. Output module specifications
-# 4. Update environment file (optional)
 ```
 
 ---
@@ -443,19 +425,15 @@ npm run deploy:full
 |---------|-------------|
 | `npm run build` | Compile TypeScript contracts |
 | `npm test` | Run all tests |
-| `npm run test:watch` | Run tests in watch mode |
-| `npm run test:cov` | Run tests with coverage report |
+| `npm run test:teacher` | Run teacher contract tests |
+| `npm run test:student` | Run student contract tests |
+| `npm run test:quiz` | Run quiz contract tests |
+| `npm run test:attempt` | Run attempt contract tests |
+| `npm run test:payment` | Run payment contract tests |
+| `npm run test:integration` | Run integration tests |
 | `npm run deploy` | Deploy all contracts |
-| `npm run deploy:teacher` | Deploy teacher contract |
-| `npm run deploy:student` | Deploy student contract |
-| `npm run deploy:quiz` | Deploy quiz contract |
-| `npm run deploy:attempt` | Deploy attempt contract |
-| `npm run deploy:payment` | Deploy payment contract |
-| `npm run deploy:access` | Deploy access token contract |
-| `npm run deploy:access-sale` | Deploy access sale contract |
 | `npm run fund:wallet` | Fund wallet for testing |
 | `npm run lint` | Run ESLint |
-| `npm run lint:fix` | Fix ESLint errors |
 
 ---
 
@@ -471,27 +449,23 @@ packages/quiz-contracts/
 │   ├── payment.ts              # Payment contract
 │   ├── quiz-access.ts          # Access token contract
 │   ├── quiz-access-sale.ts     # Access sale contract
-│   └── helpers/
-│       ├── quiz-helper.ts      # Quiz utilities
-│       ├── payment-helper.ts   # Payment utilities
-│       └── index.ts            # Helper exports
+│   ├── helpers/                # Helper utilities
+│   │   ├── teacher-helper.ts
+│   │   ├── student-helper.ts
+│   │   ├── quiz-helper.ts
+│   │   ├── attempt-helper.ts
+│   │   ├── payment-helper.ts
+│   │   ├── quiz-access-helper.ts
+│   │   ├── quiz-access-sale-helper.ts
+│   │   └── leaderboard-helper.ts
+│   ├── types/                  # TypeScript types
+│   └── utils/                  # Utilities
 │
-├── test/
-│   ├── teacher.test.ts
-│   ├── student.test.ts
-│   ├── quiz.test.ts
-│   ├── attempt.test.ts
-│   ├── payment.test.ts
-│   ├── access.test.ts
-│   ├── access-sale.test.ts
-│   └── integration.test.ts
+├── test/                       # Test files
+├── scripts/                    # Deployment scripts
+│   └── deploy.mjs
 │
-├── scripts/
-│   ├── deploy.ts               # Deployment script
-│   ├── fund-wallets.ts         # Wallet funding script
-│   └── utils.ts                # Deployment utilities
-│
-├── dist/                       # Compiled output (generated)
+├── dist/                       # Compiled output
 ├── package.json
 └── README.md
 ```
@@ -502,32 +476,30 @@ packages/quiz-contracts/
 
 ### Module Specifications
 
-A module spec is the deployed contract identifier on-chain. It contains:
-- Module ID (unique address)
-- Chain (LTC/BTC)
-- Network (regtest/testnet/mainnet)
-- Contract code hash
+A module spec is the deployed contract identifier on-chain:
+- Contains module ID, chain, network, and code hash
+- Used to instantiate contract instances
 
 ### Atomic Swaps
 
-Trustless peer-to-peer exchanges without intermediaries. Used for:
-- Purchasing quiz access tokens
-- Trading access tokens between students
-- Withdrawing rewards
+Trustless peer-to-peer exchanges:
+- Used for purchasing quiz access tokens
+- No intermediary required
+- Both parties must sign
 
 ### UTXO Model
 
-Bitcoin's Unspent Transaction Output model:
+Bitcoin's Unspent Transaction Output:
 - Each transaction consumes previous outputs
 - Creates new outputs for recipients
 - Enables parallel transaction processing
 
 ### Regtest Network
 
-Local regression testing network:
+Local regression testing:
 - Instant block generation
 - No real cryptocurrency required
-- Safe for development & testing
+- Safe for development
 
 ---
 
@@ -552,4 +524,4 @@ If you encounter any issues or have questions:
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](../../LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

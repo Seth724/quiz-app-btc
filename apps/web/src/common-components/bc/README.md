@@ -1,23 +1,15 @@
-<div align="center">
-  <h1>Bitcoin Computer Components</h1>
-  <p>
-    A component library for smart contract driven applications
-    <br />
-    <a href="http://bitcoincomputer.io/">website</a> · <a href="http://docs.bitcoincomputer.io/">docs</a>
-  </p>
-</div>
+# Bitcoin Computer Components
+
+Reusable React components for building smart contract-driven applications with Bitcoin Computer.
+
+🌐 **Live Demo:** https://quizapp.sethna.me/  
+📂 **Source Code:** https://github.com/Seth724/quiz-app-btc/tree/quiz-app-21
 
 ---
 
 ## Overview
 
-This package contains reusable React components built on top of the Bitcoin Computer SDK. These components simplify building decentralized applications (dApps) by providing pre-built UI elements for common blockchain interactions.
-
-## Installation
-
-```bash
-npm install @bitcoin-computer/components
-```
+This package contains pre-built React components that simplify building decentralized applications (dApps) on Bitcoin Computer. These components handle common blockchain interactions like wallet connection, smart object display, and transaction viewing.
 
 ## Components
 
@@ -25,18 +17,20 @@ npm install @bitcoin-computer/components
 
 Login and logout functionality with wallet connection.
 
+**File:** `Auth.tsx`
+
 ```typescript
 import { Auth } from '@/common-components/bc'
 
-function MyApp() {
-  return <Auth onLogin={(keys) => console.log('Logged in:', keys)} />
+function Header() {
+  return <Auth />
 }
 ```
 
-**Props:**
-- `onLogin` - Callback when user logs in (receives keys)
-- `onLogout` - Callback when user logs out
-- `className` - Custom CSS class
+**Features:**
+- Generate new wallet or import existing
+- Display connected public key
+- Handle login/logout state
 
 ---
 
@@ -44,19 +38,21 @@ function MyApp() {
 
 Deposit, manage, and display cryptocurrency balance.
 
+**File:** `Wallet.tsx`
+
 ```typescript
 import { Wallet } from '@/common-components/bc'
 
 function Dashboard() {
-  return <Wallet publicKey={publicKey} />
+  return <Wallet />
 }
 ```
 
-**Props:**
-- `publicKey` - User's public key
-- `onDeposit` - Callback when deposit occurs
-- `onWithdraw` - Callback when withdrawal occurs
-- `showBalance` - Toggle balance visibility
+**Features:**
+- Display balance (LTC/BTC)
+- Deposit address display
+- Withdraw functionality
+- Transaction history
 
 ---
 
@@ -64,37 +60,63 @@ function Dashboard() {
 
 Displays a grid of smart objects (quizzes, tokens, etc.).
 
+**File:** `Gallery.tsx`
+
 ```typescript
 import { Gallery } from '@/common-components/bc'
 
-function QuizGallery() {
-  return <Gallery moduleIds={quizModuleIds} />
+function QuizList({ quizIds }: { quizIds: string[] }) {
+  return <Gallery moduleIds={quizIds} />
 }
 ```
 
-**Props:**
-- `moduleIds` - Array of module IDs to display
-- `gridCols` - Number of columns (default: 3)
-- `onSelect` - Callback when item is selected
+**Features:**
+- Grid layout of smart objects
+- Click to view details
+- Automatic data fetching
 
 ---
 
 ### SmartObject
 
-Displays a smart object and provides a form for each of its methods.
+Displays a smart object and provides forms for its methods.
+
+**File:** `SmartObject.tsx`
 
 ```typescript
 import { SmartObject } from '@/common-components/bc'
 
-function QuizDetail({ moduleId }) {
+function QuizDetail({ moduleId }: { moduleId: string }) {
   return <SmartObject moduleId={moduleId} />
 }
 ```
 
-**Props:**
-- `moduleId` - The module ID to display
-- `showMethods` - Toggle method forms visibility
-- `onMethodCall` - Callback when method is called
+**Features:**
+- Display smart object properties
+- Interactive method forms
+- Real-time state updates
+
+---
+
+### SmartObjectFunction
+
+Renders a single method form for a smart object.
+
+**File:** `SmartObjectFunction.tsx`
+
+```typescript
+import { SmartObjectFunction } from '@/common-components/bc'
+
+function CreateQuizButton() {
+  return (
+    <SmartObjectFunction
+      moduleId={teacherModSpec}
+      functionName="create"
+      buttonText="Create Quiz"
+    />
+  )
+}
+```
 
 ---
 
@@ -102,24 +124,28 @@ function QuizDetail({ moduleId }) {
 
 Displays a transaction including its Bitcoin Computer expression.
 
+**File:** `Transaction.tsx`
+
 ```typescript
 import { Transaction } from '@/common-components/bc'
 
-function TransactionHistory() {
-  return <Transaction txId={transactionId} />
+function TransactionHistory({ txId }: { txId: string }) {
+  return <Transaction txId={txId} />
 }
 ```
 
-**Props:**
-- `txId` - Transaction ID to display
-- `showDetails` - Toggle detailed view
-- `showExpression` - Toggle Bitcoin Computer expression
+**Features:**
+- Transaction details
+- BCN expression display
+- Input/output breakdown
 
 ---
 
 ### Modal
 
-Reusable modal window component.
+Reusable modal dialog component.
+
+**File:** `Modal.tsx`
 
 ```typescript
 import { Modal } from '@/common-components/bc'
@@ -136,53 +162,178 @@ function ConfirmDialog({ isOpen, onClose, onConfirm }) {
 }
 ```
 
-**Props:**
-- `isOpen` - Control modal visibility
-- `onClose` - Callback when modal is closed
-- `title` - Modal title
-- `children` - Modal content
+---
+
+### Drawer
+
+Side drawer component for navigation.
+
+**File:** `Drawer.tsx`
+
+```typescript
+import { Drawer } from '@/common-components/bc'
+
+function MobileNav() {
+  return <Drawer isOpen={isOpen} onClose={setIsOpen} />
+}
+```
+
+---
+
+### Additional UI Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| **Button** | `Button.tsx` | Styled button component |
+| **Card** | `Card.tsx` | Card container |
+| **AppLoader** | `AppLoader.tsx` | App loading state |
+| **Loader** | `Loader.tsx` | Generic loader |
+| **Err** | `Err.tsx` | Error display |
+| **Error404** | `Error404.tsx` | 404 page |
+| **SnackBar** | `SnackBar.tsx` | Toast notifications |
+| **Missing** | `Missing.tsx` | Missing state |
+
+---
+
+## Layout Components
+
+### Navbar
+
+Top navigation bar.
+
+**File:** `layout/Navbar.tsx`
+
+```typescript
+import { Navigation } from '@/common-components/layout'
+
+function App() {
+  return (
+    <>
+      <Navigation />
+      <main>{children}</main>
+    </>
+  )
+}
+```
 
 ---
 
 ## Usage in Quiz App
 
-These components are used throughout the Quiz App for blockchain interactions:
+### App Layout
 
 ```typescript
-// src/app/layout.tsx
-import { Auth, Wallet } from '@/common-components/bc'
+// apps/web/src/app/layout.tsx
+import { Navigation } from '@/common-components/layout'
+import { Providers } from './providers'
 
-function RootLayout({ children }) {
+export default function RootLayout({ children }) {
   return (
     <html>
       <body>
-        <Header>
-          <Auth />
-          <Wallet showBalance />
-        </Header>
-        {children}
+        <Providers>
+          <Navigation />
+          {children}
+        </Providers>
       </body>
     </html>
   )
 }
+```
 
-// src/features/quizzes/components/QuizList.tsx
+### Quiz Gallery
+
+```typescript
+// apps/web/src/app/gallery/page.tsx
 import { Gallery } from '@/common-components/bc'
 
-function QuizList({ quizIds }) {
-  return <Gallery moduleIds={quizIds} gridCols={4} />
-}
+export default function GalleryPage() {
+  const [quizIds, setQuizIds] = useState<string[]>([])
 
-// src/features/quizzes/components/QuizDetail.tsx
-import { SmartObject, Transaction } from '@/common-components/bc'
-
-function QuizDetail({ moduleId, txId }) {
   return (
-    <div>
-      <SmartObject moduleId={moduleId} />
-      <Transaction txId={txId} showDetails />
+    <div className="container mx-auto p-4">
+      <h1>Quiz Gallery</h1>
+      <Gallery moduleIds={quizIds} />
     </div>
   )
+}
+```
+
+### Wallet Page
+
+```typescript
+// apps/web/src/app/wallet/page.tsx
+import { Wallet } from '@/common-components/bc'
+
+export default function WalletPage() {
+  return (
+    <div className="container mx-auto p-4">
+      <h1>Wallet</h1>
+      <Wallet />
+    </div>
+  )
+}
+```
+
+### Transaction History
+
+```typescript
+// apps/web/src/app/transactions/page.tsx
+import { Transaction } from '@/common-components/bc'
+
+export default function TransactionsPage() {
+  const [transactions, setTransactions] = useState<string[]>([])
+
+  return (
+    <div className="container mx-auto p-4">
+      <h1>Transactions</h1>
+      {transactions.map((txId) => (
+        <Transaction key={txId} txId={txId} />
+      ))}
+    </div>
+  )
+}
+```
+
+---
+
+## Context Providers
+
+### ComputerContext
+
+Provides Bitcoin Computer instance to all components.
+
+**File:** `ComputerContext.tsx`
+
+```typescript
+// apps/web/src/app/providers.tsx
+'use client'
+
+import { ComputerProvider } from '@/common-components/bc'
+
+export function Providers({ children }) {
+  return (
+    <ComputerProvider>
+      {children}
+    </ComputerProvider>
+  )
+}
+```
+
+### UtilsContext
+
+Provides utility functions.
+
+**File:** `UtilsContext.tsx`
+
+```typescript
+import { useContext } from 'react'
+import { UtilsContext } from '@/common-components/bc'
+
+function MyComponent() {
+  const { formatSats, shortenAddress } = useContext(UtilsContext)
+
+  return <div>{formatSats(10000n)}</div>
 }
 ```
 
@@ -202,19 +353,15 @@ npm run build
 npm run lint
 ```
 
-### Type Check
-
-```bash
-npm run types
-```
-
 ---
 
 ## Dependencies
 
-- `react` >= 18.0.0
-- `@bitcoin-computer/core` - Bitcoin Computer SDK
-- `zustand` - State management (optional)
+- `react` >= 19.0.0
+- `next` >= 16.0.10
+- `@bitcoin-computer/lib` - Bitcoin Computer SDK
+- `zustand` - State management
+- `flowbite` - UI components
 
 ---
 
@@ -237,12 +384,4 @@ See the Quiz App for complete usage examples:
 
 ## License
 
-This software is licensed under the MIT License. See the [LICENSE.md](./LICENSE.md) file.
-
-> **Note:** This software includes patented technology that requires payment for use on mainnet or production environments. Please review the [LEGAL.md](./LEGAL.md) file for details on patent usage and payment requirements.
-
----
-
-## Contributing
-
-Contributions are welcome! Please see the main repository for contribution guidelines.
+This software is licensed under the MIT License. See the [LICENSE](../../../LICENSE) file.
